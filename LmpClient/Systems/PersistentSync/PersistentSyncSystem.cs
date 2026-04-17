@@ -16,13 +16,21 @@ namespace LmpClient.Systems.PersistentSync
             PersistentSyncDomainId.Funds,
             PersistentSyncDomainId.Science,
             PersistentSyncDomainId.Reputation,
+            PersistentSyncDomainId.Strategy,
+            PersistentSyncDomainId.Achievements,
+            PersistentSyncDomainId.ScienceSubjects,
+            PersistentSyncDomainId.Technology,
+            PersistentSyncDomainId.ExperimentalParts,
+            PersistentSyncDomainId.PartPurchases,
             PersistentSyncDomainId.UpgradeableFacilities,
             PersistentSyncDomainId.Contracts
         };
 
         private static readonly PersistentSyncDomainId[] ScienceDomains =
         {
-            PersistentSyncDomainId.Science
+            PersistentSyncDomainId.Science,
+            PersistentSyncDomainId.ScienceSubjects,
+            PersistentSyncDomainId.Technology
         };
 
         public override string SystemName { get; } = nameof(PersistentSyncSystem);
@@ -39,6 +47,12 @@ namespace LmpClient.Systems.PersistentSync
                 [PersistentSyncDomainId.Funds] = new FundsPersistentSyncClientDomain(),
                 [PersistentSyncDomainId.Science] = new SciencePersistentSyncClientDomain(),
                 [PersistentSyncDomainId.Reputation] = new ReputationPersistentSyncClientDomain(),
+                [PersistentSyncDomainId.Strategy] = new StrategyPersistentSyncClientDomain(),
+                [PersistentSyncDomainId.Achievements] = new AchievementsPersistentSyncClientDomain(),
+                [PersistentSyncDomainId.ScienceSubjects] = new ScienceSubjectsPersistentSyncClientDomain(),
+                [PersistentSyncDomainId.Technology] = new TechnologyPersistentSyncClientDomain(),
+                [PersistentSyncDomainId.ExperimentalParts] = new ExperimentalPartsPersistentSyncClientDomain(),
+                [PersistentSyncDomainId.PartPurchases] = new PartPurchasesPersistentSyncClientDomain(),
                 [PersistentSyncDomainId.UpgradeableFacilities] = new UpgradeableFacilitiesPersistentSyncClientDomain(),
                 [PersistentSyncDomainId.Contracts] = new ContractsPersistentSyncClientDomain()
             };

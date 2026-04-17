@@ -9,6 +9,7 @@ using Server.Client;
 using Server.System;
 using Server.System.PersistentSync;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.Serialization;
 using System.Text;
@@ -269,6 +270,167 @@ namespace ServerPersistentSyncTest
         }
 
         [TestMethod]
+        public void TechnologyDomainLoadsPersistsAndReturnsSnapshot()
+        {
+            var basicRocketry = CreateTechnologySnapshotInfo("basicRocketry", "Available", 5, "liquidEngine");
+            var engineering101 = CreateTechnologySnapshotInfo("engineering101", "Available", 15, "radialDecoupler", "stackSeparator");
+
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateResearchAndDevelopmentScenario(basicRocketry, engineering101);
+            var store = new TechnologyPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var initialSnapshot = TechnologySnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+            Assert.AreEqual(2, initialSnapshot.Count);
+            Assert.AreEqual("basicRocketry", initialSnapshot[0].TechId);
+
+            var advRocketry = CreateTechnologySnapshotInfo("advRocketry", "Available", 45, "advLiquidEngine");
+            var mutationPayload = TechnologySnapshotPayloadSerializer.Serialize(new[] { advRocketry });
+            var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Unlock advRocketry");
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+            Assert.AreEqual(1L, result.Snapshot.Revision);
+
+            var persistedScenarioText = ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].ToString();
+            StringAssert.Contains(persistedScenarioText, "id = basicRocketry");
+            StringAssert.Contains(persistedScenarioText, "id = engineering101");
+            StringAssert.Contains(persistedScenarioText, "id = advRocketry");
+
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
+            ScenarioStoreSystem.CurrentScenarios["Reputation"] = CreateScenario("rep", "1");
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario();
+            PersistentSyncRegistry.Initialize(false);
+            PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainId.Technology, store);
+
+            var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Technology }).Single();
+            var registryTechnologies = TechnologySnapshotPayloadSerializer.Deserialize(registrySnapshot.Payload, registrySnapshot.NumBytes);
+            Assert.AreEqual(3, registryTechnologies.Count);
+            Assert.IsTrue(registryTechnologies.Any(technology => technology.TechId == "advRocketry"));
+        }
+
+        [TestMethod]
+        public void TechnologyDomainNoRevisionIncrementOnEquivalentMutation()
+        {
+            var basicRocketry = CreateTechnologySnapshotInfo("basicRocketry", "Available", 5, "liquidEngine");
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateResearchAndDevelopmentScenario(basicRocketry);
+            var store = new TechnologyPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var mutationPayload = TechnologySnapshotPayloadSerializer.Serialize(new[] { CreateTechnologySnapshotInfo("basicRocketry", "Available", 5, "liquidEngine") });
+            var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "No-op");
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsFalse(result.Changed);
+            Assert.AreEqual(0L, result.Snapshot.Revision);
+        }
+
+        [TestMethod]
+        public void StrategyDomainLoadsPersistsAndReturnsSnapshot()
+        {
+            ScenarioStoreSystem.CurrentScenarios["StrategySystem"] = CreateStrategyScenario(
+                CreateStrategySnapshotInfo("BailoutGrant", 0.25f, true),
+                CreateStrategySnapshotInfo("recovery", 0.5f, false));
+
+            var store = new StrategyPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var initialSnapshot = StrategySnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload);
+            Assert.AreEqual(2, initialSnapshot.Length);
+
+            var mutationPayload = StrategySnapshotPayloadSerializer.Serialize(new[] { CreateStrategySnapshotInfo("recovery", 0.75f, true) });
+            var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Activate recovery");
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+            Assert.AreEqual(1L, result.Snapshot.Revision);
+            StringAssert.Contains(ScenarioStoreSystem.CurrentScenarios["StrategySystem"].ToString(), "factor = 0.75");
+            StringAssert.Contains(ScenarioStoreSystem.CurrentScenarios["StrategySystem"].ToString(), "isActive = True");
+        }
+
+        [TestMethod]
+        public void AchievementsDomainLoadsPersistsAndReturnsSnapshot()
+        {
+            ScenarioStoreSystem.CurrentScenarios["ProgressTracking"] = CreateAchievementsScenario(
+                CreateAchievementSnapshotInfo("Kerbin", "Complete"),
+                CreateAchievementSnapshotInfo("Mun", "Incomplete"));
+
+            var store = new AchievementsPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var mutationPayload = AchievementSnapshotPayloadSerializer.Serialize(new[] { CreateAchievementSnapshotInfo("Duna", "Complete") });
+            var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Reach Duna");
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+            Assert.AreEqual(1L, result.Snapshot.Revision);
+            var scenarioText = ScenarioStoreSystem.CurrentScenarios["ProgressTracking"].ToString();
+            StringAssert.Contains(scenarioText, "Kerbin");
+            StringAssert.Contains(scenarioText, "Mun");
+            StringAssert.Contains(scenarioText, "Duna");
+        }
+
+        [TestMethod]
+        public void ScienceSubjectsDomainLoadsPersistsAndReturnsSnapshot()
+        {
+            var basicRocketry = CreateTechnologySnapshotInfo("basicRocketry", "Available", 5);
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateResearchAndDevelopmentScenarioWithScience(
+                new[] { basicRocketry },
+                new[] { CreateScienceSubjectSnapshotInfo("crewReport@KerbinSrfLandedLaunchPad", 1f, 5f) });
+
+            var store = new ScienceSubjectsPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var initialSnapshot = ScienceSubjectSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload);
+            Assert.AreEqual(1, initialSnapshot.Length);
+
+            var mutationPayload = ScienceSubjectSnapshotPayloadSerializer.Serialize(new[] { CreateScienceSubjectSnapshotInfo("evaReport@MunInSpaceHigh", 2f, 8f) });
+            var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Mun EVA");
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+            Assert.AreEqual(1L, result.Snapshot.Revision);
+            StringAssert.Contains(ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].ToString(), "evaReport@MunInSpaceHigh");
+        }
+
+        [TestMethod]
+        public void ExperimentalPartsAndPartPurchasesDomainsPersistSeparateRDOwnership()
+        {
+            var basicRocketry = CreateTechnologySnapshotInfo("basicRocketry", "Available", 5);
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateResearchAndDevelopmentScenarioWithScience(new[] { basicRocketry }, Array.Empty<ScienceSubjectSnapshotInfo>());
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].AddNode(new ConfigNode("ExpParts\n{\n liquidEngine = 1\n}\n"));
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].GetNode("Tech").Value.CreateValue(new CfgNodeValue<string, string>("part", "liquidEngine"));
+
+            var experimentalStore = new ExperimentalPartsPersistentSyncDomainStore();
+            experimentalStore.LoadFromPersistence(false);
+            var partPurchasesStore = new PartPurchasesPersistentSyncDomainStore();
+            partPurchasesStore.LoadFromPersistence(false);
+
+            var experimentalPayload = ExperimentalPartsSnapshotPayloadSerializer.Serialize(new[] { new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 } });
+            var experimentalResult = experimentalStore.ApplyServerMutation(experimentalPayload, experimentalPayload.Length, "More stock");
+            Assert.IsTrue(experimentalResult.Accepted);
+            Assert.IsTrue(experimentalResult.Changed);
+
+            var purchasePayload = PartPurchasesSnapshotPayloadSerializer.Serialize(new[]
+            {
+                new PartPurchaseSnapshotInfo
+                {
+                    TechId = "basicRocketry",
+                    PartNames = new[] { "liquidEngine", "solidBooster" }
+                }
+            });
+            var purchaseResult = partPurchasesStore.ApplyServerMutation(purchasePayload, purchasePayload.Length, "Buy part");
+            Assert.IsTrue(purchaseResult.Accepted);
+            Assert.IsTrue(purchaseResult.Changed);
+
+            var scenarioText = ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].ToString();
+            StringAssert.Contains(scenarioText, "ExpParts");
+            StringAssert.Contains(scenarioText, "liquidEngine = 2");
+            StringAssert.Contains(scenarioText, "part = liquidEngine");
+            StringAssert.Contains(scenarioText, "part = solidBooster");
+        }
+
+        [TestMethod]
         public void ApplyClientIntentWithAuthority_AnyClientIntent_AcceptsAndUpdatesCanonicalState()
         {
             ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
@@ -469,6 +631,48 @@ namespace ServerPersistentSyncTest
             return new ConfigNode(builder.ToString());
         }
 
+        private static ConfigNode CreateResearchAndDevelopmentScenario(params TechnologySnapshotInfo[] technologies)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("name = ResearchAndDevelopment");
+            builder.AppendLine("scene = 5, 6, 7, 8");
+
+            foreach (var technology in technologies.OrderBy(t => t.TechId))
+            {
+                builder.AppendLine("Tech");
+                builder.AppendLine("{");
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(technology.Data, 0, technology.NumBytes), "    "));
+                builder.AppendLine("}");
+            }
+
+            return new ConfigNode(builder.ToString());
+        }
+
+        private static ConfigNode CreateResearchAndDevelopmentScenarioWithScience(IEnumerable<TechnologySnapshotInfo> technologies, IEnumerable<ScienceSubjectSnapshotInfo> subjects)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("name = ResearchAndDevelopment");
+            builder.AppendLine("scene = 5, 6, 7, 8");
+
+            foreach (var technology in (technologies ?? Array.Empty<TechnologySnapshotInfo>()).OrderBy(t => t.TechId))
+            {
+                builder.AppendLine("Tech");
+                builder.AppendLine("{");
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(technology.Data, 0, technology.NumBytes), "    "));
+                builder.AppendLine("}");
+            }
+
+            foreach (var subject in (subjects ?? Array.Empty<ScienceSubjectSnapshotInfo>()).OrderBy(s => s.Id))
+            {
+                builder.AppendLine("Science");
+                builder.AppendLine("{");
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(subject.Data, 0, subject.NumBytes), "    "));
+                builder.AppendLine("}");
+            }
+
+            return new ConfigNode(builder.ToString());
+        }
+
         private static ContractSnapshotInfo CreateContractSnapshotInfo(Guid contractGuid, string state, ContractSnapshotPlacement placement, int order, string parameterState, string parameterValues)
         {
             var serializedContract = $@"guid = {contractGuid}
@@ -495,6 +699,98 @@ PARAM
                 ContractState = state,
                 Placement = placement,
                 Order = order,
+                NumBytes = data.Length,
+                Data = data
+            };
+        }
+
+        private static TechnologySnapshotInfo CreateTechnologySnapshotInfo(string techId, string state, int scienceCost, params string[] partsPurchased)
+        {
+            var lines = new[]
+            {
+                $"id = {techId}",
+                $"state = {state}",
+                $"cost = {scienceCost}"
+            }.Concat((partsPurchased ?? Array.Empty<string>()).Select(part => $"part = {part}"));
+
+            var serializedTech = string.Join("\n", lines) + "\n";
+            var data = Encoding.UTF8.GetBytes(serializedTech);
+            return new TechnologySnapshotInfo
+            {
+                TechId = techId,
+                NumBytes = data.Length,
+                Data = data
+            };
+        }
+
+        private static ConfigNode CreateStrategyScenario(params StrategySnapshotInfo[] strategies)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("name = StrategySystem");
+            builder.AppendLine("scene = 7");
+            builder.AppendLine("STRATEGIES");
+            builder.AppendLine("{");
+
+            foreach (var strategy in strategies.OrderBy(value => value.Name))
+            {
+                builder.AppendLine("STRATEGY");
+                builder.AppendLine("{");
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(strategy.Data, 0, strategy.NumBytes), "    "));
+                builder.AppendLine("}");
+            }
+
+            builder.AppendLine("}");
+            return new ConfigNode(builder.ToString());
+        }
+
+        private static StrategySnapshotInfo CreateStrategySnapshotInfo(string name, float factor, bool isActive)
+        {
+            var serialized = $"name = {name}\nfactor = {factor.ToString(CultureInfo.InvariantCulture)}\nisActive = {isActive}\n";
+            var data = Encoding.UTF8.GetBytes(serialized);
+            return new StrategySnapshotInfo
+            {
+                Name = name,
+                NumBytes = data.Length,
+                Data = data
+            };
+        }
+
+        private static ConfigNode CreateAchievementsScenario(params AchievementSnapshotInfo[] achievements)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("name = ProgressTracking");
+            builder.AppendLine("scene = 7");
+            builder.AppendLine("Progress");
+            builder.AppendLine("{");
+
+            foreach (var achievement in achievements.OrderBy(value => value.Id))
+            {
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(achievement.Data, 0, achievement.NumBytes), "    "));
+            }
+
+            builder.AppendLine("}");
+            return new ConfigNode(builder.ToString());
+        }
+
+        private static AchievementSnapshotInfo CreateAchievementSnapshotInfo(string id, string state)
+        {
+            var serialized = $"{id}\n{{\n state = {state}\n}}\n";
+            var data = Encoding.UTF8.GetBytes(serialized);
+            return new AchievementSnapshotInfo
+            {
+                Id = id,
+                NumBytes = data.Length,
+                Data = data
+            };
+        }
+
+        private static ScienceSubjectSnapshotInfo CreateScienceSubjectSnapshotInfo(string id, float science, float scienceCap)
+        {
+            var serialized = $"id = {id}\nscience = {science.ToString(CultureInfo.InvariantCulture)}\nscienceCap = {scienceCap.ToString(CultureInfo.InvariantCulture)}\n";
+            var data = Encoding.UTF8.GetBytes(serialized);
+            return new ScienceSubjectSnapshotInfo
+            {
+                Id = id,
                 NumBytes = data.Length,
                 Data = data
             };

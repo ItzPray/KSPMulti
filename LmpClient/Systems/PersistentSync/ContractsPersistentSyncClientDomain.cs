@@ -68,7 +68,7 @@ namespace LmpClient.Systems.PersistentSync
                 ShareContractsSystem.Singleton.StopIgnoringEvents();
             }
 
-            GameEvents.Contract.onContractsListChanged.Fire();
+            ShareContractsSystem.Singleton.RefreshContractUiAdapters("PersistentSyncSnapshotApply");
             _pendingContracts = null;
             return PersistentSyncApplyOutcome.Applied;
         }

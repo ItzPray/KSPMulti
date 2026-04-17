@@ -1,6 +1,9 @@
-﻿using LmpClient.Events;
+﻿using HarmonyLib;
+using LmpClient.Events;
 using LmpClient.Systems.ShareProgress;
+using LmpClient.Systems.ShareTechnology;
 using LmpCommon.Enums;
+using System.Collections.Generic;
 
 namespace LmpClient.Systems.ShareExperimentalParts
 {
@@ -32,6 +35,13 @@ namespace LmpClient.Systems.ShareExperimentalParts
             //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
             ExperimentalPartEvent.onExperimentalPartRemoved.Remove(ShareExperimentalPartsEvents.ExperimentalPartRemoved);
             ExperimentalPartEvent.onExperimentalPartAdded.Remove(ShareExperimentalPartsEvents.ExperimentalPartAdded);
+        }
+
+        public void ReplaceExperimentalPartsStock(Dictionary<AvailablePart, int> stock, string source)
+        {
+            Traverse.Create(ResearchAndDevelopment.Instance).Field("experimentalPartsStock").SetValue(stock);
+            ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentUiAdapters(source);
+            LunaLog.Log($"Experimental parts snapshot applied from {source} count={stock.Count}");
         }
     }
 }

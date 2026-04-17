@@ -1,6 +1,7 @@
 ﻿using KSP.UI.Screens;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareCareer;
 using LmpClient.Systems.ShareFunds;
 using LmpCommon.Message.Data.ShareProgress;
@@ -18,6 +19,11 @@ namespace LmpClient.Systems.SharePurchaseParts
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.PartPurchase) return;
+            if (PersistentSyncSystem.Singleton.Enabled)
+            {
+                LunaLog.LogWarning("[LMP] Ignoring legacy PartPurchase because persistent sync owns part-purchase convergence.");
+                return;
+            }
 
             if (msgData is ShareProgressPartPurchaseMsgData data)
             {

@@ -1,9 +1,12 @@
 ﻿using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Network;
+using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
+using LmpCommon.PersistentSync;
+using System.Linq;
 
 namespace LmpClient.Systems.SharePurchaseParts
 {
@@ -16,6 +19,25 @@ namespace LmpClient.Systems.SharePurchaseParts
 
         public void SendPartPurchasedMessage(string techId, string partName)
         {
+            if (PersistentSyncSystem.Singleton.Enabled)
+            {
+                var techState = ResearchAndDevelopment.Instance?.GetTechState(techId);
+                if (techState == null)
+                {
+                    return;
+                }
+
+                PersistentSyncSystem.Singleton.MessageSender.SendPartPurchasesIntent(new[]
+                {
+                    new PartPurchaseSnapshotInfo
+                    {
+                        TechId = techId,
+                        PartNames = techState.partsPurchased.Where(part => part != null).Select(part => part.name).Distinct().ToArray()
+                    }
+                }, $"PartPurchase:{techId}:{partName}");
+                return;
+            }
+
             var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressPartPurchaseMsgData>();
             msgData.PartName = partName;
             msgData.TechId = techId;

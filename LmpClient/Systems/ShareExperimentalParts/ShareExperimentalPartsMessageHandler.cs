@@ -2,6 +2,7 @@
 using KSP.UI.Screens;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareCareer;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
@@ -19,6 +20,11 @@ namespace LmpClient.Systems.ShareExperimentalParts
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.ExperimentalPart) return;
+            if (PersistentSyncSystem.Singleton.Enabled)
+            {
+                LunaLog.LogWarning("[LMP] Ignoring legacy ExperimentalPart because persistent sync owns experimental-parts convergence.");
+                return;
+            }
 
             if (msgData is ShareProgressExperimentalPartMsgData data)
             {

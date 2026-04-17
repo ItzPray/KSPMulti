@@ -1,6 +1,9 @@
 ﻿using HarmonyLib;
 using LmpClient.Events;
+using LmpClient.Systems.ShareFunds;
 using LmpClient.Systems.ShareProgress;
+using LmpClient.Systems.ShareReputation;
+using LmpClient.Systems.ShareScience;
 using LmpCommon.Enums;
 using System.Linq;
 
@@ -82,6 +85,31 @@ namespace LmpClient.Systems.ShareAchievements
             else
             {
                 ProgressTracking.Instance.achievementTree.Load(_lastAchievements);
+            }
+        }
+
+        public void ApplyAchievementSnapshotTree(ConfigNode snapshotTree, string source)
+        {
+            if (snapshotTree == null)
+            {
+                return;
+            }
+
+            StartIgnoringEvents();
+            ShareFundsSystem.Singleton.StartIgnoringEvents();
+            ShareScienceSystem.Singleton.StartIgnoringEvents();
+            ShareReputationSystem.Singleton.StartIgnoringEvents();
+            try
+            {
+                ProgressTracking.Instance.achievementTree.Load(snapshotTree);
+                LunaLog.Log($"Achievements snapshot applied from {source}");
+            }
+            finally
+            {
+                ShareFundsSystem.Singleton.StopIgnoringEvents(true);
+                ShareScienceSystem.Singleton.StopIgnoringEvents(true);
+                ShareReputationSystem.Singleton.StopIgnoringEvents(true);
+                StopIgnoringEvents();
             }
         }
     }

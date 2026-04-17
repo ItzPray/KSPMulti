@@ -77,10 +77,10 @@ namespace Server.System
                 }
 
                 if (PersistentSyncRegistry.IsPersistentSyncInitialized &&
-                    (s == "Funding" || s == "Reputation") &&
+                    (s == "Funding" || s == "Reputation" || s == "StrategySystem" || s == "ProgressTracking" || s == "ResearchAndDevelopment") &&
                     !PersistentSyncRegistry.ShouldSkipServerScenarioSync(s))
                 {
-                    LunaLog.Error($"[PersistentSync] scenario bypass guard: Funding/Reputation module '{s}' would be sent via generic scenario sync while persistent sync is active; excluding from send.");
+                    LunaLog.Error($"[PersistentSync] scenario bypass guard: module '{s}' would be sent via generic scenario sync while persistent sync is active; excluding from send.");
                     return null;
                 }
 

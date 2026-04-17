@@ -2,13 +2,13 @@
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareFunds;
 using LmpClient.Systems.ShareReputation;
 using LmpClient.Systems.ShareScience;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
-using Strategies;
 using System;
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -23,6 +23,11 @@ namespace LmpClient.Systems.ShareStrategy
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.StrategyUpdate) return;
+            if (PersistentSyncSystem.Singleton.Enabled)
+            {
+                LunaLog.LogWarning("[LMP] Ignoring legacy StrategyUpdate because persistent sync owns strategy convergence.");
+                return;
+            }
 
             if (msgData is ShareProgressStrategyMsgData data)
             {
@@ -30,56 +35,26 @@ namespace LmpClient.Systems.ShareStrategy
                 LunaLog.Log($"Queue StrategyUpdate with: {strategy.Name}");
                 System.QueueAction(() =>
                 {
-                    StrategyUpdate(strategy);
+                    ApplyStrategySnapshot(strategy.Name, strategy.Data, strategy.NumBytes, "LegacyShareProgressFallback", true);
                 });
             }
         }
 
-        private static void StrategyUpdate(StrategyInfo strategyInfo)
+        public static bool ApplyStrategySnapshot(string strategyName, byte[] data, int numBytes, string source, bool refreshUi)
         {
-            var incomingStrategyNode = ConvertByteArrayToConfigNode(strategyInfo.Data, strategyInfo.NumBytes);
-            if (incomingStrategyNode == null) return;
-            var incomingStrategyFactor = float.Parse(incomingStrategyNode.GetValue("factor"), CultureInfo.InvariantCulture);
-            var incomingStrategyIsActive = bool.Parse(incomingStrategyNode.GetValue("isActive"));
-
-            //Don't listen to these events for the time this message is processing.
-            System.StartIgnoringEvents();
-            ShareFundsSystem.Singleton.StartIgnoringEvents();
-            ShareScienceSystem.Singleton.StartIgnoringEvents();
-            ShareReputationSystem.Singleton.StartIgnoringEvents();
-
-            var strategyIndex = StrategySystem.Instance.Strategies.FindIndex(s => s.Config.Name == strategyInfo.Name);
-            if (strategyIndex != -1)
+            return ShareStrategySystem.Singleton.ApplyStrategySnapshot(new LmpCommon.PersistentSync.StrategySnapshotInfo
             {
-                if (incomingStrategyIsActive)
-                {
-                    StrategySystem.Instance.Strategies[strategyIndex].Factor = incomingStrategyFactor;
-                    StrategySystem.Instance.Strategies[strategyIndex].Activate();   //could somehow throw an exception if the player was not yet in the strategy building.
-                    LunaLog.Log($"StrategyUpdate received - strategy activated: {strategyInfo.Name}  - with factor: {incomingStrategyFactor}");
-                }
-                else
-                {
-                    StrategySystem.Instance.Strategies[strategyIndex].Factor = incomingStrategyFactor;
-                    StrategySystem.Instance.Strategies[strategyIndex].Deactivate(); //could somehow throw an exception if the player was not yet in the strategy building.
-                    LunaLog.Log($"StrategyUpdate received - strategy deactivated: {strategyInfo.Name}  - with factor: {incomingStrategyFactor}");
-                }
-            }
-
-            if (Administration.Instance) Administration.Instance.RedrawPanels();
-
-            //Listen to the events again. Restore funds, science and reputation in case the contract action changed some of that.
-            ShareFundsSystem.Singleton.StopIgnoringEvents(true);
-            ShareScienceSystem.Singleton.StopIgnoringEvents(true);
-            ShareReputationSystem.Singleton.StopIgnoringEvents(true);
-            GameEvents.Contract.onContractsListChanged.Fire();
-            System.StopIgnoringEvents();
+                Name = strategyName,
+                Data = data,
+                NumBytes = numBytes
+            }, source, refreshUi);
         }
 
         /// <summary>
         /// Convert a byte array to a ConfigNode.
         /// If anything goes wrong it will return null.
         /// </summary>
-        private static ConfigNode ConvertByteArrayToConfigNode(byte[] data, int numBytes)
+        public static ConfigNode ConvertByteArrayToConfigNode(byte[] data, int numBytes)
         {
             ConfigNode node;
             try

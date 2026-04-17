@@ -3,9 +3,11 @@ using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
 using LmpClient.Network;
+using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
+using LmpCommon.PersistentSync;
 using System;
 
 namespace LmpClient.Systems.ShareAchievements
@@ -36,6 +38,20 @@ namespace LmpClient.Systems.ShareAchievements
             {
                 var configNode = ConvertAchievementToConfigNode(foundNode);
                 if (configNode == null) return;
+
+                if (PersistentSyncSystem.Singleton.Enabled)
+                {
+                    PersistentSyncSystem.Singleton.MessageSender.SendAchievementsIntent(new[]
+                    {
+                        new AchievementSnapshotInfo
+                        {
+                            Id = foundNode.Id,
+                            Data = configNode.Serialize(),
+                            NumBytes = configNode.Serialize().Length
+                        }
+                    }, $"AchievementUpdate:{foundNode.Id}");
+                    return;
+                }
 
                 //Build the packet and send it.
                 var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressAchievementsMsgData>();

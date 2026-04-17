@@ -63,5 +63,41 @@ namespace LmpClient.Systems.PersistentSync
             var payload = ContractSnapshotPayloadSerializer.Serialize(contracts);
             SendIntent(PersistentSyncDomainId.Contracts, System.GetKnownRevision(PersistentSyncDomainId.Contracts), payload, reason);
         }
+
+        public void SendTechnologyIntent(TechnologySnapshotInfo[] technologies, string reason)
+        {
+            var payload = TechnologySnapshotPayloadSerializer.Serialize(technologies);
+            SendIntent(PersistentSyncDomainId.Technology, System.GetKnownRevision(PersistentSyncDomainId.Technology), payload, reason);
+        }
+
+        public void SendStrategyIntent(StrategySnapshotInfo[] strategies, string reason)
+        {
+            var payload = StrategySnapshotPayloadSerializer.Serialize(strategies);
+            SendIntent(PersistentSyncDomainId.Strategy, System.GetKnownRevision(PersistentSyncDomainId.Strategy), payload, reason);
+        }
+
+        public void SendAchievementsIntent(AchievementSnapshotInfo[] achievements, string reason)
+        {
+            var payload = AchievementSnapshotPayloadSerializer.Serialize(achievements);
+            SendIntent(PersistentSyncDomainId.Achievements, System.GetKnownRevision(PersistentSyncDomainId.Achievements), payload, reason);
+        }
+
+        public void SendScienceSubjectsIntent(ScienceSubjectSnapshotInfo[] subjects, string reason)
+        {
+            var payload = ScienceSubjectSnapshotPayloadSerializer.Serialize(subjects);
+            SendIntent(PersistentSyncDomainId.ScienceSubjects, System.GetKnownRevision(PersistentSyncDomainId.ScienceSubjects), payload, reason);
+        }
+
+        public void SendExperimentalPartsIntent(ExperimentalPartSnapshotInfo[] parts, string reason)
+        {
+            var payload = ExperimentalPartsSnapshotPayloadSerializer.Serialize(parts);
+            SendIntent(PersistentSyncDomainId.ExperimentalParts, System.GetKnownRevision(PersistentSyncDomainId.ExperimentalParts), payload, reason);
+        }
+
+        public void SendPartPurchasesIntent(PartPurchaseSnapshotInfo[] purchases, string reason)
+        {
+            var payload = PartPurchasesSnapshotPayloadSerializer.Serialize(purchases);
+            SendIntent(PersistentSyncDomainId.PartPurchases, System.GetKnownRevision(PersistentSyncDomainId.PartPurchases), payload, reason);
+        }
     }
 }

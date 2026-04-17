@@ -1,5 +1,7 @@
 ﻿using LmpClient.Systems.ShareProgress;
+using LmpClient.Systems.ShareTechnology;
 using LmpCommon.Enums;
+using System.Collections.Generic;
 
 namespace LmpClient.Systems.SharePurchaseParts
 {
@@ -30,6 +32,11 @@ namespace LmpClient.Systems.SharePurchaseParts
 
             //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
             GameEvents.OnPartPurchased.Remove(SharePurchasePartsEvents.PartPurchased);
+        }
+
+        public void RefreshPurchaseUiAdapters(string source)
+        {
+            ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentUiAdapters(source);
         }
     }
 }

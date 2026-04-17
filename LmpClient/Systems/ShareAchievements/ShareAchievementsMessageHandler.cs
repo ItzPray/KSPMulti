@@ -1,6 +1,7 @@
 ﻿using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareFunds;
 using LmpClient.Systems.ShareReputation;
 using LmpClient.Systems.ShareScience;
@@ -20,6 +21,11 @@ namespace LmpClient.Systems.ShareAchievements
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.AchievementsUpdate) return;
+            if (PersistentSyncSystem.Singleton.Enabled)
+            {
+                LunaLog.LogWarning("[LMP] Ignoring legacy AchievementsUpdate because persistent sync owns achievements convergence.");
+                return;
+            }
 
             if (msgData is ShareProgressAchievementsMsgData data)
             {

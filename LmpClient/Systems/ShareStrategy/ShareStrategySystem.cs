@@ -1,7 +1,14 @@
-﻿using LmpClient.Events;
+﻿using KSP.UI.Screens;
+using LmpClient.Events;
+using LmpClient.Systems.ShareFunds;
 using LmpClient.Systems.ShareProgress;
+using LmpClient.Systems.ShareReputation;
+using LmpClient.Systems.ShareScience;
 using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
 using Strategies;
+using System;
+using System.Globalization;
 using UnityEngine;
 
 namespace LmpClient.Systems.ShareStrategy
@@ -36,6 +43,64 @@ namespace LmpClient.Systems.ShareStrategy
             //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
             StrategyEvent.onStrategyActivated.Remove(ShareStrategiesEvents.StrategyActivated);
             StrategyEvent.onStrategyDeactivated.Remove(ShareStrategiesEvents.StrategyDeactivated);
+        }
+
+        public void RefreshStrategyUiAdapters(string source)
+        {
+            if (Administration.Instance) Administration.Instance.RedrawPanels();
+            GameEvents.Contract.onContractsListChanged.Fire();
+        }
+
+        public bool ApplyStrategySnapshot(StrategySnapshotInfo strategyInfo, string source, bool refreshUi)
+        {
+            var incomingStrategyNode = ShareStrategyMessageHandler.ConvertByteArrayToConfigNode(strategyInfo.Data, strategyInfo.NumBytes);
+            if (incomingStrategyNode == null) return false;
+            var incomingStrategyFactor = float.Parse(incomingStrategyNode.GetValue("factor"), CultureInfo.InvariantCulture);
+            var incomingStrategyIsActive = bool.Parse(incomingStrategyNode.GetValue("isActive"));
+
+            StartIgnoringEvents();
+            ShareFundsSystem.Singleton.StartIgnoringEvents();
+            ShareScienceSystem.Singleton.StartIgnoringEvents();
+            ShareReputationSystem.Singleton.StartIgnoringEvents();
+            try
+            {
+                var strategyIndex = StrategySystem.Instance.Strategies.FindIndex(s => s.Config.Name == strategyInfo.Name);
+                if (strategyIndex == -1)
+                {
+                    return false;
+                }
+
+                StrategySystem.Instance.Strategies[strategyIndex].Factor = incomingStrategyFactor;
+                if (incomingStrategyIsActive)
+                {
+                    StrategySystem.Instance.Strategies[strategyIndex].Activate();
+                    LunaLog.Log($"Strategy snapshot applied from {source}: strategy activated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
+                }
+                else
+                {
+                    StrategySystem.Instance.Strategies[strategyIndex].Deactivate();
+                    LunaLog.Log($"Strategy snapshot applied from {source}: strategy deactivated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
+                }
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[LMP]: Error while applying strategy snapshot {strategyInfo.Name} from {source}: {e}");
+                return false;
+            }
+            finally
+            {
+                ShareFundsSystem.Singleton.StopIgnoringEvents(true);
+                ShareScienceSystem.Singleton.StopIgnoringEvents(true);
+                ShareReputationSystem.Singleton.StopIgnoringEvents(true);
+                StopIgnoringEvents();
+            }
+
+            if (refreshUi)
+            {
+                RefreshStrategyUiAdapters(source);
+            }
+
+            return true;
         }
     }
 }

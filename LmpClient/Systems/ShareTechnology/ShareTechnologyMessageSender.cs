@@ -2,10 +2,14 @@
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
 using LmpClient.Network;
+using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
+using LmpCommon.PersistentSync;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace LmpClient.Systems.ShareTechnology
 {
@@ -18,6 +22,19 @@ namespace LmpClient.Systems.ShareTechnology
 
         public void SendTechnologyMessage(RDTech tech)
         {
+            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            {
+                var technologies = CreateCurrentTechnologySnapshot();
+                if (technologies.Count == 0)
+                {
+                    return;
+                }
+
+                var reason = $"TechnologyUnlock:{tech.techID}";
+                PersistentSyncSystem.Singleton.MessageSender.SendTechnologyIntent(technologies.ToArray(), reason);
+                return;
+            }
+
             var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressTechnologyMsgData>();
             msgData.TechNode.Id = tech.techID;
 
@@ -44,11 +61,6 @@ namespace LmpClient.Systems.ShareTechnology
                 configNode.AddValue("id", techNode.techID);
                 configNode.AddValue("state", techNode.state);
                 configNode.AddValue("cost", techNode.scienceCost);
-
-                foreach (var part in techNode.partsPurchased)
-                {
-                    configNode.AddValue("part", part.name);
-                }
             }
             catch (Exception e)
             {
@@ -57,6 +69,39 @@ namespace LmpClient.Systems.ShareTechnology
             }
 
             return configNode;
+        }
+
+        private static List<TechnologySnapshotInfo> CreateCurrentTechnologySnapshot()
+        {
+            var technologies = new List<TechnologySnapshotInfo>();
+            if (ResearchAndDevelopment.Instance == null || AssetBase.RnDTechTree == null)
+            {
+                return technologies;
+            }
+
+            foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(t => t != null))
+            {
+                var techState = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
+                if (techState == null || techState.state == RDTech.State.Unavailable)
+                {
+                    continue;
+                }
+
+                var configNode = new ConfigNode();
+                configNode.AddValue("id", techState.techID);
+                configNode.AddValue("state", techState.state);
+                configNode.AddValue("cost", techState.scienceCost);
+
+                var data = configNode.Serialize();
+                technologies.Add(new TechnologySnapshotInfo
+                {
+                    TechId = techState.techID,
+                    NumBytes = data.Length,
+                    Data = data
+                });
+            }
+
+            return technologies;
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using LmpClient;
 using LmpClient.Base;
+using LmpClient.Systems.PersistentSync;
 
 namespace LmpClient.Systems.ShareTechnology
 {
@@ -9,8 +10,7 @@ namespace LmpClient.Systems.ShareTechnology
         {
             if (System.IgnoreEvents || data.target != RDTech.OperationResult.Successful) return;
 
-            LunaLog.Log($"[CareerSync:e0] tech relay from local RDTech event (not TechnologyUpdate replay) techId={data.host.techID}");
-            LunaLog.Log($"Relaying researched technology: {data.host.techID}");
+            LunaLog.Log($"[PersistentSync] local technology change techId={data.host.techID} sending canonical R&D snapshot");
             System.MessageSender.SendTechnologyMessage(data.host);
         }
     }

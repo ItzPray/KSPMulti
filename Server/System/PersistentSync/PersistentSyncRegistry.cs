@@ -17,7 +17,16 @@ namespace Server.System.PersistentSync
     {
         private static readonly ClientMessageFactory ClientMessageFactory = new ClientMessageFactory();
         private static readonly Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain> Domains = new Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain>();
-        private static readonly HashSet<string> ServerScenarioBypasses = new HashSet<string> { "Funding", "Reputation", "ScenarioUpgradeableFacilities", "ContractSystem" };
+        private static readonly HashSet<string> ServerScenarioBypasses = new HashSet<string>
+        {
+            "Funding",
+            "Reputation",
+            "ScenarioUpgradeableFacilities",
+            "ContractSystem",
+            "StrategySystem",
+            "ProgressTracking",
+            "ResearchAndDevelopment"
+        };
         private static bool _initialized;
 
         /// <summary>
@@ -33,6 +42,12 @@ namespace Server.System.PersistentSync
             Register(new ReputationPersistentSyncDomainStore());
             Register(new UpgradeableFacilitiesPersistentSyncDomainStore());
             Register(new ContractsPersistentSyncDomainStore());
+            Register(new StrategyPersistentSyncDomainStore());
+            Register(new AchievementsPersistentSyncDomainStore());
+            Register(new ScienceSubjectsPersistentSyncDomainStore());
+            Register(new TechnologyPersistentSyncDomainStore());
+            Register(new ExperimentalPartsPersistentSyncDomainStore());
+            Register(new PartPurchasesPersistentSyncDomainStore());
 
             foreach (var domain in Domains.Values)
             {

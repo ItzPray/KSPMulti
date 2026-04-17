@@ -74,5 +74,12 @@ namespace LmpClient.Systems.ShareScienceSubject
             base.RestoreState();
             Traverse.Create(ResearchAndDevelopment.Instance).Field("scienceSubjects").SetValue(_lastScienceSubjects);
         }
+
+        public void ReplaceScienceSubjects(Dictionary<string, ScienceSubject> subjects, string source)
+        {
+            Traverse.Create(ResearchAndDevelopment.Instance).Field("scienceSubjects").SetValue(subjects);
+            _scienceSubjects = subjects;
+            LunaLog.Log($"Science subject snapshot applied from {source} count={subjects.Count}");
+        }
     }
 }

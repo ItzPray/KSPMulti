@@ -178,6 +178,133 @@ namespace LmpCommonTest
             Assert.AreEqual(5, roundTripContracts[1].Order);
         }
 
+        [TestMethod]
+        public void TestTechnologySnapshotPayloadSerializerRoundTrip()
+        {
+            var technologyPayload = new[]
+            {
+                new TechnologySnapshotInfo
+                {
+                    TechId = "basicRocketry",
+                    Data = System.Text.Encoding.UTF8.GetBytes("id = basicRocketry\nstate = Available\ncost = 5\npart = liquidEngine\n"),
+                    NumBytes = System.Text.Encoding.UTF8.GetByteCount("id = basicRocketry\nstate = Available\ncost = 5\npart = liquidEngine\n")
+                },
+                new TechnologySnapshotInfo
+                {
+                    TechId = "engineering101",
+                    Data = System.Text.Encoding.UTF8.GetBytes("id = engineering101\nstate = Available\ncost = 15\npart = radialDecoupler\npart = stackSeparator\n"),
+                    NumBytes = System.Text.Encoding.UTF8.GetByteCount("id = engineering101\nstate = Available\ncost = 15\npart = radialDecoupler\npart = stackSeparator\n")
+                }
+            };
+
+            var snapshotPayload = TechnologySnapshotPayloadSerializer.Serialize(technologyPayload);
+            var roundTripTechnologies = TechnologySnapshotPayloadSerializer.Deserialize(snapshotPayload, snapshotPayload.Length);
+
+            Assert.AreEqual(2, roundTripTechnologies.Count);
+            Assert.AreEqual("basicRocketry", roundTripTechnologies[0].TechId);
+            Assert.AreEqual(technologyPayload[0].NumBytes, roundTripTechnologies[0].NumBytes);
+            Assert.AreEqual("engineering101", roundTripTechnologies[1].TechId);
+            Assert.AreEqual(technologyPayload[1].NumBytes, roundTripTechnologies[1].NumBytes);
+        }
+
+        [TestMethod]
+        public void TestStrategySnapshotPayloadSerializerRoundTrip()
+        {
+            var strategyPayload = new[]
+            {
+                new StrategySnapshotInfo
+                {
+                    Name = "BailoutGrant",
+                    Data = System.Text.Encoding.UTF8.GetBytes("name = BailoutGrant\nfactor = 0.25\nisActive = True\n"),
+                    NumBytes = System.Text.Encoding.UTF8.GetByteCount("name = BailoutGrant\nfactor = 0.25\nisActive = True\n")
+                }
+            };
+
+            var snapshotPayload = StrategySnapshotPayloadSerializer.Serialize(strategyPayload);
+            var roundTrip = StrategySnapshotPayloadSerializer.Deserialize(snapshotPayload);
+
+            Assert.AreEqual(1, roundTrip.Length);
+            Assert.AreEqual("BailoutGrant", roundTrip[0].Name);
+            Assert.AreEqual(strategyPayload[0].NumBytes, roundTrip[0].NumBytes);
+        }
+
+        [TestMethod]
+        public void TestAchievementSnapshotPayloadSerializerRoundTrip()
+        {
+            var achievementPayload = new[]
+            {
+                new AchievementSnapshotInfo
+                {
+                    Id = "Kerbin",
+                    Data = System.Text.Encoding.UTF8.GetBytes("Kerbin\n{\n state = Complete\n}\n"),
+                    NumBytes = System.Text.Encoding.UTF8.GetByteCount("Kerbin\n{\n state = Complete\n}\n")
+                }
+            };
+
+            var snapshotPayload = AchievementSnapshotPayloadSerializer.Serialize(achievementPayload);
+            var roundTrip = AchievementSnapshotPayloadSerializer.Deserialize(snapshotPayload);
+
+            Assert.AreEqual(1, roundTrip.Length);
+            Assert.AreEqual("Kerbin", roundTrip[0].Id);
+            Assert.AreEqual(achievementPayload[0].NumBytes, roundTrip[0].NumBytes);
+        }
+
+        [TestMethod]
+        public void TestScienceSubjectSnapshotPayloadSerializerRoundTrip()
+        {
+            var subjectPayload = new[]
+            {
+                new ScienceSubjectSnapshotInfo
+                {
+                    Id = "crewReport@KerbinSrfLandedLaunchPad",
+                    Data = System.Text.Encoding.UTF8.GetBytes("id = crewReport@KerbinSrfLandedLaunchPad\nscience = 1\nscienceCap = 5\n"),
+                    NumBytes = System.Text.Encoding.UTF8.GetByteCount("id = crewReport@KerbinSrfLandedLaunchPad\nscience = 1\nscienceCap = 5\n")
+                }
+            };
+
+            var snapshotPayload = ScienceSubjectSnapshotPayloadSerializer.Serialize(subjectPayload);
+            var roundTrip = ScienceSubjectSnapshotPayloadSerializer.Deserialize(snapshotPayload);
+
+            Assert.AreEqual(1, roundTrip.Length);
+            Assert.AreEqual(subjectPayload[0].Id, roundTrip[0].Id);
+            Assert.AreEqual(subjectPayload[0].NumBytes, roundTrip[0].NumBytes);
+        }
+
+        [TestMethod]
+        public void TestExperimentalPartsSnapshotPayloadSerializerRoundTrip()
+        {
+            var snapshotPayload = ExperimentalPartsSnapshotPayloadSerializer.Serialize(new[]
+            {
+                new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 },
+                new ExperimentalPartSnapshotInfo { PartName = "radialDecoupler", Count = 1 }
+            });
+            var roundTrip = ExperimentalPartsSnapshotPayloadSerializer.Deserialize(snapshotPayload);
+
+            Assert.AreEqual(2, roundTrip.Length);
+            Assert.AreEqual("liquidEngine", roundTrip[0].PartName);
+            Assert.AreEqual(2, roundTrip[0].Count);
+            Assert.AreEqual("radialDecoupler", roundTrip[1].PartName);
+            Assert.AreEqual(1, roundTrip[1].Count);
+        }
+
+        [TestMethod]
+        public void TestPartPurchasesSnapshotPayloadSerializerRoundTrip()
+        {
+            var snapshotPayload = PartPurchasesSnapshotPayloadSerializer.Serialize(new[]
+            {
+                new PartPurchaseSnapshotInfo
+                {
+                    TechId = "engineering101",
+                    PartNames = new[] { "radialDecoupler", "stackSeparator" }
+                }
+            });
+            var roundTrip = PartPurchasesSnapshotPayloadSerializer.Deserialize(snapshotPayload);
+
+            Assert.AreEqual(1, roundTrip.Length);
+            Assert.AreEqual("engineering101", roundTrip[0].TechId);
+            CollectionAssert.AreEqual(new[] { "radialDecoupler", "stackSeparator" }, roundTrip[0].PartNames);
+        }
+
         private static LmpCommon.Message.Interface.IMessageBase RoundTripClientMessage(PersistentSyncCliMsg message)
         {
             var outgoing = Client.CreateMessage(message.GetMessageSize());

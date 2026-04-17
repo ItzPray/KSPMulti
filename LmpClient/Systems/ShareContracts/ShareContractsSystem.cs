@@ -1,8 +1,11 @@
 ﻿using Contracts;
+using KSP.UI.Screens;
 using LmpClient.Events;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.ShareProgress;
 using LmpCommon.Enums;
+using System;
+using System.Reflection;
 
 namespace LmpClient.Systems.ShareContracts
 {
@@ -79,6 +82,92 @@ namespace LmpClient.Systems.ShareContracts
             {
                 LockSystem.Singleton.AcquireContractLock();
             }
+        }
+
+        /// <summary>
+        /// Refreshes derived contract UI after local contract truth was already updated.
+        /// Keep this separate from snapshot correctness so UI refreshes do not become the data model.
+        /// </summary>
+        public void RefreshContractUiAdapters(string source)
+        {
+            RefreshContractLists(source);
+            RefreshContractsApp(source);
+            RefreshMissionControl(source);
+        }
+
+        private static void RefreshContractLists(string source)
+        {
+            if (ContractSystem.Instance == null)
+            {
+                return;
+            }
+
+            try
+            {
+                InvokeOptionalMethod(ContractSystem.Instance, "RefreshContracts");
+                GameEvents.Contract.onContractsListChanged.Fire();
+                GameEvents.Contract.onContractsLoaded.Fire();
+                LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=contract-lists offered={ContractSystem.Instance.Contracts.Count} finished={ContractSystem.Instance.ContractsFinished.Count}");
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[PersistentSync] contract UI refresh failed source={source} adapter=contract-lists error={e}");
+            }
+        }
+
+        private static void RefreshContractsApp(string source)
+        {
+            if (ContractsApp.Instance == null)
+            {
+                return;
+            }
+
+            try
+            {
+                InvokeOptionalMethod(ContractsApp.Instance, "OnContractsLoaded");
+                InvokeOptionalMethod(ContractsApp.Instance, "CreateContractsList");
+                LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=contracts-app");
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[PersistentSync] contract UI refresh failed source={source} adapter=contracts-app error={e}");
+            }
+        }
+
+        private static void RefreshMissionControl(string source)
+        {
+            if (MissionControl.Instance == null)
+            {
+                return;
+            }
+
+            try
+            {
+                InvokeOptionalMethod(MissionControl.Instance, "RefreshContracts");
+                InvokeOptionalMethod(MissionControl.Instance, "RebuildContractList");
+                InvokeOptionalMethod(MissionControl.Instance, "RefreshUIControls");
+                LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=mission-control");
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[PersistentSync] contract UI refresh failed source={source} adapter=mission-control error={e}");
+            }
+        }
+
+        private static void InvokeOptionalMethod(object target, string methodName)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            var method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (method == null)
+            {
+                return;
+            }
+
+            method.Invoke(target, null);
         }
     }
 }

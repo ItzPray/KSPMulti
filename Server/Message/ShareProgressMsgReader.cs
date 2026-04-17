@@ -17,9 +17,19 @@ namespace Server.Message
             switch (data.ShareProgressMessageType)
             {
                 case ShareProgressMessageType.ScienceSubjectUpdate:
+                    if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+                    {
+                        LunaLog.Warning($"[PersistentSync] ShareProgress science subject fallback received from {client.PlayerName}; routing through canonical science-subject snapshot store instead of one-off relay truth.");
+                    }
+
                     ShareScienceSubjectSystem.ScienceSubjectReceived(client, (ShareProgressScienceSubjectMsgData)data);
                     break;
                 case ShareProgressMessageType.TechnologyUpdate:
+                    if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+                    {
+                        LunaLog.Warning($"[PersistentSync] ShareProgress technology fallback received from {client.PlayerName}; routing through canonical R&D snapshot store instead of one-off peer unlock truth.");
+                    }
+
                     ShareTechnologySystem.TechnologyReceived(client, (ShareProgressTechnologyMsgData)data);
                     break;
                 case ShareProgressMessageType.ContractsUpdate:
@@ -31,9 +41,19 @@ namespace Server.Message
                     ShareContractsSystem.ContractsReceived(client, (ShareProgressContractsMsgData)data);
                     break;
                 case ShareProgressMessageType.AchievementsUpdate:
+                    if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+                    {
+                        LunaLog.Warning($"[PersistentSync] ShareProgress achievements fallback received from {client.PlayerName}; routing through canonical achievements snapshot store instead of one-off relay truth.");
+                    }
+
                     ShareAchievementsSystem.AchievementsReceived(client, (ShareProgressAchievementsMsgData)data);
                     break;
                 case ShareProgressMessageType.StrategyUpdate:
+                    if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+                    {
+                        LunaLog.Warning($"[PersistentSync] ShareProgress strategy fallback received from {client.PlayerName}; routing through canonical strategy snapshot store instead of one-off relay truth.");
+                    }
+
                     ShareStrategySystem.StrategyReceived(client, (ShareProgressStrategyMsgData)data);
                     break;
                 case ShareProgressMessageType.FacilityUpgrade:
@@ -48,9 +68,19 @@ namespace Server.Message
 
                     break;
                 case ShareProgressMessageType.PartPurchase:
+                    if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+                    {
+                        LunaLog.Warning($"[PersistentSync] ShareProgress part purchase fallback received from {client.PlayerName}; routing through canonical part-purchase snapshot store instead of event relay truth.");
+                    }
+
                     SharePartPurchaseSystem.PurchaseReceived(client, (ShareProgressPartPurchaseMsgData)data);
                     break;
                 case ShareProgressMessageType.ExperimentalPart:
+                    if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+                    {
+                        LunaLog.Warning($"[PersistentSync] ShareProgress experimental-part fallback received from {client.PlayerName}; routing through canonical experimental-parts snapshot store instead of event relay truth.");
+                    }
+
                     ShareExperimentalPartSystem.ExperimentalPartReceived(client, (ShareProgressExperimentalPartMsgData)data);
                     break;
                 case ShareProgressMessageType.FundsUpdate:

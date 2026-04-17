@@ -7,6 +7,7 @@ using LmpClient.Base.Interface;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
+using LmpClient.Systems.PersistentSync;
 
 namespace LmpClient.Systems.ShareTechnology
 {
@@ -18,6 +19,12 @@ namespace LmpClient.Systems.ShareTechnology
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.TechnologyUpdate) return;
+
+            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            {
+                LunaLog.LogWarning("[PersistentSync] bypass guard: ShareProgress technology update received after R&D migrated to PersistentSync snapshots. Message ignored.");
+                return;
+            }
 
             if (msgData is ShareProgressTechnologyMsgData data)
             {
@@ -45,18 +52,7 @@ namespace LmpClient.Systems.ShareTechnology
             //Unlock the technology
             ResearchAndDevelopment.Instance.UnlockProtoTechNode(node);
 
-            //Refresh RD nodes in case we are in the RD screen
-            if (RDController.Instance && RDController.Instance.partList)
-            {
-                RDController.Instance.partList.Refresh();
-                RDController.Instance.UpdatePanel();
-            }
-
-            //Refresh the tech tree
-            ResearchAndDevelopment.RefreshTechTreeUI();
-
-            //Refresh the part list in case we are in the VAB/SPH
-            if (EditorPartList.Instance) EditorPartList.Instance.Refresh();
+            System.RefreshResearchAndDevelopmentUiAdapters("LegacyTechnologyUpdate");
 
             System.StopIgnoringEvents();
             LunaLog.Log($"TechnologyResearch received - technology researched: {tech.Id}");

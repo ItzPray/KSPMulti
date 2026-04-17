@@ -1,6 +1,7 @@
 ﻿using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
+using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
@@ -17,6 +18,11 @@ namespace LmpClient.Systems.ShareScienceSubject
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.ScienceSubjectUpdate) return;
+            if (PersistentSyncSystem.Singleton.Enabled)
+            {
+                LunaLog.LogWarning("[LMP] Ignoring legacy ScienceSubjectUpdate because persistent sync owns science subject convergence.");
+                return;
+            }
 
             if (msgData is ShareProgressScienceSubjectMsgData data)
             {
@@ -57,7 +63,7 @@ namespace LmpClient.Systems.ShareScienceSubject
         /// Convert a byte array to a ConfigNode and then to a ScienceSubject.
         /// If anything goes wrong it will return null.
         /// </summary>
-        private static ScienceSubject ConvertByteArrayToScienceSubject(byte[] data, int numBytes)
+        public static ScienceSubject ConvertByteArrayToScienceSubject(byte[] data, int numBytes)
         {
             var node = new ConfigNode("Science");
             try

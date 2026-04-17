@@ -89,7 +89,7 @@ namespace LmpClient.Systems.ShareContracts
             ShareScienceSystem.Singleton.StopIgnoringEvents(true);
             ShareReputationSystem.Singleton.StopIgnoringEvents(true);
             ShareExperimentalPartsSystem.Singleton.StopIgnoringEvents();
-            GameEvents.Contract.onContractsListChanged.Fire();
+            System.RefreshContractUiAdapters("LegacyShareProgressFallback");
             System.StopIgnoringEvents();
         }
 
