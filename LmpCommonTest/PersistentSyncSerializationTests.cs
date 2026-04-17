@@ -117,6 +117,28 @@ namespace LmpCommonTest
             Assert.AreEqual(5.75f, ReputationSnapshotPayloadSerializer.Deserialize(snapshotPayload, snapshotPayload.Length));
         }
 
+        [TestMethod]
+        public void TestUpgradeableFacilitiesPayloadSerializerRoundTrip()
+        {
+            var intentPayload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 2);
+            UpgradeableFacilitiesIntentPayloadSerializer.Deserialize(intentPayload, intentPayload.Length, out var facilityId, out var level);
+            Assert.AreEqual("SpaceCenter/MissionControl", facilityId);
+            Assert.AreEqual(2, level);
+
+            var facilities = new System.Collections.Generic.Dictionary<string, int>
+            {
+                ["SpaceCenter/MissionControl"] = 2,
+                ["SpaceCenter/TrackingStation"] = 1
+            };
+
+            var snapshotPayload = UpgradeableFacilitiesSnapshotPayloadSerializer.Serialize(facilities);
+            var roundTripFacilities = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(snapshotPayload, snapshotPayload.Length);
+
+            Assert.AreEqual(2, roundTripFacilities["SpaceCenter/MissionControl"]);
+            Assert.AreEqual(1, roundTripFacilities["SpaceCenter/TrackingStation"]);
+            Assert.AreEqual(2, roundTripFacilities.Count);
+        }
+
         private static LmpCommon.Message.Interface.IMessageBase RoundTripClientMessage(PersistentSyncCliMsg message)
         {
             var outgoing = Client.CreateMessage(message.GetMessageSize());

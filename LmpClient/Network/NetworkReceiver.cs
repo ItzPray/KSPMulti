@@ -264,7 +264,15 @@ namespace LmpClient.Network
                             ShareStrategySystem.Singleton.EnqueueMessage(msg);
                             break;
                         case ShareProgressMessageType.FacilityUpgrade:
-                            ShareUpgradeableFacilitiesSystem.Singleton.EnqueueMessage(msg);
+                            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+                            {
+                                LunaLog.LogError("[PersistentSync] bypass guard: ShareProgress facility path received; facilities now use PersistentSync snapshots. Message not queued.");
+                            }
+                            else
+                            {
+                                ShareUpgradeableFacilitiesSystem.Singleton.EnqueueMessage(msg);
+                            }
+
                             break;
                         case ShareProgressMessageType.PartPurchase:
                             SharePurchasePartsSystem.Singleton.EnqueueMessage(msg);

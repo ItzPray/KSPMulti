@@ -11,7 +11,7 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
         {
             if (System.IgnoreEvents) return;
 
-            LunaLog.Log($"Facility {facility.id} upgraded to level: {level}");
+            LunaLog.Log($"Facility {facility.id} upgraded to level: {level} (sending PersistentSync intent)");
             System.MessageSender.SendFacilityUpgradeMessage(facility.id, level, (float)level / facility.MaxLevel);
         }
 

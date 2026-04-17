@@ -57,6 +57,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ReputationSnapshotPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ScienceIntentPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ScienceSnapshotPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\UpgradeableFacilitiesIntentPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\UpgradeableFacilitiesSnapshotPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Base\EndpointUtil.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Base\FactoryBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Base\GuidUtil.cs" />

@@ -15,7 +15,7 @@ namespace Server.System.PersistentSync
     public static class PersistentSyncRegistry
     {
         private static readonly Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain> Domains = new Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain>();
-        private static readonly HashSet<string> ServerScenarioBypasses = new HashSet<string> { "Funding", "Reputation" };
+        private static readonly HashSet<string> ServerScenarioBypasses = new HashSet<string> { "Funding", "Reputation", "ScenarioUpgradeableFacilities" };
         private static bool _initialized;
 
         /// <summary>
@@ -29,6 +29,7 @@ namespace Server.System.PersistentSync
             Register(new FundsPersistentSyncDomainStore());
             Register(new SciencePersistentSyncDomainStore());
             Register(new ReputationPersistentSyncDomainStore());
+            Register(new UpgradeableFacilitiesPersistentSyncDomainStore());
 
             foreach (var domain in Domains.Values)
             {

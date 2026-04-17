@@ -51,5 +51,11 @@ namespace LmpClient.Systems.PersistentSync
             var payload = ReputationIntentPayloadSerializer.Serialize(reputation, reason);
             SendIntent(PersistentSyncDomainId.Reputation, System.GetKnownRevision(PersistentSyncDomainId.Reputation), payload, reason);
         }
+
+        public void SendUpgradeableFacilityIntent(string facilityId, int level, string reason)
+        {
+            var payload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize(facilityId, level);
+            SendIntent(PersistentSyncDomainId.UpgradeableFacilities, System.GetKnownRevision(PersistentSyncDomainId.UpgradeableFacilities), payload, reason);
+        }
     }
 }

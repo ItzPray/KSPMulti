@@ -32,7 +32,15 @@ namespace Server.Message
                     ShareStrategySystem.StrategyReceived(client, (ShareProgressStrategyMsgData)data);
                     break;
                 case ShareProgressMessageType.FacilityUpgrade:
-                    ShareUpgradeableFacilitiesSystem.UpgradeReceived(client, (ShareProgressFacilityUpgradeMsgData)data);
+                    if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+                    {
+                        LunaLog.Error("[PersistentSync] bypass guard: ShareProgress facility path received; UpgradeableFacilities now converge via PersistentSync snapshots. Message ignored.");
+                    }
+                    else
+                    {
+                        ShareUpgradeableFacilitiesSystem.UpgradeReceived(client, (ShareProgressFacilityUpgradeMsgData)data);
+                    }
+
                     break;
                 case ShareProgressMessageType.PartPurchase:
                     SharePartPurchaseSystem.PurchaseReceived(client, (ShareProgressPartPurchaseMsgData)data);

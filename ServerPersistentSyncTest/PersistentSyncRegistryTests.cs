@@ -122,6 +122,55 @@ namespace ServerPersistentSyncTest
         }
 
         [TestMethod]
+        public void UpgradeableFacilitiesDomainLoadsPersistsAndReturnsSnapshot()
+        {
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(
+                ("SpaceCenter/MissionControl", "0.5"),
+                ("SpaceCenter/TrackingStation", "0"));
+
+            var store = new UpgradeableFacilitiesPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var initialSnapshot = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+            Assert.AreEqual(1, initialSnapshot["SpaceCenter/MissionControl"]);
+            Assert.AreEqual(0, initialSnapshot["SpaceCenter/TrackingStation"]);
+
+            var payload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 2);
+            var result = store.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "Mission Control upgrade"));
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+            Assert.AreEqual(1L, result.Snapshot.Revision);
+
+            var roundTripSnapshot = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            Assert.AreEqual(2, roundTripSnapshot["SpaceCenter/MissionControl"]);
+            Assert.AreEqual("1", ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"].GetNode("SpaceCenter/MissionControl").Value.GetValue("lvl").Value);
+
+            PersistentSyncRegistry.Initialize(false);
+            var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.UpgradeableFacilities }).Single();
+            var registryFacilities = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(registrySnapshot.Payload, registrySnapshot.NumBytes);
+            Assert.AreEqual(2, registryFacilities["SpaceCenter/MissionControl"]);
+        }
+
+        [TestMethod]
+        public void UpgradeableFacilitiesNoRevisionIncrementOnSameStateIntent()
+        {
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(
+                ("SpaceCenter/MissionControl", "0.5"));
+
+            var store = new UpgradeableFacilitiesPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var payload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 1);
+            var result = store.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "No-op"));
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsFalse(result.Changed);
+            Assert.AreEqual(0L, result.Snapshot.Revision);
+            Assert.AreEqual("0.5", ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"].GetNode("SpaceCenter/MissionControl").Value.GetValue("lvl").Value);
+        }
+
+        [TestMethod]
         public void ApplyClientIntentWithAuthority_AnyClientIntent_AcceptsAndUpdatesCanonicalState()
         {
             ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
@@ -197,6 +246,25 @@ namespace ServerPersistentSyncTest
         private static ConfigNode CreateScenario(string fieldName, string value)
         {
             return new ConfigNode($"{fieldName} = {value}");
+        }
+
+        private static ConfigNode CreateUpgradeableFacilitiesScenario(params (string facilityId, string normalizedLevel)[] facilities)
+        {
+            var lines = new[]
+            {
+                "name = ScenarioUpgradeableFacilities",
+                "scene = 5, 6, 7, 8"
+            }.ToList();
+
+            foreach (var facility in facilities)
+            {
+                lines.Add(facility.facilityId);
+                lines.Add("{");
+                lines.Add($"    lvl = {facility.normalizedLevel}");
+                lines.Add("}");
+            }
+
+            return new ConfigNode(string.Join("\n", lines));
         }
 
         private static PersistentSyncIntentMsgData CreateIntent(PersistentSyncDomainId domainId, byte[] payload, string reason)

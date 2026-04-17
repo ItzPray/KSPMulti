@@ -306,6 +306,7 @@
     <Compile Include="Systems\PersistentSync\ReputationPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\ScalarPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\SciencePersistentSyncClientDomain.cs" />
+    <Compile Include="Systems\PersistentSync\UpgradeableFacilitiesPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryMessageHandler.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryMessageSender.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryStructures.cs" />

@@ -1,6 +1,7 @@
 ﻿using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Network;
+using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
@@ -16,11 +17,8 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
 
         public void SendFacilityUpgradeMessage(string facilityId, int level, float normLevel)
         {
-            var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressFacilityUpgradeMsgData>();
-            msgData.FacilityId = facilityId;
-            msgData.Level = level;
-            msgData.NormLevel = normLevel;
-            System.MessageSender.SendMessage(msgData);
+            var reason = $"Facility upgrade {facilityId} -> level {level}";
+            PersistentSyncSystem.Singleton.MessageSender.SendUpgradeableFacilityIntent(facilityId, level, reason);
         }
     }
 }
