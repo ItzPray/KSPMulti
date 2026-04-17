@@ -16,7 +16,8 @@ namespace LmpClient.Systems.PersistentSync
             PersistentSyncDomainId.Funds,
             PersistentSyncDomainId.Science,
             PersistentSyncDomainId.Reputation,
-            PersistentSyncDomainId.UpgradeableFacilities
+            PersistentSyncDomainId.UpgradeableFacilities,
+            PersistentSyncDomainId.Contracts
         };
 
         private static readonly PersistentSyncDomainId[] ScienceDomains =
@@ -38,7 +39,8 @@ namespace LmpClient.Systems.PersistentSync
                 [PersistentSyncDomainId.Funds] = new FundsPersistentSyncClientDomain(),
                 [PersistentSyncDomainId.Science] = new SciencePersistentSyncClientDomain(),
                 [PersistentSyncDomainId.Reputation] = new ReputationPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.UpgradeableFacilities] = new UpgradeableFacilitiesPersistentSyncClientDomain()
+                [PersistentSyncDomainId.UpgradeableFacilities] = new UpgradeableFacilitiesPersistentSyncClientDomain(),
+                [PersistentSyncDomainId.Contracts] = new ContractsPersistentSyncClientDomain()
             };
 
         protected override void OnEnabled()

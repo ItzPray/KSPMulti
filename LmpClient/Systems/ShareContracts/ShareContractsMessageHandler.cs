@@ -3,6 +3,7 @@ using LmpClient;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareCareer;
 using LmpClient.Systems.ShareExperimentalParts;
 using LmpClient.Systems.ShareFunds;
@@ -24,6 +25,12 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.ContractsUpdate) return;
+
+            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            {
+                LunaLog.LogWarning("[PersistentSync] bypass guard: ShareProgress contract update received after contracts migrated to PersistentSync snapshots. Message ignored.");
+                return;
+            }
 
             if (msgData is ShareProgressContractsMsgData data)
             {

@@ -3,11 +3,14 @@ using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
 using LmpClient.Network;
+using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
+using LmpCommon.PersistentSync;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LmpClient.Systems.ShareContracts
 {
@@ -20,28 +23,31 @@ namespace LmpClient.Systems.ShareContracts
 
         public void SendContractMessage(Contract[] contracts)
         {
-            //Convert the Contract's to ContractInfo's.
-            var contractInfos = new List<ContractInfo>();
-            foreach (var contract in contracts)
+            var contractSnapshots = CreateCanonicalContractSnapshots(contracts);
+            if (contractSnapshots.Count == 0)
             {
-                var configNode = ConvertContractToConfigNode(contract);
-                if (configNode == null) break;
-
-                var data = configNode.Serialize();
-                var numBytes = data.Length;
-
-                contractInfos.Add(new ContractInfo
-                {
-                    ContractGuid = contract.ContractGuid,
-                    Data = data,
-                    NumBytes = numBytes
-                });
+                return;
             }
 
-            //Build the packet and send it.
+            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            {
+                var reason = $"ContractProducer:{string.Join(",", contractSnapshots.Select(c => c.ContractGuid.ToString("N")))}";
+                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntent(contractSnapshots.ToArray(), reason);
+                return;
+            }
+
+            LunaLog.LogWarning("[PersistentSync] ShareContractsMessageSender using legacy ShareProgress fallback because PersistentSync is not enabled yet.");
+
+            // Build the legacy packet only as a transport fallback before PersistentSync is ready.
+            var contractInfos = contractSnapshots.Select(contract => new ContractInfo
+            {
+                ContractGuid = contract.ContractGuid,
+                Data = contract.Data,
+                NumBytes = contract.NumBytes
+            }).ToArray();
             var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressContractsMsgData>();
-            msgData.Contracts = contractInfos.ToArray();
-            msgData.ContractCount = msgData.Contracts.Length;
+            msgData.Contracts = contractInfos;
+            msgData.ContractCount = contractInfos.Length;
             System.MessageSender.SendMessage(msgData);
         }
 
@@ -64,6 +70,53 @@ namespace LmpClient.Systems.ShareContracts
             }
 
             return configNode;
+        }
+
+        private static List<ContractSnapshotInfo> CreateCanonicalContractSnapshots(IEnumerable<Contract> contracts)
+        {
+            var snapshots = new List<ContractSnapshotInfo>();
+            foreach (var contract in contracts ?? Enumerable.Empty<Contract>())
+            {
+                if (contract == null)
+                {
+                    continue;
+                }
+
+                var configNode = ConvertContractToConfigNode(contract);
+                if (configNode == null)
+                {
+                    continue;
+                }
+
+                var data = configNode.Serialize();
+                snapshots.Add(new ContractSnapshotInfo
+                {
+                    ContractGuid = contract.ContractGuid,
+                    ContractState = contract.ContractState.ToString(),
+                    Placement = DeterminePlacement(contract),
+                    Order = -1,
+                    Data = data,
+                    NumBytes = data.Length
+                });
+            }
+
+            return snapshots;
+        }
+
+        private static ContractSnapshotPlacement DeterminePlacement(Contract contract)
+        {
+            switch (contract?.ContractState)
+            {
+                case Contract.State.Active:
+                    return ContractSnapshotPlacement.Active;
+                case Contract.State.Completed:
+                case Contract.State.DeadlineExpired:
+                case Contract.State.Failed:
+                case Contract.State.Cancelled:
+                    return ContractSnapshotPlacement.Finished;
+                default:
+                    return ContractSnapshotPlacement.Current;
+            }
         }
     }
 }

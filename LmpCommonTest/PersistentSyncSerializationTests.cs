@@ -139,6 +139,45 @@ namespace LmpCommonTest
             Assert.AreEqual(2, roundTripFacilities.Count);
         }
 
+        [TestMethod]
+        public void TestContractSnapshotPayloadSerializerRoundTrip()
+        {
+            var contractPayload = new[]
+            {
+                new ContractSnapshotInfo
+                {
+                    ContractGuid = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                    ContractState = "Offered",
+                    Placement = ContractSnapshotPlacement.Current,
+                    Order = 0,
+                    Data = System.Text.Encoding.UTF8.GetBytes("CONTRACT\n{\n guid = 11111111-1111-1111-1111-111111111111\n state = Offered\n}\n"),
+                    NumBytes = System.Text.Encoding.UTF8.GetByteCount("CONTRACT\n{\n guid = 11111111-1111-1111-1111-111111111111\n state = Offered\n}\n")
+                },
+                new ContractSnapshotInfo
+                {
+                    ContractGuid = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                    ContractState = "Completed",
+                    Placement = ContractSnapshotPlacement.Finished,
+                    Order = 5,
+                    Data = System.Text.Encoding.UTF8.GetBytes("CONTRACT\n{\n guid = 22222222-2222-2222-2222-222222222222\n state = Completed\n}\n"),
+                    NumBytes = System.Text.Encoding.UTF8.GetByteCount("CONTRACT\n{\n guid = 22222222-2222-2222-2222-222222222222\n state = Completed\n}\n")
+                }
+            };
+
+            var snapshotPayload = ContractSnapshotPayloadSerializer.Serialize(contractPayload);
+            var roundTripContracts = ContractSnapshotPayloadSerializer.Deserialize(snapshotPayload, snapshotPayload.Length);
+
+            Assert.AreEqual(2, roundTripContracts.Count);
+            Assert.AreEqual(contractPayload[0].ContractGuid, roundTripContracts[0].ContractGuid);
+            Assert.AreEqual("Offered", roundTripContracts[0].ContractState);
+            Assert.AreEqual(ContractSnapshotPlacement.Current, roundTripContracts[0].Placement);
+            Assert.AreEqual(0, roundTripContracts[0].Order);
+            Assert.AreEqual(contractPayload[1].ContractGuid, roundTripContracts[1].ContractGuid);
+            Assert.AreEqual("Completed", roundTripContracts[1].ContractState);
+            Assert.AreEqual(ContractSnapshotPlacement.Finished, roundTripContracts[1].Placement);
+            Assert.AreEqual(5, roundTripContracts[1].Order);
+        }
+
         private static LmpCommon.Message.Interface.IMessageBase RoundTripClientMessage(PersistentSyncCliMsg message)
         {
             var outgoing = Client.CreateMessage(message.GetMessageSize());

@@ -5,6 +5,7 @@ namespace LmpCommon.PersistentSync
         Funds = 0,
         Science = 1,
         Reputation = 2,
-        UpgradeableFacilities = 3
+        UpgradeableFacilities = 3,
+        Contracts = 4
     }
 }

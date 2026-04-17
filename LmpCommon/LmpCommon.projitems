@@ -50,6 +50,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)LunaNetUtils.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\FundsIntentPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\FundsSnapshotPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ContractSnapshotPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncBufferedSnapshot.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncDomainId.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncReconcilerState.cs" />

@@ -57,5 +57,11 @@ namespace LmpClient.Systems.PersistentSync
             var payload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize(facilityId, level);
             SendIntent(PersistentSyncDomainId.UpgradeableFacilities, System.GetKnownRevision(PersistentSyncDomainId.UpgradeableFacilities), payload, reason);
         }
+
+        public void SendContractsIntent(ContractSnapshotInfo[] contracts, string reason)
+        {
+            var payload = ContractSnapshotPayloadSerializer.Serialize(contracts);
+            SendIntent(PersistentSyncDomainId.Contracts, System.GetKnownRevision(PersistentSyncDomainId.Contracts), payload, reason);
+        }
     }
 }

@@ -23,6 +23,11 @@ namespace Server.Message
                     ShareTechnologySystem.TechnologyReceived(client, (ShareProgressTechnologyMsgData)data);
                     break;
                 case ShareProgressMessageType.ContractsUpdate:
+                    if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+                    {
+                        LunaLog.Warning($"[PersistentSync] ShareProgress contract fallback received from {client.PlayerName}; routing through canonical contract authority instead of peer truth.");
+                    }
+
                     ShareContractsSystem.ContractsReceived(client, (ShareProgressContractsMsgData)data);
                     break;
                 case ShareProgressMessageType.AchievementsUpdate:

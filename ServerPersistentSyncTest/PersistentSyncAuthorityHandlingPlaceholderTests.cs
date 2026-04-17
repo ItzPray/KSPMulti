@@ -1,8 +1,12 @@
 using System;
+using System.Runtime.Serialization;
+using LmpCommon.Locks;
 using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Server.Client;
+using Server.System;
 using Server.System.PersistentSync;
 
 namespace ServerPersistentSyncTest
@@ -12,13 +16,14 @@ namespace ServerPersistentSyncTest
     {
         private sealed class PolicyProbeDomain : IPersistentSyncServerDomain
         {
-            public PolicyProbeDomain(PersistentAuthorityPolicy policy)
+            public PolicyProbeDomain(PersistentAuthorityPolicy policy, PersistentSyncDomainId domainId = PersistentSyncDomainId.Funds)
             {
                 AuthorityPolicy = policy;
+                DomainId = domainId;
             }
 
             public PersistentAuthorityPolicy AuthorityPolicy { get; }
-            public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
+            public PersistentSyncDomainId DomainId { get; }
 
             public void LoadFromPersistence(bool createdFromScratch)
             {
@@ -47,6 +52,16 @@ namespace ServerPersistentSyncTest
             }
         }
 
+        [TestInitialize]
+        public void Setup()
+        {
+            var existingContractLock = LockSystem.LockQuery.ContractLock();
+            if (existingContractLock != null)
+            {
+                LockSystem.ReleaseLock(existingContractLock);
+            }
+        }
+
         [TestMethod]
         public void AnyClientIntent_ValidateClientMaySubmitIntent_AllowsClient()
         {
@@ -62,14 +77,23 @@ namespace ServerPersistentSyncTest
             Assert.IsFalse(PersistentSyncRegistry.ValidateClientMaySubmitIntent(null, domain));
         }
 
-        /// <summary>
-        /// Registry currently stubs <see cref="PersistentAuthorityPolicy.LockOwnerIntent"/> as reject-all until lock wiring exists.
-        /// </summary>
         [TestMethod]
-        public void LockOwnerIntent_StubRejectsUntilLockOwnerWiringExists()
+        public void LockOwnerIntent_ContractsAllowsCurrentContractLockOwner()
         {
-            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.LockOwnerIntent);
-            Assert.IsFalse(PersistentSyncRegistry.ValidateClientMaySubmitIntent(null, domain));
+            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.LockOwnerIntent, PersistentSyncDomainId.Contracts);
+            var ownerClient = CreateClient("Owner");
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, ownerClient.PlayerName), false, out _);
+
+            Assert.IsTrue(PersistentSyncRegistry.ValidateClientMaySubmitIntent(ownerClient, domain));
+        }
+
+        [TestMethod]
+        public void LockOwnerIntent_ContractsRejectsNonOwner()
+        {
+            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.LockOwnerIntent, PersistentSyncDomainId.Contracts);
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "Owner"), false, out _);
+
+            Assert.IsFalse(PersistentSyncRegistry.ValidateClientMaySubmitIntent(CreateClient("Other"), domain));
         }
 
         /// <summary>
@@ -88,6 +112,13 @@ namespace ServerPersistentSyncTest
             Assert.IsTrue((byte)PersistentAuthorityPolicy.ServerDerived < (byte)PersistentAuthorityPolicy.AnyClientIntent);
             Assert.IsTrue((byte)PersistentAuthorityPolicy.AnyClientIntent < (byte)PersistentAuthorityPolicy.LockOwnerIntent);
             Assert.IsTrue((byte)PersistentAuthorityPolicy.LockOwnerIntent < (byte)PersistentAuthorityPolicy.DesignatedProducer);
+        }
+
+        private static ClientStructure CreateClient(string playerName)
+        {
+            var client = (ClientStructure)FormatterServices.GetUninitializedObject(typeof(ClientStructure));
+            client.PlayerName = playerName;
+            return client;
         }
     }
 }

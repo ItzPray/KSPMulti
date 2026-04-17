@@ -1,4 +1,5 @@
 using LmpCommon.Enums;
+using LmpCommon.Message;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.Message.Server;
 using LmpCommon.PersistentSync;
@@ -14,8 +15,9 @@ namespace Server.System.PersistentSync
 {
     public static class PersistentSyncRegistry
     {
+        private static readonly ClientMessageFactory ClientMessageFactory = new ClientMessageFactory();
         private static readonly Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain> Domains = new Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain>();
-        private static readonly HashSet<string> ServerScenarioBypasses = new HashSet<string> { "Funding", "Reputation", "ScenarioUpgradeableFacilities" };
+        private static readonly HashSet<string> ServerScenarioBypasses = new HashSet<string> { "Funding", "Reputation", "ScenarioUpgradeableFacilities", "ContractSystem" };
         private static bool _initialized;
 
         /// <summary>
@@ -30,6 +32,7 @@ namespace Server.System.PersistentSync
             Register(new SciencePersistentSyncDomainStore());
             Register(new ReputationPersistentSyncDomainStore());
             Register(new UpgradeableFacilitiesPersistentSyncDomainStore());
+            Register(new ContractsPersistentSyncDomainStore());
 
             foreach (var domain in Domains.Values)
             {
@@ -158,7 +161,7 @@ namespace Server.System.PersistentSync
                 case PersistentAuthorityPolicy.ServerDerived:
                     return "ServerDerived";
                 case PersistentAuthorityPolicy.LockOwnerIntent:
-                    return "LockOwnerIntentStubReject";
+                    return domain.DomainId == PersistentSyncDomainId.Contracts ? "ContractLockOwnerReject" : "LockOwnerIntentStubReject";
                 case PersistentAuthorityPolicy.DesignatedProducer:
                     return "DesignatedProducerStubReject";
                 default:
@@ -166,12 +169,20 @@ namespace Server.System.PersistentSync
             }
         }
 
-        /// <summary>
-        /// Stub until lock-owner election is wired: reject all client intents for this policy.
-        /// </summary>
         private static bool EvaluateLockOwnerClientIntent(ClientStructure client, IPersistentSyncServerDomain domain)
         {
-            return false;
+            if (client == null || domain == null)
+            {
+                return false;
+            }
+
+            switch (domain.DomainId)
+            {
+                case PersistentSyncDomainId.Contracts:
+                    return LockSystem.LockQuery.ContractLockBelongsToPlayer(client.PlayerName);
+                default:
+                    return false;
+            }
         }
 
         /// <summary>
@@ -228,6 +239,19 @@ namespace Server.System.PersistentSync
                 LunaLog.Debug($"[PersistentSync] snapshot broadcast target=singleClient client={clientName} domain={data.DomainId} revision={result.Snapshot.Revision}");
                 MessageQueuer.SendToClient<PersistentSyncSrvMsg>(client, CreateSnapshotMessage(result.Snapshot));
             }
+        }
+
+        public static void HandleLegacyContractFallbackIntent(ClientStructure client, byte[] payload, int numBytes, string reason)
+        {
+            var data = ClientMessageFactory.CreateNewMessageData<PersistentSyncIntentMsgData>();
+            data.DomainId = PersistentSyncDomainId.Contracts;
+            data.ClientKnownRevision = Domains.TryGetValue(PersistentSyncDomainId.Contracts, out var domain)
+                ? domain.GetCurrentSnapshot().Revision
+                : 0;
+            data.Payload = payload;
+            data.NumBytes = numBytes;
+            data.Reason = reason;
+            HandleIntent(client, data);
         }
 
         public static PersistentSyncDomainApplyResult ApplyServerMutation(PersistentSyncDomainId domainId, byte[] payload, int numBytes, string reason)
