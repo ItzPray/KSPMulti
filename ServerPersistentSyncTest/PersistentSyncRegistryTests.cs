@@ -1,3 +1,4 @@
+using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.Message;
 using LmpCommon.PersistentSync;
@@ -118,6 +119,79 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(1L, result.Snapshot.Revision);
             Assert.AreEqual(700d, FundsSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes));
             Assert.AreEqual(700d, double.Parse(ScenarioStoreSystem.CurrentScenarios["Funding"].GetValue("funds").Value, CultureInfo.InvariantCulture));
+        }
+
+        [TestMethod]
+        public void ApplyClientIntentWithAuthority_AnyClientIntent_AcceptsAndUpdatesCanonicalState()
+        {
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
+            PersistentSyncRegistry.Initialize(false);
+
+            var payload = FundsIntentPayloadSerializer.Serialize(700d, "Legit");
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "Legit"));
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+            Assert.AreEqual(1L, result.Snapshot.Revision);
+            Assert.AreEqual(700d, FundsSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes));
+            Assert.AreEqual(700d, double.Parse(ScenarioStoreSystem.CurrentScenarios["Funding"].GetValue("funds").Value, CultureInfo.InvariantCulture));
+        }
+
+        [TestMethod]
+        public void ApplyClientIntentWithAuthority_ServerDerived_RejectsWithoutMutatingOrCallingDomainApply()
+        {
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "333");
+            PersistentSyncRegistry.Initialize(false);
+
+            var isolatedStore = new FundsPersistentSyncDomainStore();
+            isolatedStore.LoadFromPersistence(false);
+            var revisionBefore = isolatedStore.GetCurrentSnapshot().Revision;
+            var decorator = new ServerDerivedFundsDecorator(isolatedStore);
+            PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainId.Funds, decorator);
+
+            var payload = FundsIntentPayloadSerializer.Serialize(999d, "Denied");
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "Denied"));
+
+            Assert.IsFalse(result.Accepted);
+            Assert.IsFalse(decorator.ClientApplyInvoked);
+            Assert.AreEqual(333d, double.Parse(ScenarioStoreSystem.CurrentScenarios["Funding"].GetValue("funds").Value, CultureInfo.InvariantCulture));
+            Assert.AreEqual(revisionBefore, isolatedStore.GetCurrentSnapshot().Revision);
+        }
+
+        private sealed class ServerDerivedFundsDecorator : IPersistentSyncServerDomain
+        {
+            private readonly FundsPersistentSyncDomainStore _inner;
+
+            public ServerDerivedFundsDecorator(FundsPersistentSyncDomainStore inner)
+            {
+                _inner = inner;
+            }
+
+            public bool ClientApplyInvoked { get; private set; }
+
+            public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.ServerDerived;
+
+            public PersistentSyncDomainId DomainId => _inner.DomainId;
+
+            public void LoadFromPersistence(bool createdFromScratch)
+            {
+            }
+
+            public PersistentSyncDomainSnapshot GetCurrentSnapshot()
+            {
+                return _inner.GetCurrentSnapshot();
+            }
+
+            public PersistentSyncDomainApplyResult ApplyClientIntent(PersistentSyncIntentMsgData data)
+            {
+                ClientApplyInvoked = true;
+                return _inner.ApplyClientIntent(data);
+            }
+
+            public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
+            {
+                return _inner.ApplyServerMutation(payload, numBytes, reason);
+            }
         }
 
         private static ConfigNode CreateScenario(string fieldName, string value)

@@ -1,3 +1,4 @@
+using System;
 using LmpCommon.PersistentSync;
 
 namespace LmpClient.Systems.PersistentSync
@@ -11,21 +12,52 @@ namespace LmpClient.Systems.PersistentSync
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
-            _pendingValue = DeserializePayload(snapshot.Payload, snapshot.NumBytes);
-            _hasPendingValue = true;
-            FlushPendingState();
-            return PersistentSyncApplyOutcome.Applied;
-        }
-
-        public void FlushPendingState()
-        {
-            if (!_hasPendingValue || !CanApplyLiveState())
+            try
             {
-                return;
+                var deserialized = DeserializePayload(snapshot.Payload, snapshot.NumBytes);
+                _pendingValue = deserialized;
+                _hasPendingValue = true;
+            }
+            catch (Exception)
+            {
+                return PersistentSyncApplyOutcome.Rejected;
             }
 
-            ApplyLiveState(_pendingValue);
-            _hasPendingValue = false;
+            if (!CanApplyLiveState())
+            {
+                return PersistentSyncApplyOutcome.Deferred;
+            }
+
+            return TryCommitPendingLive();
+        }
+
+        public PersistentSyncApplyOutcome FlushPendingState()
+        {
+            return TryCommitPendingLive();
+        }
+
+        private PersistentSyncApplyOutcome TryCommitPendingLive()
+        {
+            if (!_hasPendingValue)
+            {
+                return PersistentSyncApplyOutcome.Deferred;
+            }
+
+            if (!CanApplyLiveState())
+            {
+                return PersistentSyncApplyOutcome.Deferred;
+            }
+
+            try
+            {
+                ApplyLiveState(_pendingValue);
+                _hasPendingValue = false;
+                return PersistentSyncApplyOutcome.Applied;
+            }
+            catch (Exception)
+            {
+                return PersistentSyncApplyOutcome.Rejected;
+            }
         }
 
         protected abstract T DeserializePayload(byte[] payload, int numBytes);

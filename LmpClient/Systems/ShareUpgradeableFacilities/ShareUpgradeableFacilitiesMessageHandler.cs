@@ -1,4 +1,5 @@
-﻿using LmpClient.Base;
+﻿using LmpClient;
+using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Systems.ShareCareer;
 using LmpCommon.Message.Data.ShareProgress;
@@ -40,6 +41,10 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
             if (facility != null)
             {
                 facility.SetLevel(newLevel);
+            }
+            else
+            {
+                LunaLog.LogWarning($"[CareerSync:e0] facility update dropped: UpgradeableFacility not found in scene facilityId={facilityId} requestedLevel={newLevel}");
             }
 
             //Listen to the events again.

@@ -10,7 +10,7 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
         protected override string ScenarioName => "Funding";
         protected override string ScenarioFieldName => "funds";
-        protected override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+        public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
         protected override double GetStartingValue() => GameplaySettings.SettingsStore.StartingFunds;
 

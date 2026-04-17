@@ -10,7 +10,7 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Science;
         protected override string ScenarioName => "ResearchAndDevelopment";
         protected override string ScenarioFieldName => "sci";
-        protected override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+        public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
         protected override float GetStartingValue() => GameplaySettings.SettingsStore.StartingScience;
 

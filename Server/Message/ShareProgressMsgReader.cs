@@ -2,8 +2,10 @@
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
 using Server.Client;
+using Server.Log;
 using Server.Message.Base;
 using Server.System;
+using Server.System.PersistentSync;
 
 namespace Server.Message
 {
@@ -37,6 +39,15 @@ namespace Server.Message
                     break;
                 case ShareProgressMessageType.ExperimentalPart:
                     ShareExperimentalPartSystem.ExperimentalPartReceived(client, (ShareProgressExperimentalPartMsgData)data);
+                    break;
+                case ShareProgressMessageType.FundsUpdate:
+                case ShareProgressMessageType.ScienceUpdate:
+                case ShareProgressMessageType.ReputationUpdate:
+                    if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+                    {
+                        LunaLog.Error($"[PersistentSync] bypass guard: ShareProgress scalar path {data.ShareProgressMessageType} received; Funds/Science/Reputation use PersistentSync. Message ignored.");
+                    }
+
                     break;
             }
         }

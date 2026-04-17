@@ -1,5 +1,6 @@
 ﻿using KSP.UI;
 using KSP.UI.Screens;
+using LmpClient;
 using LmpClient.Base;
 using LmpClient.Events;
 using System.Collections.Concurrent;
@@ -180,6 +181,7 @@ namespace LmpClient.Systems.KerbalSys
         /// </summary>
         public void RefreshCrewDialog()
         {
+            LunaLog.Log($"[CareerSync:e0] crew dialog invasive refresh path crewAssignmentDialog={(CrewAssignmentDialog.Instance != null)} astronautComplex={(AstronautComplex != null)}");
             if (CrewAssignmentDialog.Instance != null)
             {
                 CrewAssignmentDialog.Instance.RefreshCrewLists(CrewAssignmentDialog.Instance.GetManifest(), false, true);

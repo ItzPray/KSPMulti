@@ -76,6 +76,14 @@ namespace Server.System
                     return null;
                 }
 
+                if (PersistentSyncRegistry.IsPersistentSyncInitialized &&
+                    (s == "Funding" || s == "Reputation") &&
+                    !PersistentSyncRegistry.ShouldSkipServerScenarioSync(s))
+                {
+                    LunaLog.Error($"[PersistentSync] scenario bypass guard: Funding/Reputation module '{s}' would be sent via generic scenario sync while persistent sync is active; excluding from send.");
+                    return null;
+                }
+
                 var scenarioConfigNode = ScenarioStoreSystem.GetScenarioInConfigNodeFormat(s);
                 var serializedData = Encoding.UTF8.GetBytes(scenarioConfigNode);
                 return new ScenarioInfo

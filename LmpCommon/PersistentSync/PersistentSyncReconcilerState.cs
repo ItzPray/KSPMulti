@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -22,14 +23,31 @@ namespace LmpCommon.PersistentSync
 
         public bool ShouldIgnoreSnapshot(PersistentSyncDomainId domainId, long revision)
         {
-            return _lastAppliedRevision.TryGetValue(domainId, out var lastRevision) && revision <= lastRevision;
+            return revision <= GetHighestKnownRevision(domainId);
         }
 
         public void MarkApplied(PersistentSyncDomainId domainId, long revision)
         {
-            _lastAppliedRevision[domainId] = revision;
+            var previousApplied = _lastAppliedRevision.TryGetValue(domainId, out var p) ? p : 0L;
+            var applied = Math.Max(previousApplied, revision);
+            _lastAppliedRevision[domainId] = applied;
             _hasInitialSnapshot[domainId] = true;
-            _pendingSnapshots.Remove(domainId);
+
+            if (_pendingSnapshots.TryGetValue(domainId, out var pending) && pending.Revision <= applied)
+            {
+                _pendingSnapshots.Remove(domainId);
+            }
+        }
+
+        private long GetHighestKnownRevision(PersistentSyncDomainId domainId)
+        {
+            var lastApplied = _lastAppliedRevision.TryGetValue(domainId, out var applied) ? applied : 0L;
+            if (!_pendingSnapshots.TryGetValue(domainId, out var pending))
+            {
+                return lastApplied;
+            }
+
+            return Math.Max(lastApplied, pending.Revision);
         }
 
         public long GetLastAppliedRevision(PersistentSyncDomainId domainId)

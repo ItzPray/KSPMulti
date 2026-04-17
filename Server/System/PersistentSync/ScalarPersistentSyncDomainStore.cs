@@ -13,9 +13,9 @@ namespace Server.System.PersistentSync
         private static readonly ConcurrentDictionary<string, object> ScenarioLocks = new ConcurrentDictionary<string, object>();
 
         public abstract PersistentSyncDomainId DomainId { get; }
+        public abstract PersistentAuthorityPolicy AuthorityPolicy { get; }
         protected abstract string ScenarioName { get; }
         protected abstract string ScenarioFieldName { get; }
-        protected abstract PersistentAuthorityPolicy AuthorityPolicy { get; }
 
         protected T CurrentValue { get; private set; }
         protected long Revision { get; private set; }

@@ -1,4 +1,5 @@
 ﻿using Contracts;
+using LmpClient;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
@@ -133,6 +134,7 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (ContractSystem.Instance.Contracts[contractIndex].ContractState != incomingContract.ContractState)
             {
+                LunaLog.Log($"[CareerSync:e0] contract state transition path guid={incomingContract.ContractGuid} incomingState={incomingContract.ContractState}");
                 //Do the same action on the contract that the incoming contract has already done.
                 switch (incomingContract.ContractState)
                 {
@@ -161,10 +163,8 @@ namespace LmpClient.Systems.ShareContracts
             }
             else
             {
-                //The incoming contract has the same state as the current one (so it doesn't have changed).
-
-                //Maybe update the parameters and trigger some parameter changed event or something simelar.
-
+                // Same-state sync path: full contract object replacement (parameter-only deltas are not replicated separately).
+                LunaLog.Log($"[CareerSync:e0] contract same-state replacement path guid={incomingContract.ContractGuid} state={incomingContract.ContractState}");
                 //Or replace the complete contract and hope everything goes fine:
                 ContractSystem.Instance.Contracts[contractIndex].Unregister();
                 ContractSystem.Instance.Contracts[contractIndex] = incomingContract;

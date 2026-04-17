@@ -10,7 +10,7 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Reputation;
         protected override string ScenarioName => "Reputation";
         protected override string ScenarioFieldName => "rep";
-        protected override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+        public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
         protected override float GetStartingValue() => GameplaySettings.SettingsStore.StartingReputation;
 

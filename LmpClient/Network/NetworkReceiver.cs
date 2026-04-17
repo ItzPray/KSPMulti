@@ -1,4 +1,5 @@
 ﻿using Lidgren.Network;
+using LmpClient;
 using LmpClient.Systems.Admin;
 using LmpClient.Systems.Chat;
 using LmpClient.Systems.CraftLibrary;
@@ -270,6 +271,11 @@ namespace LmpClient.Network
                             break;
                         case ShareProgressMessageType.ExperimentalPart:
                             ShareExperimentalPartsSystem.Singleton.EnqueueMessage(msg);
+                            break;
+                        case ShareProgressMessageType.FundsUpdate:
+                        case ShareProgressMessageType.ScienceUpdate:
+                        case ShareProgressMessageType.ReputationUpdate:
+                            LunaLog.LogError($"[PersistentSync] bypass guard: ShareProgress scalar path {((ShareProgressBaseMsgData)msg.Data).ShareProgressMessageType} received; migrated scalars use PersistentSync. Message not queued.");
                             break;
                     }
                     break;

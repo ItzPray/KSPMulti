@@ -1,36 +1,85 @@
+using System;
 using LmpCommon.Enums;
+using LmpCommon.Message.Data.PersistentSync;
+using LmpCommon.PersistentSync;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Server.System.PersistentSync;
 
 namespace ServerPersistentSyncTest
 {
-    /// <summary>
-    /// Placeholders for authority-policy handling once server hooks validate intent vs snapshot policy.
-    /// </summary>
     [TestClass]
     public class PersistentSyncAuthorityHandlingPlaceholderTests
     {
-        [TestMethod]
-        [Ignore("Stage 1+: assert AnyClientIntent intent acceptance rules when authority hooks land.")]
-        public void AnyClientIntent_AuthorityHandling_NotYetImplemented()
+        private sealed class PolicyProbeDomain : IPersistentSyncServerDomain
         {
+            public PolicyProbeDomain(PersistentAuthorityPolicy policy)
+            {
+                AuthorityPolicy = policy;
+            }
+
+            public PersistentAuthorityPolicy AuthorityPolicy { get; }
+            public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
+
+            public void LoadFromPersistence(bool createdFromScratch)
+            {
+            }
+
+            public PersistentSyncDomainSnapshot GetCurrentSnapshot()
+            {
+                return new PersistentSyncDomainSnapshot
+                {
+                    DomainId = DomainId,
+                    Revision = 0,
+                    AuthorityPolicy = AuthorityPolicy,
+                    Payload = new byte[0],
+                    NumBytes = 0
+                };
+            }
+
+            public PersistentSyncDomainApplyResult ApplyClientIntent(PersistentSyncIntentMsgData data)
+            {
+                throw new InvalidOperationException("ApplyClientIntent must not run when authority rejects.");
+            }
+
+            public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
+            {
+                return new PersistentSyncDomainApplyResult { Accepted = false };
+            }
         }
 
         [TestMethod]
-        [Ignore("Stage 1+: assert ServerDerived mutations bypass client intent gates when hooks land.")]
-        public void ServerDerived_AuthorityHandling_NotYetImplemented()
+        public void AnyClientIntent_ValidateClientMaySubmitIntent_AllowsClient()
         {
+            var store = new FundsPersistentSyncDomainStore();
+            Assert.AreEqual(PersistentAuthorityPolicy.AnyClientIntent, store.AuthorityPolicy);
+            Assert.IsTrue(PersistentSyncRegistry.ValidateClientMaySubmitIntent(null, store));
         }
 
         [TestMethod]
-        [Ignore("Stage 1+: assert LockOwnerIntent requires active lock owner when hooks land.")]
-        public void LockOwnerIntent_AuthorityHandling_NotYetImplemented()
+        public void ServerDerived_ValidateClientMaySubmitIntent_RejectsClient()
         {
+            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.ServerDerived);
+            Assert.IsFalse(PersistentSyncRegistry.ValidateClientMaySubmitIntent(null, domain));
         }
 
+        /// <summary>
+        /// Registry currently stubs <see cref="PersistentAuthorityPolicy.LockOwnerIntent"/> as reject-all until lock wiring exists.
+        /// </summary>
         [TestMethod]
-        [Ignore("Stage 1+: assert DesignatedProducer restricts writers when hooks land.")]
-        public void DesignatedProducer_AuthorityHandling_NotYetImplemented()
+        public void LockOwnerIntent_StubRejectsUntilLockOwnerWiringExists()
         {
+            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.LockOwnerIntent);
+            Assert.IsFalse(PersistentSyncRegistry.ValidateClientMaySubmitIntent(null, domain));
+        }
+
+        /// <summary>
+        /// Registry currently stubs <see cref="PersistentAuthorityPolicy.DesignatedProducer"/> as reject-all until producer wiring exists.
+        /// </summary>
+        [TestMethod]
+        public void DesignatedProducer_StubRejectsUntilProducerElectionWiringExists()
+        {
+            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.DesignatedProducer);
+            Assert.IsFalse(PersistentSyncRegistry.ValidateClientMaySubmitIntent(null, domain));
         }
 
         [TestMethod]

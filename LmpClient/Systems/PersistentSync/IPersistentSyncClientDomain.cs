@@ -6,6 +6,11 @@ namespace LmpClient.Systems.PersistentSync
     {
         PersistentSyncDomainId DomainId { get; }
         PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot);
-        void FlushPendingState();
+
+        /// <summary>
+        /// Attempts to apply any value cached from a snapshot once live game state can accept it.
+        /// Returns <see cref="PersistentSyncApplyOutcome.Applied"/> only when pending work was committed this call.
+        /// </summary>
+        PersistentSyncApplyOutcome FlushPendingState();
     }
 }

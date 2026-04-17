@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Linq;
 using KSP.UI.Screens;
+using LmpClient;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpCommon.Message.Data.ShareProgress;
@@ -33,7 +34,14 @@ namespace LmpClient.Systems.ShareTechnology
         {
             System.StartIgnoringEvents();
             var node = AssetBase.RnDTechTree.GetTreeTechs().ToList().Find(n => n.techID == tech.Id);
+            if (node == null)
+            {
+                LunaLog.LogError($"[CareerSync:e0] technology update dropped: R&D tech node not found for techId={tech.Id} (TechnologyUpdate handler path)");
+                System.StopIgnoringEvents();
+                return;
+            }
 
+            LunaLog.Log($"[CareerSync:e0] tech update applied from TechnologyUpdate message (single-node unlock path) techId={tech.Id}");
             //Unlock the technology
             ResearchAndDevelopment.Instance.UnlockProtoTechNode(node);
 

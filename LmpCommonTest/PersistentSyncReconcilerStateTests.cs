@@ -154,6 +154,17 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
+        public void MarkAppliedOlderRevisionAfterNewerDoesNotLowerStoredAppliedRevision()
+        {
+            var state = new PersistentSyncReconcilerState();
+            state.Reset(new[] { PersistentSyncDomainId.Funds });
+            state.MarkApplied(PersistentSyncDomainId.Funds, 5);
+            state.MarkApplied(PersistentSyncDomainId.Funds, 3);
+
+            Assert.AreEqual(5L, state.GetLastAppliedRevision(PersistentSyncDomainId.Funds));
+        }
+
+        [TestMethod]
         public void InitialSyncNotCompleteUntilEveryRequiredDomainHasMarkedAppliedSnapshot()
         {
             var state = new PersistentSyncReconcilerState();

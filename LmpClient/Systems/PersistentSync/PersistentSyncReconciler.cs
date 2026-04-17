@@ -1,3 +1,4 @@
+using LmpClient;
 using LmpClient.Base;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
@@ -29,28 +30,33 @@ namespace LmpClient.Systems.PersistentSync
         {
             if (State.ShouldIgnoreSnapshot(data.DomainId, data.Revision))
             {
+                PsLog($"snapshot ignored stale domain={data.DomainId} incomingRevision={data.Revision}");
                 return;
             }
 
             var bufferedSnapshot = CopySnapshot(data);
             if (!System.Domains.TryGetValue(bufferedSnapshot.DomainId, out var domain))
             {
-                RequestResync(bufferedSnapshot.DomainId);
+                PsLog($"snapshot missing domain handler domain={bufferedSnapshot.DomainId} revision={bufferedSnapshot.Revision}");
+                RequestResync(bufferedSnapshot.DomainId, "MissingDomainHandler");
                 return;
             }
 
             var applyOutcome = domain.ApplySnapshot(bufferedSnapshot);
+            PsLog($"snapshot apply domain={bufferedSnapshot.DomainId} incomingRevision={bufferedSnapshot.Revision} outcome={applyOutcome}");
             switch (applyOutcome)
             {
                 case PersistentSyncApplyOutcome.Applied:
                     State.MarkApplied(bufferedSnapshot.DomainId, bufferedSnapshot.Revision);
+                    LogAfterMarkApplied(bufferedSnapshot.DomainId, bufferedSnapshot.Revision);
                     CheckInitialSyncComplete();
                     break;
                 case PersistentSyncApplyOutcome.Deferred:
+                    PsLog($"snapshot deferred domain={bufferedSnapshot.DomainId} revision={bufferedSnapshot.Revision}");
                     State.StoreDeferred(bufferedSnapshot);
                     break;
                 case PersistentSyncApplyOutcome.Rejected:
-                    RequestResync(bufferedSnapshot.DomainId);
+                    RequestResync(bufferedSnapshot.DomainId, "SnapshotRejected");
                     break;
             }
         }
@@ -65,17 +71,19 @@ namespace LmpClient.Systems.PersistentSync
                 }
 
                 var applyOutcome = domain.ApplySnapshot(pendingSnapshot);
+                PsLog($"deferred retry domain={pendingSnapshot.DomainId} revision={pendingSnapshot.Revision} outcome={applyOutcome}");
                 switch (applyOutcome)
                 {
                     case PersistentSyncApplyOutcome.Applied:
                         State.MarkApplied(pendingSnapshot.DomainId, pendingSnapshot.Revision);
+                        LogAfterMarkApplied(pendingSnapshot.DomainId, pendingSnapshot.Revision);
                         CheckInitialSyncComplete();
                         break;
                     case PersistentSyncApplyOutcome.Deferred:
                         State.StoreDeferred(pendingSnapshot);
                         break;
                     case PersistentSyncApplyOutcome.Rejected:
-                        RequestResync(pendingSnapshot.DomainId);
+                        RequestResync(pendingSnapshot.DomainId, "SnapshotRejected");
                         break;
                 }
             }
@@ -83,13 +91,33 @@ namespace LmpClient.Systems.PersistentSync
 
         public void FlushPendingState()
         {
-            foreach (var domain in System.Domains.Values)
+            foreach (var entry in System.Domains)
             {
-                domain.FlushPendingState();
+                var domainId = entry.Key;
+                var outcome = entry.Value.FlushPendingState();
+                switch (outcome)
+                {
+                    case PersistentSyncApplyOutcome.Applied:
+                        if (State.TryGetDeferred(domainId, out var pending))
+                        {
+                            PsLog($"flush deferred->applied domain={domainId} revision={pending.Revision}");
+                            State.MarkApplied(domainId, pending.Revision);
+                            LogAfterMarkApplied(domainId, pending.Revision);
+                            CheckInitialSyncComplete();
+                        }
+
+                        break;
+                    case PersistentSyncApplyOutcome.Rejected:
+                        PsLog($"flush rejected domain={domainId} requesting resync");
+                        RequestResync(domainId, "FlushRejected");
+                        break;
+                    case PersistentSyncApplyOutcome.Deferred:
+                        break;
+                }
             }
         }
 
-        public void RequestResync(PersistentSyncDomainId domainId)
+        public void RequestResync(PersistentSyncDomainId domainId, string reasonCategory)
         {
             if (_lastResyncRequest.TryGetValue(domainId, out var lastRequest) &&
                 (DateTime.UtcNow - lastRequest).TotalMilliseconds < 1000)
@@ -97,16 +125,35 @@ namespace LmpClient.Systems.PersistentSync
                 return;
             }
 
+            PsLog($"RequestResync domain={domainId} reason={reasonCategory}");
             _lastResyncRequest[domainId] = DateTime.UtcNow;
             System.MessageSender.SendRequest(domainId);
         }
 
         private void CheckInitialSyncComplete()
         {
-            if (MainSystem.NetworkState == ClientState.SyncingPersistentState && State.AreAllInitialSnapshotsApplied())
+            if (MainSystem.NetworkState != ClientState.SyncingPersistentState)
             {
-                MainSystem.NetworkState = ClientState.PersistentStateSynced;
+                return;
             }
+
+            if (!State.AreAllInitialSnapshotsApplied())
+            {
+                return;
+            }
+
+            PsLog("initial sync complete all required domains applied -> PersistentStateSynced");
+            MainSystem.NetworkState = ClientState.PersistentStateSynced;
+        }
+
+        private void LogAfterMarkApplied(PersistentSyncDomainId domainId, long revision)
+        {
+            PsLog($"MarkApplied domain={domainId} revision={revision} domainInitialSnapshotSatisfied={State.HasInitialSnapshot(domainId)}");
+        }
+
+        private static void PsLog(string message)
+        {
+            LunaLog.Log($"[PersistentSync] {message}");
         }
 
         private static PersistentSyncBufferedSnapshot CopySnapshot(PersistentSyncSnapshotMsgData data)

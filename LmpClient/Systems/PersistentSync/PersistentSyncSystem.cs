@@ -1,3 +1,4 @@
+using LmpClient;
 using LmpClient.Base;
 using LmpClient.Events;
 using LmpClient.Systems.SettingsSys;
@@ -59,11 +60,23 @@ namespace LmpClient.Systems.PersistentSync
 
             if (!requiredDomains.Any())
             {
+                LunaLog.Log("[PersistentSync] StartInitialSync no required domains for current game mode; advancing to PersistentStateSynced");
                 MainSystem.NetworkState = ClientState.PersistentStateSynced;
                 return;
             }
 
+            var domainList = string.Join(",", requiredDomains.Select(d => d.ToString()));
+            LunaLog.Log($"[PersistentSync] StartInitialSync requesting snapshots for domains=[{domainList}]");
             MessageSender.SendRequest(requiredDomains);
+        }
+
+        /// <summary>
+        /// Single place to consult whether required persistent-sync domains have their initial snapshots applied.
+        /// </summary>
+        public bool IsPersistentSnapshotPhaseCompleteForCurrentSession()
+        {
+            var required = GetRequiredDomainsForCurrentGameMode().ToArray();
+            return !required.Any() || Reconciler.State.AreAllInitialSnapshotsApplied();
         }
 
         public long GetKnownRevision(PersistentSyncDomainId domainId)
@@ -84,6 +97,10 @@ namespace LmpClient.Systems.PersistentSync
             }
         }
 
+        /// <summary>
+        /// Retries buffered server snapshots first, then asks domains to commit any scalar values
+        /// that were deferred until live game objects existed (<see cref="PersistentSyncApplyOutcome"/>).
+        /// </summary>
         private void FlushPendingState()
         {
             Reconciler.RetryDeferredSnapshots();

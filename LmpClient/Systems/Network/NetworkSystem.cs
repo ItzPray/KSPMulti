@@ -190,6 +190,7 @@ namespace LmpClient.Systems.Network
                     break;
                 case ClientState.ScenariosSynced:
                     MainSystem.Singleton.Status = "Scenarios synced";
+                    _persistentLockAdvanceBlockedLogged = false;
                     PersistentSyncSystem.Singleton.Enabled = true;
                     MainSystem.NetworkState = ClientState.SyncingPersistentState;
                     PersistentSyncSystem.Singleton.StartInitialSync();
@@ -202,6 +203,18 @@ namespace LmpClient.Systems.Network
                     break;
                 case ClientState.PersistentStateSynced:
                     MainSystem.Singleton.Status = "Persistent state synced";
+                    if (PersistentSyncSystem.Singleton == null || !PersistentSyncSystem.Singleton.IsPersistentSnapshotPhaseCompleteForCurrentSession())
+                    {
+                        if (!_persistentLockAdvanceBlockedLogged)
+                        {
+                            _persistentLockAdvanceBlockedLogged = true;
+                            LunaLog.LogError("[PersistentSync] startup guard: PersistentStateSynced but required persistent domains are not all applied; not advancing to lock sync.");
+                        }
+
+                        break;
+                    }
+
+                    _persistentLockAdvanceBlockedLogged = false;
                     MainSystem.NetworkState = ClientState.SyncingLocks;
                     LockSystem.Singleton.Enabled = true;
                     LockSystem.Singleton.MessageSender.SendLocksRequest();
@@ -210,7 +223,11 @@ namespace LmpClient.Systems.Network
                 case ClientState.SyncingLocks:
                     MainSystem.Singleton.Status = "Syncing locks";
                     if (ConnectionIsStuck())
+                    {
+                        _persistentLockAdvanceBlockedLogged = false;
                         MainSystem.NetworkState = ClientState.PersistentStateSynced;
+                    }
+
                     break;
                 case ClientState.LocksSynced:
                     MainSystem.Singleton.Status = "Starting";
@@ -241,6 +258,7 @@ namespace LmpClient.Systems.Network
         #region Private methods
 
         private static DateTime _lastStateTime = DateTime.MinValue;
+        private static bool _persistentLockAdvanceBlockedLogged;
         private static bool ConnectionIsStuck(int maxIdleMiliseconds = 2000)
         {
             if ((LunaComputerTime.UtcNow - _lastStateTime).TotalMilliseconds > maxIdleMiliseconds)

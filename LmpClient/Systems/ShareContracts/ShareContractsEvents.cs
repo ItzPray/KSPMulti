@@ -1,5 +1,6 @@
 ﻿using Contracts;
 using Contracts.Templates;
+using LmpClient;
 using LmpClient.Base;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.SettingsSys;
@@ -126,14 +127,12 @@ namespace LmpClient.Systems.ShareContracts
 
         public void ContractParameterChanged(Contract contract, ContractParameter contractParameter)
         {
-            //Do not send contract parameter changes as other players might override them
-            //See: https://github.com/LunaMultiplayer/LunaMultiplayer/issues/186
+            // Confirmed bypass: parameter deltas are intentionally not replicated (other clients would fight local sim).
+            // See: https://github.com/LunaMultiplayer/LunaMultiplayer/issues/186
+            //
+            // TODO(E0+): optional replication when parameters reach a terminal state (e.g. ParameterState.Complete) if safe.
 
-            //TODO: Perhaps we can send only when the parameters are complete?
-            //if (contractParameter.State == ParameterState.Complete)
-            //    System.MessageSender.SendContractMessage(contract);
-
-            LunaLog.Log($"Contract parameter changed on:{contract.ContractGuid}");
+            LunaLog.Log($"[CareerSync:e0] contracts parameter change not replicated contract={contract.ContractGuid} parameterType={(contractParameter != null ? contractParameter.GetType().Name : "null")} (by design; issue #186)");
         }
 
         public void ContractRead(Contract contract)
