@@ -9,6 +9,10 @@ using System.Collections.Concurrent;
 
 namespace LmpClient.Systems.KerbalSys
 {
+    /// <summary>
+    /// Remote kerbal payloads enqueue to <see cref="KerbalSystem.KerbalsToProcess"/>; the system applies them on the main
+    /// thread and refreshes crew UI via <see cref="KerbalSystem.RefreshCrewListsSafe"/> (E1: no assignment dialog clear/fill).
+    /// </summary>
     public class KerbalMessageHandler : SubSystem<KerbalSystem>, IMessageHandler
     {
         public ConcurrentQueue<IServerMessageBase> IncomingMessages { get; set; } = new ConcurrentQueue<IServerMessageBase>();

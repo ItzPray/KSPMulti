@@ -54,7 +54,7 @@ namespace LmpClient.Systems.KerbalSys
 
                 System.SetKerbalStatusWithoutTriggeringEvent(kerbal, newStatus);
                 System.MessageSender.SendKerbal(kerbal);
-                System.RefreshCrewDialog();
+                System.RefreshCrewListsSafe();
             }
         }
 
@@ -75,7 +75,7 @@ namespace LmpClient.Systems.KerbalSys
 
                 System.SetKerbalTypeWithoutTriggeringEvent(kerbal, newType);
                 System.MessageSender.SendKerbal(kerbal);
-                System.RefreshCrewDialog();
+                System.RefreshCrewListsSafe();
             }
         }
 
@@ -91,7 +91,7 @@ namespace LmpClient.Systems.KerbalSys
             }
 
             System.MessageSender.SendKerbal(kerbal);
-            System.RefreshCrewDialog();
+            System.RefreshCrewListsSafe();
         }
 
         /// <summary>
@@ -166,7 +166,7 @@ namespace LmpClient.Systems.KerbalSys
         {
             if (System.AstronautComplex != null)
             {
-                System.RefreshCrewDialog();
+                System.RefreshCrewListsSafe();
             }
 
             //Trigger a ValidateAssignments so missing crews are set as assigned

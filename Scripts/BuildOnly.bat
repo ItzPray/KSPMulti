@@ -24,7 +24,7 @@ if defined MSBUILD_EXE (
 
 echo.
 echo ===== Building Client =====
-call "%MSBUILD_CMD%" "%~dp0..\LmpClient\LmpClient.csproj" /t:Build "/p:Configuration=%SOLUTIONCONFIGURATION%;Platform=AnyCPU;SolutionDir=%REPOROOT%\\;TargetFrameworkVersion=v4.7.2"
+call "%MSBUILD_CMD%" "%~dp0..\LmpClient\LmpClient.csproj" /t:Build "/p:Configuration=%SOLUTIONCONFIGURATION%;Platform=AnyCPU;SolutionDir=%REPOROOT%\\;TargetFrameworkVersion=v4.7.2;RunPostBuildEvent=Never;PostBuildEvent="
 if errorlevel 1 (
   echo Client build failed.
   exit /b 1
@@ -51,6 +51,7 @@ if errorlevel 1 (
 
 echo.
 echo ===== Build Only Complete =====
+echo KSP deployment skipped by BuildOnly.bat
 echo Client built to: LmpClient\bin\%SOLUTIONCONFIGURATION%
 echo Server built to: _build\Server\%SOLUTIONCONFIGURATION%
 

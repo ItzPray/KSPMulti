@@ -141,7 +141,7 @@ namespace LmpClient.Systems.KerbalSys
                     refreshDialog = true;
                 }
 
-                if (refreshDialog) RefreshCrewDialog();
+                if (refreshDialog) RefreshCrewListsSafe();
             }
         }
 
@@ -173,15 +173,30 @@ namespace LmpClient.Systems.KerbalSys
                 refreshDialog = true;
             }
 
-            if (refreshDialog) RefreshCrewDialog();
+            if (refreshDialog) RefreshCrewListsSafe();
         }
 
         /// <summary>
-        /// Call this method to refresh the crews in the vessel spawn, vessel editor and astronaut complex
+        /// Refreshes roster/list views and astronaut complex without clearing or auto-filling the crew assignment dialog.
+        /// Use for remote kerbal sync and other flows that must not stomp another player's slot selection.
         /// </summary>
-        public void RefreshCrewDialog()
+        public void RefreshCrewListsSafe()
         {
-            LunaLog.Log($"[CareerSync:e0] crew dialog invasive refresh path crewAssignmentDialog={(CrewAssignmentDialog.Instance != null)} astronautComplex={(AstronautComplex != null)}");
+            LunaLog.Log($"[CareerSync:e1] crew UI safe refresh crewAssignmentDialog={(CrewAssignmentDialog.Instance != null)} astronautComplex={(AstronautComplex != null)}");
+            if (CrewAssignmentDialog.Instance != null)
+            {
+                CrewAssignmentDialog.Instance.RefreshCrewLists(CrewAssignmentDialog.Instance.GetManifest(), false, true);
+            }
+
+            RefreshAstronautComplexLists();
+        }
+
+        /// <summary>
+        /// Rebuilds crew assignment UI including clear/fill. Reserved for truly local intentional flows; not used from remote kerbal sync.
+        /// </summary>
+        public void RefreshCrewDialogInvasiveRebuild()
+        {
+            LunaLog.Log($"[CareerSync:e1] crew UI invasive rebuild crewAssignmentDialog={(CrewAssignmentDialog.Instance != null)} astronautComplex={(AstronautComplex != null)}");
             if (CrewAssignmentDialog.Instance != null)
             {
                 CrewAssignmentDialog.Instance.RefreshCrewLists(CrewAssignmentDialog.Instance.GetManifest(), false, true);
@@ -189,6 +204,19 @@ namespace LmpClient.Systems.KerbalSys
                 CrewAssignmentDialog.Instance.ButtonFill();
             }
 
+            RefreshAstronautComplexLists();
+        }
+
+        /// <summary>
+        /// Backward-compatible name: roster-safe refresh only (no ButtonClear / ButtonFill).
+        /// </summary>
+        public void RefreshCrewDialog()
+        {
+            RefreshCrewListsSafe();
+        }
+
+        private void RefreshAstronautComplexLists()
+        {
             if (AstronautComplex != null)
             {
                 InitiateGui.Invoke(AstronautComplex, null);
