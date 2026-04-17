@@ -26,6 +26,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Enums\LogLevels.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\MasterServerMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\PartSyncFieldType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Enums\PersistentAuthorityPolicy.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\ServerMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\TerrainQuality.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\WarpMode.cs" />
@@ -47,6 +48,15 @@
     <Compile Include="$(MSBuildThisFileDirectory)Locks\LockType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LunaMath.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LunaNetUtils.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\FundsIntentPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\FundsSnapshotPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncBufferedSnapshot.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncDomainId.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncReconcilerState.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ReputationIntentPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ReputationSnapshotPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ScienceIntentPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ScienceSnapshotPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Base\EndpointUtil.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Base\FactoryBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Base\GuidUtil.cs" />
@@ -67,6 +77,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\LockCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\ModCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\MotdCliMsg.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Client\PersistentSyncCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\PlayerColorCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\PlayerStatusCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\ScenarioCliMsg.cs" />
@@ -138,6 +149,10 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Motd\MotdBaseMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Motd\MotdReplyMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Motd\MotdRequestMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PersistentSync\PersistentSyncBaseMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PersistentSync\PersistentSyncIntentMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PersistentSync\PersistentSyncRequestMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PersistentSync\PersistentSyncSnapshotMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PlayerConnection\PlayerConnectionBaseMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PlayerConnection\PlayerConnectionJoinMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PlayerConnection\PlayerConnectionLeaveMsgData.cs" />
@@ -224,6 +239,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\LockSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\ModSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\MotdSrvMsg.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Server\PersistentSyncSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\PlayerColorSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\PlayerConnectionSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\PlayerStatusSrvMsg.cs" />
@@ -243,6 +259,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\LockMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\MasterServerMessageSubType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\MotdMessageType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Types\PersistentSyncMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\PlayerColorMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\PlayerConnectionMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\PlayerStatusMessageType.cs" />

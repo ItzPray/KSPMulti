@@ -11,6 +11,7 @@ using Server.Server;
 using Server.Settings;
 using Server.Settings.Structures;
 using Server.System;
+using Server.System.PersistentSync;
 using Server.Upnp;
 using Server.Utilities;
 using Server.Web;
@@ -80,6 +81,7 @@ namespace Server
                 VesselStoreSystem.LoadExistingVessels();
                 var scenariosCreated = ScenarioSystem.GenerateDefaultScenarios();
                 ScenarioStoreSystem.LoadExistingScenarios(scenariosCreated);
+                PersistentSyncRegistry.Initialize(scenariosCreated);
                 LmpPluginHandler.LoadPlugins();
                 WarpSystem.Reset();
                 TimeSystem.Reset();

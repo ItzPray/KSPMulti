@@ -24,6 +24,8 @@
         PlayersSynced = 19,
         SyncingScenarios = 20,
         ScenariosSynced = 21,
+        SyncingPersistentState = 22,
+        PersistentStateSynced = 23,
         SyncingLocks = 24,
         LocksSynced = 25,
 

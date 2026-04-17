@@ -1,8 +1,6 @@
-﻿using LmpClient.Base;
+using LmpClient.Base;
 using LmpClient.Base.Interface;
-using LmpClient.Network;
-using LmpCommon.Message.Client;
-using LmpCommon.Message.Data.ShareProgress;
+using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Interface;
 
 namespace LmpClient.Systems.ShareFunds
@@ -11,15 +9,12 @@ namespace LmpClient.Systems.ShareFunds
     {
         public void SendMessage(IMessageData msg)
         {
-            TaskFactory.StartNew(() => NetworkSender.QueueOutgoingMessage(MessageFactory.CreateNew<ShareProgressCliMsg>(msg)));
+            PersistentSyncSystem.Singleton.MessageSender.SendMessage(msg);
         }
 
         public void SendFundsMessage(double funds, string reason)
         {
-            var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressFundsMsgData>();
-            msgData.Funds = funds;
-            msgData.Reason = reason;
-            SendMessage(msgData);
+            PersistentSyncSystem.Singleton.MessageSender.SendFundsIntent(funds, reason);
         }
     }
 }

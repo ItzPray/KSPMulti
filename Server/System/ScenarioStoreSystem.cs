@@ -40,13 +40,6 @@ namespace Server.System
                 {
                     CurrentScenarios.TryAdd(Path.GetFileNameWithoutExtension(file), new ConfigNode(File.ReadAllText(file)));
                 }
-
-                if (createdFromScratch)
-                {
-                    ScenarioDataUpdater.WriteScienceDataToFile(GameplaySettings.SettingsStore.StartingScience);
-                    ScenarioDataUpdater.WriteReputationDataToFile(GameplaySettings.SettingsStore.StartingReputation);
-                    ScenarioDataUpdater.WriteFundsDataToFile(GameplaySettings.SettingsStore.StartingFunds);
-                }
             }
         }
 

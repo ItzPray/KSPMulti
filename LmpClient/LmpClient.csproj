@@ -296,6 +296,16 @@
     <Compile Include="Systems\ShareFunds\ShareFundsMessageHandler.cs" />
     <Compile Include="Systems\ShareFunds\ShareFundsMessageSender.cs" />
     <Compile Include="Systems\ShareFunds\ShareFundsSystem.cs" />
+    <Compile Include="Systems\PersistentSync\FundsPersistentSyncClientDomain.cs" />
+    <Compile Include="Systems\PersistentSync\IPersistentSyncClientDomain.cs" />
+    <Compile Include="Systems\PersistentSync\PersistentSyncApplyOutcome.cs" />
+    <Compile Include="Systems\PersistentSync\PersistentSyncMessageHandler.cs" />
+    <Compile Include="Systems\PersistentSync\PersistentSyncMessageSender.cs" />
+    <Compile Include="Systems\PersistentSync\PersistentSyncReconciler.cs" />
+    <Compile Include="Systems\PersistentSync\PersistentSyncSystem.cs" />
+    <Compile Include="Systems\PersistentSync\ReputationPersistentSyncClientDomain.cs" />
+    <Compile Include="Systems\PersistentSync\ScalarPersistentSyncClientDomain.cs" />
+    <Compile Include="Systems\PersistentSync\SciencePersistentSyncClientDomain.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryMessageHandler.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryMessageSender.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryStructures.cs" />

@@ -8,6 +8,7 @@ using LmpClient.Systems.KerbalSys;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.PlayerColorSys;
 using LmpClient.Systems.PlayerConnection;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.Scenario;
 using LmpClient.Systems.SettingsSys;
 using LmpClient.Systems.Status;
@@ -189,6 +190,18 @@ namespace LmpClient.Systems.Network
                     break;
                 case ClientState.ScenariosSynced:
                     MainSystem.Singleton.Status = "Scenarios synced";
+                    PersistentSyncSystem.Singleton.Enabled = true;
+                    MainSystem.NetworkState = ClientState.SyncingPersistentState;
+                    PersistentSyncSystem.Singleton.StartInitialSync();
+                    _lastStateTime = LunaComputerTime.UtcNow;
+                    break;
+                case ClientState.SyncingPersistentState:
+                    MainSystem.Singleton.Status = "Syncing persistent state";
+                    if (ConnectionIsStuck(10000))
+                        MainSystem.NetworkState = ClientState.ScenariosSynced;
+                    break;
+                case ClientState.PersistentStateSynced:
+                    MainSystem.Singleton.Status = "Persistent state synced";
                     MainSystem.NetworkState = ClientState.SyncingLocks;
                     LockSystem.Singleton.Enabled = true;
                     LockSystem.Singleton.MessageSender.SendLocksRequest();
@@ -197,7 +210,7 @@ namespace LmpClient.Systems.Network
                 case ClientState.SyncingLocks:
                     MainSystem.Singleton.Status = "Syncing locks";
                     if (ConnectionIsStuck())
-                        MainSystem.NetworkState = ClientState.ScenariosSynced;
+                        MainSystem.NetworkState = ClientState.PersistentStateSynced;
                     break;
                 case ClientState.LocksSynced:
                     MainSystem.Singleton.Status = "Starting";

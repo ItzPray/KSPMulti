@@ -8,6 +8,7 @@ using Server.Properties;
 using Server.Server;
 using Server.Settings.Structures;
 using Server.System.Scenario;
+using Server.System.PersistentSync;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -70,6 +71,11 @@ namespace Server.System
         {
             var scenarioDataArray = ScenarioStoreSystem.CurrentScenarios.Keys.Select(s =>
             {
+                if (PersistentSyncRegistry.ShouldSkipServerScenarioSync(s))
+                {
+                    return null;
+                }
+
                 var scenarioConfigNode = ScenarioStoreSystem.GetScenarioInConfigNodeFormat(s);
                 var serializedData = Encoding.UTF8.GetBytes(scenarioConfigNode);
                 return new ScenarioInfo
@@ -78,7 +84,7 @@ namespace Server.System
                     NumBytes = serializedData.Length,
                     Module = Path.GetFileNameWithoutExtension(s)
                 };
-            }).ToArray();
+            }).Where(s => s != null).ToArray();
 
             var msgData = ServerContext.ServerMessageFactory.CreateNewMessageData<ScenarioDataMsgData>();
             msgData.ScenariosData = scenarioDataArray;

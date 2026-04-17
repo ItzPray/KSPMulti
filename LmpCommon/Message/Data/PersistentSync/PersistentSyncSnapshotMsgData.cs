@@ -1,0 +1,52 @@
+using Lidgren.Network;
+using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
+
+namespace LmpCommon.Message.Data.PersistentSync
+{
+    public class PersistentSyncSnapshotMsgData : PersistentSyncBaseMsgData
+    {
+        internal PersistentSyncSnapshotMsgData() { }
+
+        public override Message.Types.PersistentSyncMessageType PersistentSyncMessageType => Message.Types.PersistentSyncMessageType.Snapshot;
+
+        public PersistentSyncDomainId DomainId;
+        public long Revision;
+        public PersistentAuthorityPolicy AuthorityPolicy;
+        public byte[] Payload = new byte[0];
+        public int NumBytes;
+
+        public override string ClassName { get; } = nameof(PersistentSyncSnapshotMsgData);
+
+        internal override void InternalSerialize(NetOutgoingMessage lidgrenMsg)
+        {
+            base.InternalSerialize(lidgrenMsg);
+            lidgrenMsg.Write((byte)DomainId);
+            lidgrenMsg.Write(Revision);
+            lidgrenMsg.Write((byte)AuthorityPolicy);
+            lidgrenMsg.Write(NumBytes);
+            lidgrenMsg.Write(Payload, 0, NumBytes);
+        }
+
+        internal override void InternalDeserialize(NetIncomingMessage lidgrenMsg)
+        {
+            base.InternalDeserialize(lidgrenMsg);
+            DomainId = (PersistentSyncDomainId)lidgrenMsg.ReadByte();
+            Revision = lidgrenMsg.ReadInt64();
+            AuthorityPolicy = (PersistentAuthorityPolicy)lidgrenMsg.ReadByte();
+            NumBytes = lidgrenMsg.ReadInt32();
+
+            if (Payload.Length < NumBytes)
+            {
+                Payload = new byte[NumBytes];
+            }
+
+            lidgrenMsg.ReadBytes(Payload, 0, NumBytes);
+        }
+
+        internal override int InternalGetMessageSize()
+        {
+            return base.InternalGetMessageSize() + sizeof(byte) + sizeof(long) + sizeof(byte) + sizeof(int) + NumBytes;
+        }
+    }
+}

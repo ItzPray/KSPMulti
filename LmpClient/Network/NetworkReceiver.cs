@@ -12,6 +12,7 @@ using LmpClient.Systems.ModApi;
 using LmpClient.Systems.Motd;
 using LmpClient.Systems.PlayerColorSys;
 using LmpClient.Systems.PlayerConnection;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.Scenario;
 using LmpClient.Systems.Screenshot;
 using LmpClient.Systems.SettingsSys;
@@ -166,6 +167,9 @@ namespace LmpClient.Network
                 case ServerMessageType.Scenario:
                     ScenarioSystem.Singleton.EnqueueMessage(msg);
                     break;
+                case ServerMessageType.PersistentSync:
+                    PersistentSyncSystem.Singleton.EnqueueMessage(msg);
+                    break;
                 case ServerMessageType.Kerbal:
                     KerbalSystem.Singleton.EnqueueMessage(msg);
                     break;
@@ -243,17 +247,8 @@ namespace LmpClient.Network
                 case ServerMessageType.ShareProgress:
                     switch (((ShareProgressBaseMsgData)msg.Data).ShareProgressMessageType)
                     {
-                        case ShareProgressMessageType.FundsUpdate:
-                            ShareFundsSystem.Singleton.EnqueueMessage(msg);
-                            break;
-                        case ShareProgressMessageType.ScienceUpdate:
-                            ShareScienceSystem.Singleton.EnqueueMessage(msg);
-                            break;
                         case ShareProgressMessageType.ScienceSubjectUpdate:
                             ShareScienceSubjectSystem.Singleton.EnqueueMessage(msg);
-                            break;
-                        case ShareProgressMessageType.ReputationUpdate:
-                            ShareReputationSystem.Singleton.EnqueueMessage(msg);
                             break;
                         case ShareProgressMessageType.TechnologyUpdate:
                             ShareTechnologySystem.Singleton.EnqueueMessage(msg);
