@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<CompatibleDialogText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Title>KSP совместимость</Title>
+  <Text>Эта версия LMP не совместима с вашей версией KSP. Ожидайте багов и странного поведения</Text>
+  <Accept>Принять</Accept>
+</CompatibleDialogText>

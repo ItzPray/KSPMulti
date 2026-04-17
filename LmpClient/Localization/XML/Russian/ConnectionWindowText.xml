@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<ConnectionWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <PlayerName>Имя Игрока:</PlayerName>
+  <Name>Имя:</Name>
+  <Address>Адрес:</Address>
+  <Port>Порт:</Port>
+  <Password>Пароль:</Password>
+  <CustomServers>Пользовательские сервера:</CustomServers>
+  <Connect>Присоединиться</Connect>
+  <Settings>Настройки</Settings>
+  <Servers>Список Серверов</Servers>
+</ConnectionWindowText>

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!--Base class for BaseDrill, ModuleResourceConverter and ModuleScienceConverter-->
+<ModuleDefinition xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Fields>
+        <FieldDefinition>
+            <FieldName>EfficiencyBonus</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>IsActivated</FieldName>
+        </FieldDefinition>
+    </Fields>
+    <Methods>
+        <MethodDefinition>
+            <MethodName>StartResourceConverter</MethodName>
+        </MethodDefinition>
+        <MethodDefinition>
+            <MethodName>StopResourceConverter</MethodName>
+        </MethodDefinition>
+    </Methods>
+</ModuleDefinition>

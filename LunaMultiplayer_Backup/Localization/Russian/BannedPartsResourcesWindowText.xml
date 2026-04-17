@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-16"?>
+
+<BannedPartsResourcesWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Title>LunaMultiplayer - Забаненные части/resources</Title>
+  <Text>имеет данные забаненые части/ресурсы и не может быть запущен</Text>
+  <BannedParts>Забаненые части:</BannedParts>
+  <BannedResources>Забаненные ресурсы:</BannedResources>
+  <TooManyParts>Ваш корабль имеет много частей. Этот сервер разрешает корабли с максимальным количеством частей:</TooManyParts>
+</BannedPartsResourcesWindowText>

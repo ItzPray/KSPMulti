@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<ButtonTooltips xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SettingsIcon>Paramètres</SettingsIcon>
+  <ServerIcon>Serveurs</ServerIcon>
+  <ConnectIcon>Se connecter</ConnectIcon>
+  <DisconnectIcon>Se déconnecter</DisconnectIcon>
+  <SyncIcon>Warper</SyncIcon>
+  <RefreshIcon>Rafraîchir</RefreshIcon>
+  <UploadIcon>Partager</UploadIcon>
+  <DeleteIcon>Supprimer</DeleteIcon>
+  <PlusIcon>Ajouter</PlusIcon>
+  <SaveIcon>Sauvegarder</SaveIcon>
+  <KeyIcon>Mot de passe</KeyIcon>
+  <GlobeIcon>Pays</GlobeIcon>
+  <ChatIcon>Chat</ChatIcon>
+  <CameraIcon>Captures d'écran</CameraIcon>
+  <RocketIcon>Vaisseaux</RocketIcon>
+  <AdminIcon>Admin</AdminIcon>
+  <KickIcon>Expulser</KickIcon>
+  <BanIcon>Bannir</BanIcon>
+  <DekesslerIcon>Dekessler</DekesslerIcon>
+  <NukeIcon>Atomiser CSK</NukeIcon>
+  <RestartServerIcon>Redémarrer le serveur</RestartServerIcon>
+  <DownloadIcon>Télécharger</DownloadIcon>
+  <CycleFirstIcon>Premier</CycleFirstIcon>
+  <CyclePreviousIcon>Précédent</CyclePreviousIcon>
+  <CycleNextIcon>Suivant</CycleNextIcon>
+  <CycleLastIcon>Dernier</CycleLastIcon>
+</ButtonTooltips>

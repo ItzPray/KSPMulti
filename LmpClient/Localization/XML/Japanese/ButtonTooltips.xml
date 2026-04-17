@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<ButtonTooltips xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SettingsIcon>�Z�b�e�B���O</SettingsIcon>
+  <ServerIcon>�T�[�o�[</ServerIcon>
+  <ConnectIcon>�ڑ�</ConnectIcon>
+  <DisconnectIcon>�ؒf</DisconnectIcon>
+  <SyncIcon>����</SyncIcon>
+  <RefreshIcon>���t���b�V��</RefreshIcon>
+  <UploadIcon>�A�b�v���[�h</UploadIcon>
+  <DeleteIcon>�폜</DeleteIcon>
+  <PlusIcon>�ǉ�</PlusIcon>
+  <SaveIcon>�Z�[�u</SaveIcon>
+  <KeyIcon>�p�X���[�h</KeyIcon>
+  <GlobeIcon>Country</GlobeIcon>
+  <ChatIcon>�`���b�g</ChatIcon>
+  <CameraIcon>�X�N���[���V���b�g</CameraIcon>
+  <RocketIcon>�@��</RocketIcon>
+  <AdminIcon>�Ǘ���</AdminIcon>
+  <KickIcon>�L�b�N</KickIcon>
+  <BanIcon>BAN</BanIcon>
+  <DekesslerIcon>�f�u������</DekesslerIcon>
+  <NukeIcon>KSC�𐴑|����</NukeIcon>
+  <RestartServerIcon>Restart server</RestartServerIcon>
+  <DownloadIcon>Download</DownloadIcon>
+  <CycleFirstIcon>First</CycleFirstIcon>
+  <CyclePreviousIcon>Previous</CyclePreviousIcon>
+  <CycleNextIcon>Next</CycleNextIcon>
+  <CycleLastIcon>Last</CycleLastIcon>
+</ButtonTooltips>

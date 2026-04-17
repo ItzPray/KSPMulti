@@ -1,0 +1,26 @@
+#Here you specify the IP addresses or hostnames of all the dedicated servers followed by ":" and the port.
+#Each master server will look if the server is on this list and tell the clients if it's a dedicated server or not
+#It will appear with a rainbow effect on the browser or with the custom color specified in the DedicatedServerSettings.xml
+#For more information see https://github.com/LunaMultiplayer/LunaMultiplayer/wiki/Dedicated-server
+
+#KerbCat 211Server
+121.36.204.155:8800
+121.36.204.155:8801
+121.36.204.155:8802
+#Piro server
+91.126.41.111:8800
+#Rogue's LUNACY 24/7
+203.10.96.54:2101
+#Scott Manley community server
+135.23.120.245:8800
+#ABrit's Server
+abritin.space:8800
+#Tserver
+ksp.trickys.gg:8800
+#Checha
+checha.ru:8800
+checha.ru:8888
+#!a Cookie's Luna Server
+92.221.152.39:8800
+#FireStryker
+ksp.lekekelparadox.xyz:8800

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<RevertDialogText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <CannotRevertTitle>Navrácení zamítnuto</CannotRevertTitle>
+  <CannotRevertText>Při sledování vozidla, nebo jeho přepnutí se již nelze vrátit. Konzultujte wikipedii pro více informací.</CannotRevertText>
+  <CloseBtn>Zavřít</CloseBtn>
+</RevertDialogText>

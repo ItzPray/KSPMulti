@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<ModuleDefinition xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Fields>
+        <FieldDefinition>
+            <FieldName>invertDrive</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>driveEngaged</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>savedMode</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>savedControlMode</FieldName>
+        </FieldDefinition>
+    </Fields>
+    <Methods>
+        <MethodDefinition>
+            <MethodName>EngageDrive</MethodName>
+        </MethodDefinition>
+        <MethodDefinition>
+            <MethodName>InvertDrive</MethodName>
+        </MethodDefinition>
+        <MethodDefinition>
+            <MethodName>LockDrive</MethodName>
+        </MethodDefinition>
+        <MethodDefinition>
+            <MethodName>NeutralDrive</MethodName>
+        </MethodDefinition>
+    </Methods>
+</ModuleDefinition>

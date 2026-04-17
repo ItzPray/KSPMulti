@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<UpdateWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Title>Ny opdatering tilgængelig</Title>
+  <Text>Der er en ny version af LMP tilgængelig til download</Text>
+  <StillCompatible>Din nuværende LMP version er kompatible med den seneste version</StillCompatible>
+  <NotCompatible>Din nuværende LMP version er ikke kompatible med den seneste version</NotCompatible>
+  <Changelog>Ændringslog</Changelog>
+  <CurrentVersion>Din nuværende version:</CurrentVersion>
+  <LatestVersion>Seneste version:</LatestVersion>
+</UpdateWindowText>

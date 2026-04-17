@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<RevertDialogText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <CannotRevertTitle>Zurücksetzen nicht möglich</CannotRevertTitle>
+  <CannotRevertText>Wegen der LMP Beschränkungen ist es nicht möglich, nach dem Wechsel zu einem anderen Fahrzeug oder während des Beobachtens das Spiel zum letzten Start zurückzusetzen. Schlage im Wiki für weiter Informationen nach</CannotRevertText>
+  <CloseBtn>Schließen</CloseBtn>
+</RevertDialogText>

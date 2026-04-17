@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<ButtonTooltips xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SettingsIcon>设置</SettingsIcon>
+  <ServerIcon>服务器</ServerIcon>
+  <ConnectIcon>连接</ConnectIcon>
+  <DisconnectIcon>取消连接</DisconnectIcon>
+  <SyncIcon>跳转至此</SyncIcon>
+  <RefreshIcon>刷新</RefreshIcon>
+  <UploadIcon>上传</UploadIcon>
+  <DeleteIcon>删除</DeleteIcon>
+  <PlusIcon>添加</PlusIcon>
+  <SaveIcon>保存</SaveIcon>
+  <KeyIcon>密码</KeyIcon>
+  <GlobeIcon>国家</GlobeIcon>
+  <ChatIcon>聊天</ChatIcon>
+  <CameraIcon>截图</CameraIcon>
+  <RocketIcon>载具</RocketIcon>
+  <AdminIcon>管理</AdminIcon>
+  <KickIcon>踢出</KickIcon>
+  <BanIcon>封禁</BanIcon>
+  <DekesslerIcon>清理垃圾</DekesslerIcon>
+  <NukeIcon>清空KSC</NukeIcon>
+  <RestartServerIcon>重启服务器</RestartServerIcon>
+  <DownloadIcon>下载</DownloadIcon>
+  <CycleFirstIcon>第一页</CycleFirstIcon>
+  <CyclePreviousIcon>上一页</CyclePreviousIcon>
+  <CycleNextIcon>下一页</CycleNextIcon>
+  <CycleLastIcon>末页</CycleLastIcon>
+</ButtonTooltips>

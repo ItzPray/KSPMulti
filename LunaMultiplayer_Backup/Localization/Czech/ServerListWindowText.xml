@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<ServerListWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Title>Server list</Title>
+  <NoServers>Žadné Servery!</NoServers>
+  <Ping>Ping</Ping>
+  <Players>Hráčů</Players>
+  <MaxPlayers>Limit hráčů</MaxPlayers>
+  <Mode>Typ</Mode>
+  <WarpMode>Typ Warpu</WarpMode>
+  <Terrain>Grafika</Terrain>
+  <Cheats>Cheaty</Cheats>
+  <Name>Jméno</Name>
+  <Description>Popis</Description>
+  <Website>URL</Website>
+  <ServerDetailTitle>Připojit se k serveru</ServerDetailTitle>
+  <Password>Heslo</Password>
+  <Connect>Připojit</Connect>
+  <Dedicated>Zaměřené</Dedicated>
+</ServerListWindowText>

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<ModuleDefinition xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Fields>
+        <FieldDefinition>
+            <FieldName>activejettisonName</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>isJettisoned</FieldName>
+        </FieldDefinition>
+    </Fields>
+    <Methods>
+        <MethodDefinition>
+            <MethodName>Jettison</MethodName>
+        </MethodDefinition>
+        <MethodDefinition>
+            <MethodName>Shutdown</MethodName>
+        </MethodDefinition>
+    </Methods>
+</ModuleDefinition>

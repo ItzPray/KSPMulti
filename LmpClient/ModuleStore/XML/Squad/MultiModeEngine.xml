@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<ModuleDefinition xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Fields>
+        <FieldDefinition>
+            <FieldName>runningPrimary</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>autoSwitch</FieldName>
+        </FieldDefinition>
+    </Fields>
+    <Methods>
+        <MethodDefinition>
+            <MethodName>DisableAutoSwitch</MethodName>
+        </MethodDefinition>
+        <MethodDefinition>
+            <MethodName>EnableAutoSwitch</MethodName>
+        </MethodDefinition>
+        <MethodDefinition>
+            <MethodName>ModeEvent</MethodName>
+        </MethodDefinition>
+    </Methods>
+</ModuleDefinition>

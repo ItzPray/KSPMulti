@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!--Kerbals have this partmodule when they are on eva-->
+<ModuleDefinition xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Fields>
+        <FieldDefinition>
+            <FieldName>JetpackDeployed</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>lampOn</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>_flags</FieldName>
+        </FieldDefinition>
+    </Fields>
+    <Methods>
+        <MethodDefinition>
+            <MethodName>ToggleLamp</MethodName>
+        </MethodDefinition>
+    </Methods>
+</ModuleDefinition>

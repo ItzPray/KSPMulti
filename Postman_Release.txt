@@ -1,0 +1,27 @@
+{
+  "username": "",
+  "avatar_url": "https://raw.githubusercontent.com/LunaMultiplayer/LunaMultiplayer/master/External/Logos/RedFont/LMP_Icon_Medium.png",
+  "content":"<@&417707791063580672>, <@&385162460593651715> and <@&417723357170237471>",
+  "embeds": [ {
+    "color": 3066993,
+    "author": {
+      "name": "New Release",
+      "url": "https://github.com/LunaMultiplayer/LunaMultiplayer/releases/latest",
+      "icon_url": "https://raw.githubusercontent.com/LunaMultiplayer/LunaMultiplayer/master/External/Logos/RedFont/LMP_Icon_Medium.png"
+    },
+    "title": "New Release Available - 0.28.0",
+    "url": "https://github.com/LunaMultiplayer/LunaMultiplayer/releases/latest",
+    "description": "A new version of Luna MultiPlayer is available! You can download it at [GitHub](https://github.com/LunaMultiplayer/LunaMultiplayer/releases/latest)",
+    "fields": [
+      {
+        "name": "About version 0.28.0",
+        "value": "Build 0.28.0.460\n\n### 32th BETA version of LMP\n\nIMPORTANT!!: LMP Server now runs with dotnet and not with mono! Be sure to check the "Create a server" wiki page!\n\n- Added compatibility with KSP 1.12\n- Move server to dotnet for better performance\n- Update harmony\n- Fix error in SubspaceTime file\n- Created a event to handle attached / detached parts\n- Client and server binaries are split in the release\n\n<https://github.com/LunaMultiplayer/LunaMultiplayer/compare/0.27.0...0.28.0>"
+      }
+    ],
+    "timestamp": "2021-06-25T15:20:00Z",
+    "footer": {
+      "icon_url": "https://raw.githubusercontent.com/LunaMultiplayer/LunaMultiplayer/master/External/Logos/RedFont/LMP_Icon_Medium.png",
+      "text": "Luna multiplayer"
+    }
+  } ]
+}

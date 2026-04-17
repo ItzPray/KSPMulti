@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!--Surface scanner has this part module-->
+<ModuleDefinition xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Fields>
+        <FieldDefinition>
+            <FieldName>abundance</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>resourceName</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>displayAbundance</FieldName>
+        </FieldDefinition>
+    </Fields>
+</ModuleDefinition>

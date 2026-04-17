@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<ScreenText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <CraftUploaded>Vozidlo nahráno!</CraftUploaded>
+  <CraftSaved>Vozidlo uloženo!</CraftSaved>
+  <ModFileGenerated>LMPModControl.xml bylo vygenerováno do vaší složky.</ModFileGenerated>
+  <Disconected>Byli jste odpojeni!</Disconected>
+  <Spectating>Vozidlo je řízeno jiným hráčem.</Spectating>
+  <SafetyBubble>Pakliže jste uvnitř startovní sféry, nejste viděni ostatními hráči!</SafetyBubble>
+  <CheckParts>Při použití nepovolených/nesynchronizovaných modifikací či DLC vás ostatní hráči nevidí!</CheckParts>
+  <CannotRecover>Nelze se vrátit protože nekontrolujete vozidlo.</CannotRecover>
+  <CannotTerminate>Vozidlo nelze vymazat protoře ho nevlastníte.</CannotTerminate>
+  <SpectatingRemoved>Sledované vozidlo bylo vymazáno.</SpectatingRemoved>
+  <WarpDisabled>Nelze se posunovat v čase protože to server nepodporuje.</WarpDisabled>
+  <WaitingSubspace>Nelze se posunovat v čase. Vyčkejte na odpověd serveru (subspace id).</WaitingSubspace>
+  <CannotWarpWhileSpectating>Nelze se posunout v čase protože nekontrolujete vozidlo.</CannotWarpWhileSpectating>
+  <ScreenshotInterval>Foto nelze pořídit jelikož je interval mezi pořízením screenshotu $1 sekund.</ScreenshotInterval>
+  <CraftLibraryInterval>Interakci nelze provést jelikož je interval mezi interakcemi knihovny lodí $1 sekund.</CraftLibraryInterval>
+  <ScreenshotTaken>Screenshot nahrán!</ScreenshotTaken>
+  <ImageSaved>Fotka byla uložena do GameData/LunaMultiplayer/Screenshots</ImageSaved>
+  <IncreasedInterpolationOffset>Pozor! Interpolačni kompenzace byla zvýšena!</IncreasedInterpolationOffset>
+  <SackingKerbalsNotAllowed>Tento server nepodporuje zabíjení kerbálků!</SackingKerbalsNotAllowed>
+  <CannotLoadGames>Nelze načíst uloženou hru</CannotLoadGames>
+  <KerbalNotYours>Kerbálek je ovládán jiným hráčem.</KerbalNotYours>
+  <UnsafeToSync>Nelze synchronizovat na nestabilní orbitě nebo při sledovacím módu! Toto omezení lze vypnout v nastavení módu.</UnsafeToSync>
+</ScreenText>

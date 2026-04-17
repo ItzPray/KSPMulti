@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<ButtonTooltips xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SettingsIcon>Optionen</SettingsIcon>
+  <ServerIcon>Server</ServerIcon>
+  <ConnectIcon>Verbinden</ConnectIcon>
+  <DisconnectIcon>Verbindung trennen</DisconnectIcon>
+  <SyncIcon>Zeitsprung zu</SyncIcon>
+  <RefreshIcon>Neuladen</RefreshIcon>
+  <UploadIcon>Hochladen</UploadIcon>
+  <DeleteIcon>Löschen</DeleteIcon>
+  <PlusIcon>Hinzufügen</PlusIcon>
+  <SaveIcon>Speichern</SaveIcon>
+  <KeyIcon>Passwort</KeyIcon>
+  <GlobeIcon>Land</GlobeIcon>
+  <ChatIcon>Chat</ChatIcon>
+  <CameraIcon>Screenshots</CameraIcon>
+  <RocketIcon>Fahrzeugbibliothek</RocketIcon>
+  <AdminIcon>Admin</AdminIcon>
+  <KickIcon>Kicken</KickIcon>
+  <BanIcon>Bannen</BanIcon>
+  <DekesslerIcon>Dekessler (löscht alle Debris)</DekesslerIcon>
+  <NukeIcon>Nuke KSC (löscht alle Fahrzeuge am KSC)</NukeIcon>
+  <RestartServerIcon>Server Neustart</RestartServerIcon>
+  <DownloadIcon>Download</DownloadIcon>
+  <CycleFirstIcon>Erster</CycleFirstIcon>
+  <CyclePreviousIcon>Vorheriger</CyclePreviousIcon>
+  <CycleNextIcon>Nächster</CycleNextIcon>
+  <CycleLastIcon>Letzter</CycleLastIcon>
+</ButtonTooltips>

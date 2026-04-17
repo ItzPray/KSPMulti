@@ -1,0 +1,147 @@
+# Reference: http://www.appveyor.com/docs/appveyor-yml
+# Notes:
+#   - Indent each level of configuration with 2 spaces. Do not use tabs!
+
+#---------------------------------#
+#      general configuration      #
+#---------------------------------#
+
+version: $(smallversion).{build}
+
+# Do not build on tags (GitHub and BitBucket)
+skip_tags: true
+#Do not build if we change any of this files
+skip_commits:
+  files:
+    - '**/*.md'
+    - '**/*.editorconfig'
+image: Visual Studio 2019
+
+#---------------------------------#
+#    environment configuration    #
+#---------------------------------#
+
+environment:
+  smallversion: 0.29.0
+  WEBHOOK_URL:
+    secure: bhCOtyDF+wInocIkKfUQdxpM4csyVv7cxhUGz0NzLnFrlEZsaviEDJeDbctuv4NBM4xPkl4Wpv3rb6VwNcvEr8IWW5Te0P/kx1VeNMD5espcLKzMwy46shi630b3wvIipOeBnupc6nsiw7/2liuNhJkvjdyu4wxQXVDVWNSi+t0=
+  ZIPPASSWORD:
+    secure: aYtowPY3EEDAWEnow3/CajwQYL9PtdXpVdSqhC3f5X4=    
+cache:
+  - packages -> **\packages.config
+assembly_info:
+  patch: true
+  file: '**\AssemblyInfo.*'
+  assembly_version: '{version}'
+  assembly_file_version: '{version}'
+  assembly_informational_version: '{version}-$(configuration)'
+
+#---------------------------------#
+#       build configuration       #
+#---------------------------------#
+
+configuration:
+ - Debug
+ - Release
+platform: Any CPU
+before_build:
+  - ps: 7z e "$env:appveyor_build_folder\External\KSPLibraries\KSPLibraries.7z" -p"$env:ZIPPASSWORD" -o"$env:appveyor_build_folder\External\KSPLibraries"
+  - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\"
+   #Copy harmony dependency
+  - ps: xcopy /y /s "$env:appveyor_build_folder\External\Dependencies\Harmony" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData"
+  - nuget restore
+build:
+  parallel: true
+  verbosity: minimal
+after_build:
+#Client post build commands
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Button"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Plugins"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Localization"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\PartSync"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Icons"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Flags"
+ - ps: copy "$env:appveyor_build_folder\LMP Readme.txt" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMP Readme.txt"
+ - ps: copy "$env:appveyor_build_folder\LunaMultiplayer.version" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\LunaMultiplayer.version"
+ - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Button"
+ - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\bin\$env:configuration\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Plugins"
+ - ps: xcopy /y /s "$env:appveyor_build_folder\LmpClient\Localization\XML\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Localization"
+ - ps: xcopy /y /s "$env:appveyor_build_folder\LmpClient\ModuleStore\XML\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\PartSync"
+ - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\Icons\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Icons"
+ - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\Flags\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Flags"
+ #Master server post build commands
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPMasterServer"
+ - ps: xcopy /y "$env:appveyor_build_folder\MasterServer\bin\$env:configuration\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPMasterServer"
+  #Server server post build commands  
+ - ps: dotnet publish "$env:appveyor_build_folder\Server\Server.csproj" --output $env:appveyor_build_folder\FinalFiles\$env:configuration\LMPServer
+ #- ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPServer"
+ #- ps: xcopy /y "$env:appveyor_build_folder\Server\bin\$env:configuration\net5\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPServer"
+  #7zip everything
+ - ps: 7z a "$env:appveyor_build_folder\LunaMultiplayer-Client-$env:configuration.zip" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMP Readme.txt" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData"
+ - ps: 7z a "$env:appveyor_build_folder\LunaMultiplayer-Server-$env:configuration.zip" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMP Readme.txt" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPServer"
+ - ps: 7z a "$env:appveyor_build_folder\LunaMultiplayerMasterServer-$env:configuration.zip" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPMasterServer"
+
+#Post it on discord
+on_success:
+ - ps: Invoke-RestMethod https://raw.githubusercontent.com/LunaMultiplayer/LunaMultiplayer/master/appveyor_discord.ps -o appveyor_discord.ps1
+ - ps: if ($env:configuration -like "Debug") {./appveyor_discord.ps1 success $env:WEBHOOK_URL}
+
+#---------------------------------#
+#      artifacts configuration    #
+#---------------------------------#
+
+artifacts:
+ - path: .\LunaMultiplayer-Client-$(configuration).zip
+   name: LunaMultiplayer-Client-$(configuration).zip
+ - path: .\LunaMultiplayer-Server-$(configuration).zip
+   name: LunaMultiplayer-Server-$(configuration).zip
+ - path: .\LunaMultiplayerMasterServer-$(configuration).zip
+   name: LunaMultiplayerMasterServer-$(configuration).zip
+#---------------------------------#
+#     deployment configuration    #
+#---------------------------------#
+
+deploy:
+ - provider: GitHub
+   tag: $(smallversion)-Draft
+   release: Luna Multi Player $(smallversion)-Draft
+   description: 'Build $(appveyor_build_version)'
+   artifact: LunaMultiplayer-Client-$(configuration).zip, LunaMultiplayer-Server-$(configuration).zip
+   auth_token:
+    secure: zWJqDvz3LjR2J358JIJKICwghW/DWRzs73KWb3KApTLOreA4c8DN1tos+O3qBMR7
+   draft: true
+   force_update: true
+   on:
+    branch: master
+
+#---------------------------------#
+#         notifications           #
+#---------------------------------#
+
+notifications:
+
+# - provider: Webhook
+#   url: http://system.robo-web.nl/webhook/luna-debug.php
+#   on_build_success: true
+#   on_build_failure: true
+#   on_build_status_changed: true
+   
+ - provider: Webhook
+   url: http://godarklight.privatedns.org/dmp/lmp.php
+   on_build_success: true
+   on_build_failure: true
+   on_build_status_changed: true
+   
+ - provider: Webhook
+   url:  https://registry.hub.docker.com/u/thesystem/lunamultiplayer/trigger/d9d50936-8115-40b9-a087-24330d5cc59c/
+   on_build_success: true
+   on_build_failure: true
+   on_build_status_changed: true
+
+#Old webhook for discord...
+# - provider: Webhook 
+#   url: https://skyhook.glitch.me/api/webhooks/428098094928756737/u2FRiQ-zKyEozSTCUX2DVbqZfCaXR6r3BhX6UCvLYBqbxzvcQDeo9mRdw1HXYR_9Ckua/appveyor
+#   content_type: application/json
+#   on_build_success: true
+#   on_build_failure: false
+#   on_build_status_changed: false

@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<ModuleDefinition xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Fields>
+        <FieldDefinition>
+            <FieldName>fireEffectName</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>powerEffectName</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>effectStrength</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>effectStrengthSpeed</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>effectTarget</FieldName>
+        </FieldDefinition>
+    </Fields>
+    <Methods>
+        <MethodDefinition>
+            <MethodName>FireAction</MethodName>
+        </MethodDefinition>
+        <MethodDefinition>
+            <MethodName>ToggleAction</MethodName>
+        </MethodDefinition>
+    </Methods>
+</ModuleDefinition>

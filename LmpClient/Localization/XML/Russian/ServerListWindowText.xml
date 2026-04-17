@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-16"?>
+
+<ServerListWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Title>Список серверов</Title>
+  <NoServers>Нет серверов!</NoServers>
+  <Ping>Задержка</Ping>
+  <Players>Игроков</Players>
+  <MaxPlayers>Максимально игроков</MaxPlayers>
+  <Mode>Режим</Mode>
+  <WarpMode>Режим ускорения времени</WarpMode>
+  <Terrain>Качество детализации</Terrain>
+  <Cheats>Читы</Cheats>
+  <Name>Имя</Name>
+  <Description>Описание</Description>
+  <Website>Ссылка</Website>
+  <ServerDetailTitle>Присоединиться к серверу</ServerDetailTitle>
+  <Password>Пароль</Password>
+  <Connect>Присоединиться</Connect>
+  <Dedicated>Выделенный</Dedicated>
+</ServerListWindowText>

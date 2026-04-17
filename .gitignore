@@ -1,0 +1,27 @@
+# IDE and user-specific files
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# Build outputs
+**/bin/
+**/obj/
+_build/
+_deploy/
+TestResults/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.cache
+
+# Local dependency payloads
+External/KSPLibraries/
+External/Nuget/
+
+# Local machine configuration
+Scripts/SetDirectories.bat

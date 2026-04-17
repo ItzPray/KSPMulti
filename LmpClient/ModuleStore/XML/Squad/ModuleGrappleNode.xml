@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<ModuleDefinition xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Methods>
+        <!--This can be messy-->
+        <!--<MethodDefinition>
+            <MethodName>LockPivot</MethodName>
+        </MethodDefinition>-->
+        <!--This can be messy-->
+        <!--<MethodDefinition>
+            <MethodName>Release</MethodName>
+        </MethodDefinition>-->
+        <!--This can be messy-->
+        <!--<MethodDefinition>
+            <MethodName>ReleaseSameVessel</MethodName>
+        </MethodDefinition>-->
+        <!--This can be messy-->
+        <!--<MethodDefinition>
+            <MethodName>SetLoose</MethodName>
+        </MethodDefinition>-->
+        <!--This can be messy-->
+        <!--<MethodDefinition>
+            <MethodName>Decouple</MethodName>
+        </MethodDefinition>-->
+    </Methods>
+</ModuleDefinition>

@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<ModuleDefinition xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <Fields>
+        <FieldDefinition>
+            <FieldName>EngineIgnited</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>engineShutdown</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>staged</FieldName>
+        </FieldDefinition>
+        <FieldDefinition>
+            <FieldName>flameout</FieldName>
+        </FieldDefinition>
+        <!--Value changes too often-->
+        <!--<FieldDefinition>
+            <FieldName>currentThrottle</FieldName>
+            <MaxIntervalInMs>10000</MaxIntervalInMs>
+        </FieldDefinition>-->
+        <FieldDefinition>
+            <FieldName>manuallyOverridden</FieldName>
+        </FieldDefinition>
+    </Fields>
+    <Methods>
+        <MethodDefinition>
+            <MethodName>Activate</MethodName>
+        </MethodDefinition>
+        <MethodDefinition>
+            <MethodName>Shutdown</MethodName>
+        </MethodDefinition>
+    </Methods>
+</ModuleDefinition>
