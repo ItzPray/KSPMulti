@@ -15,11 +15,6 @@ namespace LmpCommon.Message.Interface
         IMessageData Data { get; }
 
         /// <summary>
-        /// True if the data version property mismatches
-        /// </summary>
-        bool VersionMismatch { get; set; }
-
-        /// <summary>
         /// Specify how the message should be delivered based on lidgren library.
         /// This is important to avoid lag!
         /// Unreliable: No guarantees. (Use for unimportant messages like heartbeats)

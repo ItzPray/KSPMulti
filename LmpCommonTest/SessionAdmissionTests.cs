@@ -84,7 +84,7 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
-        public void ClientMessageFactory_never_sets_VersionMismatch_on_wire_version_skew()
+        public void ClientMessageFactory_deserializes_handshake_despite_skewed_wire_major_minor_build()
         {
             var factory = new ClientMessageFactory();
             var msgData = factory.CreateNewMessageData<HandshakeRequestMsgData>();
@@ -106,7 +106,8 @@ namespace LmpCommonTest
             msg.Recycle();
 
             var deserialized = factory.Deserialize(lidgrenMsgRecv, Environment.TickCount);
-            Assert.IsFalse(deserialized.VersionMismatch);
+            Assert.IsNotNull(deserialized?.Data);
+            Assert.AreEqual(9999, deserialized.Data.MajorVersion);
         }
 
         [TestMethod]

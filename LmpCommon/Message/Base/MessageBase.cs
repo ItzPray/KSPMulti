@@ -98,9 +98,6 @@ namespace LmpCommon.Message.Base
         }
 
         /// <inheritdoc />
-        public bool VersionMismatch { get; set; }
-
-        /// <inheritdoc />
         public void Serialize(NetOutgoingMessage lidgrenMsg)
         {
             try

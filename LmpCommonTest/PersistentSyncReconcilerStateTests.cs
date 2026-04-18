@@ -45,6 +45,17 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
+        public void TestShouldNotIgnoreFirstSnapshotAtRevisionZero()
+        {
+            var state = new PersistentSyncReconcilerState();
+            state.Reset(new[] { PersistentSyncDomainId.Funds });
+
+            Assert.IsFalse(state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 0));
+            state.MarkApplied(PersistentSyncDomainId.Funds, 0);
+            Assert.IsTrue(state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 0));
+        }
+
+        [TestMethod]
         public void TestStoreDeferredReplacesOlderSnapshotForSameDomain()
         {
             var state = new PersistentSyncReconcilerState();

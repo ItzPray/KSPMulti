@@ -11,6 +11,7 @@
 **/bin/
 **/obj/
 _build/
+Build/
 _deploy/
 TestResults/
 

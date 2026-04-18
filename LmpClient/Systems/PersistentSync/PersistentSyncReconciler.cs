@@ -1,5 +1,6 @@
 using LmpClient;
 using LmpClient.Base;
+using LmpClient.Systems.Network;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LmpCommon.Message.Data.PersistentSync;
@@ -34,6 +35,8 @@ namespace LmpClient.Systems.PersistentSync
                 return;
             }
 
+            NetworkSystem.BumpPersistentSyncJoinActivity();
+
             var bufferedSnapshot = CopySnapshot(data);
             if (!System.Domains.TryGetValue(bufferedSnapshot.DomainId, out var domain))
             {
@@ -52,8 +55,14 @@ namespace LmpClient.Systems.PersistentSync
                     CheckInitialSyncComplete();
                     break;
                 case PersistentSyncApplyOutcome.Deferred:
-                    PsLog($"snapshot deferred domain={bufferedSnapshot.DomainId} revision={bufferedSnapshot.Revision}");
-                    State.StoreDeferred(bufferedSnapshot);
+                    // Domains deserialize into internal pending buffers but return Deferred while career
+                    // singletons (Funding, RnD, etc.) are missing — e.g. LMP UI on the main menu. Join
+                    // must still advance; live apply runs later via FlushPendingState / scene ready.
+                    PsLog(
+                        $"snapshot deferred (payload retained) domain={bufferedSnapshot.DomainId} revision={bufferedSnapshot.Revision} satisfying initial join gate");
+                    State.MarkApplied(bufferedSnapshot.DomainId, bufferedSnapshot.Revision);
+                    LogAfterMarkApplied(bufferedSnapshot.DomainId, bufferedSnapshot.Revision);
+                    CheckInitialSyncComplete();
                     break;
                 case PersistentSyncApplyOutcome.Rejected:
                     RequestResync(bufferedSnapshot.DomainId, "SnapshotRejected");
@@ -80,7 +89,9 @@ namespace LmpClient.Systems.PersistentSync
                         CheckInitialSyncComplete();
                         break;
                     case PersistentSyncApplyOutcome.Deferred:
-                        State.StoreDeferred(pendingSnapshot);
+                        State.MarkApplied(pendingSnapshot.DomainId, pendingSnapshot.Revision);
+                        LogAfterMarkApplied(pendingSnapshot.DomainId, pendingSnapshot.Revision);
+                        CheckInitialSyncComplete();
                         break;
                     case PersistentSyncApplyOutcome.Rejected:
                         RequestResync(pendingSnapshot.DomainId, "SnapshotRejected");
@@ -142,7 +153,7 @@ namespace LmpClient.Systems.PersistentSync
                 return;
             }
 
-            PsLog("initial sync complete all required domains applied -> PersistentStateSynced");
+            PsLog("initial sync complete (all required domains accepted; any deferred live apply continues in background) -> PersistentStateSynced");
             MainSystem.NetworkState = ClientState.PersistentStateSynced;
         }
 

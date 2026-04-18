@@ -199,7 +199,13 @@ namespace LmpClient.Systems.Network
                 case ClientState.SyncingPersistentState:
                     MainSystem.Singleton.Status = "Syncing persistent state";
                     if (ConnectionIsStuck(10000))
-                        MainSystem.NetworkState = ClientState.ScenariosSynced;
+                    {
+                        LunaLog.LogWarning(
+                            "Connection idle during persistent state sync; re-requesting snapshots without resetting reconciler state.");
+                        _lastStateTime = LunaComputerTime.UtcNow;
+                        PersistentSyncSystem.Singleton.ResendInitialSnapshotRequest();
+                    }
+
                     break;
                 case ClientState.PersistentStateSynced:
                     MainSystem.Singleton.Status = "Persistent state synced";
@@ -259,6 +265,19 @@ namespace LmpClient.Systems.Network
 
         private static DateTime _lastStateTime = DateTime.MinValue;
         private static bool _persistentLockAdvanceBlockedLogged;
+
+        /// <summary>
+        /// While waiting for persistent snapshots to apply (often deferred until KSP singletons exist),
+        /// the network join watchdog must not treat idle time as a stuck connection — that previously
+        /// rewound to <see cref="ClientState.ScenariosSynced"/> and reset the reconciler, causing a
+        /// re-request loop visible on the server every 10 seconds.
+        /// </summary>
+        public static void BumpPersistentSyncJoinActivity()
+        {
+            if (MainSystem.NetworkState == ClientState.SyncingPersistentState)
+                _lastStateTime = LunaComputerTime.UtcNow;
+        }
+
         private static bool ConnectionIsStuck(int maxIdleMiliseconds = 2000)
         {
             if ((LunaComputerTime.UtcNow - _lastStateTime).TotalMilliseconds > maxIdleMiliseconds)

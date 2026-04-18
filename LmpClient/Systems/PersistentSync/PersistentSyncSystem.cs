@@ -1,6 +1,7 @@
 using LmpClient;
 using LmpClient.Base;
 using LmpClient.Events;
+using LmpClient.Systems.Network;
 using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
@@ -70,6 +71,27 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         /// <summary>
+        /// Re-sends snapshot requests without clearing reconciler state. Used when the join watchdog
+        /// detects prolonged idle time (should be rare while <see cref="NetworkSystem.BumpPersistentSyncJoinActivity"/> runs).
+        /// </summary>
+        public void ResendInitialSnapshotRequest()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            var requiredDomains = PersistentSyncDomainApplicability
+                .GetRequiredDomainsForInitialSync(SettingsSystem.ServerSettings.GameMode, caps)
+                .ToArray();
+
+            if (!requiredDomains.Any())
+            {
+                return;
+            }
+
+            var domainList = string.Join(",", requiredDomains.Select(d => d.ToString()));
+            LunaLog.Log($"[PersistentSync] ResendInitialSnapshotRequest domains=[{domainList}]");
+            MessageSender.SendRequest(requiredDomains);
+        }
+
+        /// <summary>
         /// Single place to consult whether required persistent-sync domains have their initial snapshots applied.
         /// </summary>
         public bool IsPersistentSnapshotPhaseCompleteForCurrentSession()
@@ -92,12 +114,14 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private void FlushPendingState()
         {
+            NetworkSystem.BumpPersistentSyncJoinActivity();
             Reconciler.RetryDeferredSnapshots();
             Reconciler.FlushPendingState();
         }
 
         private void OnSceneReady(GameScenes data)
         {
+            NetworkSystem.BumpPersistentSyncJoinActivity();
             Reconciler.RetryDeferredSnapshots();
             Reconciler.FlushPendingState();
         }

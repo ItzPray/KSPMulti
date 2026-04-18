@@ -72,6 +72,13 @@ IF /I "%COPYHARMONY%"=="true" (
   ECHO Skipping Harmony copy. Existing 000_Harmony will be left untouched.
 )
 
+IF NOT EXIST "%~dp0..\LunaMultiplayer.version" (
+  ECHO ERROR: LunaMultiplayer.version missing at repo root.
+  EXIT /B 1
+)
+copy /Y "%~dp0..\LunaMultiplayer.version" "%KSPPATH%\GameData\LunaMultiplayer\LunaMultiplayer.version" >nul
+IF DEFINED KSPPATH2 (copy /Y "%~dp0..\LunaMultiplayer.version" "%KSPPATH2%\GameData\LunaMultiplayer\LunaMultiplayer.version" >nul)
+
 xcopy /Y "%~dp0..\LmpClient\bin\%SOLUTIONCONFIGURATION%\*.*" "%KSPPATH%\GameData\LunaMultiplayer\Plugins"
 IF DEFINED KSPPATH2 (xcopy /Y "%~dp0..\LmpClient\bin\%SOLUTIONCONFIGURATION%\*.*" "%KSPPATH2%\GameData\LunaMultiplayer\Plugins")
 

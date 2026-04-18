@@ -68,8 +68,6 @@ namespace LmpCommon.Message.Base
 
                 msg.SetData(data);
                 msg.Data.ReceiveTime = receiveTime;
-                // Session compatibility is enforced exclusively by HandshakeSystem + SessionAdmission (fork + exact build).
-                msg.VersionMismatch = false;
 
                 return msg;
             }

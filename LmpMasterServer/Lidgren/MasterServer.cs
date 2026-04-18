@@ -71,7 +71,7 @@ namespace LmpMasterServer.Lidgren
                             break;
                         case NetIncomingMessageType.UnconnectedData:
                             var message = GetMessage(msg);
-                            if (message != null && !message.VersionMismatch)
+                            if (message != null)
                             {
                                 HandleMessage(message, msg, peer);
                             }

@@ -45,6 +45,13 @@ Repository source of truth for working in `KSPMulti`.
 - Run `Scripts\PublishServerToTest.bat Debug`
 - Run `Scripts\PublishServerToTest.bat Release`
 
+### Build client + server into repo `Build\` staging (no KSP / test-server deploy)
+
+- Run `Scripts\BuildOnly.bat Debug` or `Scripts\BuildOnly.bat Release`
+- Output layout:
+  - `Build\<Configuration>\Client\` — same layout as `GameData\LunaMultiplayer\` (root `LunaMultiplayer.version` for KSP-AVC, plus Plugins, Button, Localization, PartSync, Icons, Flags), ready to copy into KSP
+  - `Build\<Configuration>\Server\` — `dotnet publish` output for the standalone server
+
 ### One-click full local test stack
 
 - Run `Scripts\BuildAndDeployTestStack.bat Debug`

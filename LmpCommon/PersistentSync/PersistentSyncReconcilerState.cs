@@ -23,7 +23,30 @@ namespace LmpCommon.PersistentSync
 
         public bool ShouldIgnoreSnapshot(PersistentSyncDomainId domainId, long revision)
         {
-            return revision <= GetHighestKnownRevision(domainId);
+            var highest = GetHighestKnownRevision(domainId);
+            if (revision < highest)
+            {
+                return true;
+            }
+
+            if (revision > highest)
+            {
+                return false;
+            }
+
+            // revision == highest
+            if (HasInitialSnapshot(domainId))
+            {
+                return true;
+            }
+
+            // Same revision already captured as deferred (duplicate network delivery before apply).
+            if (_pendingSnapshots.TryGetValue(domainId, out var pending) && pending.Revision == revision)
+            {
+                return true;
+            }
+
+            return false;
         }
 
         public void MarkApplied(PersistentSyncDomainId domainId, long revision)
