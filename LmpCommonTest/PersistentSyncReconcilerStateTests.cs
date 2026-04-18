@@ -214,5 +214,37 @@ namespace LmpCommonTest
             Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainId.Funds));
             Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainId.Science));
         }
+
+        [TestMethod]
+        public void JoinHandshakeCompletesWithoutLiveMarkApplied()
+        {
+            var state = new PersistentSyncReconcilerState();
+            state.Reset(new[] { PersistentSyncDomainId.Funds });
+            state.StoreDeferred(Snapshot(PersistentSyncDomainId.Funds, 0));
+            state.MarkInitialJoinHandshakeComplete(PersistentSyncDomainId.Funds);
+
+            Assert.IsTrue(state.AreAllJoinHandshakesComplete());
+            Assert.IsFalse(state.AreAllInitialSnapshotsApplied());
+            Assert.IsTrue(
+                state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 0),
+                "Duplicate delivery while the same revision is still deferred must be ignored.");
+
+            state.ClearDeferred(PersistentSyncDomainId.Funds);
+            Assert.IsFalse(
+                state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 0),
+                "After clearing deferred state, the same revision must be eligible again (resync / KSC reapply).");
+        }
+
+        [TestMethod]
+        public void MarkAppliedImpliesJoinHandshakeComplete()
+        {
+            var state = new PersistentSyncReconcilerState();
+            state.Reset(new[] { PersistentSyncDomainId.Funds });
+            state.MarkApplied(PersistentSyncDomainId.Funds, 1);
+
+            Assert.IsTrue(state.IsInitialJoinHandshakeComplete(PersistentSyncDomainId.Funds));
+            Assert.IsTrue(state.AreAllJoinHandshakesComplete());
+            Assert.IsTrue(state.AreAllInitialSnapshotsApplied());
+        }
     }
 }

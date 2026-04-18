@@ -214,7 +214,7 @@ namespace LmpClient.Systems.Network
                         if (!_persistentLockAdvanceBlockedLogged)
                         {
                             _persistentLockAdvanceBlockedLogged = true;
-                            LunaLog.LogError("[PersistentSync] startup guard: PersistentStateSynced but required persistent domains are not all applied; not advancing to lock sync.");
+                            LunaLog.LogError("[PersistentSync] startup guard: PersistentStateSynced but required persistent join handshakes are incomplete; not advancing to lock sync.");
                         }
 
                         break;

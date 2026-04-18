@@ -8,6 +8,7 @@ namespace LmpCommon.PersistentSync
     {
         private readonly Dictionary<PersistentSyncDomainId, long> _lastAppliedRevision = new Dictionary<PersistentSyncDomainId, long>();
         private readonly Dictionary<PersistentSyncDomainId, bool> _hasInitialSnapshot = new Dictionary<PersistentSyncDomainId, bool>();
+        private readonly Dictionary<PersistentSyncDomainId, bool> _initialJoinHandshakeComplete = new Dictionary<PersistentSyncDomainId, bool>();
         private readonly Dictionary<PersistentSyncDomainId, PersistentSyncBufferedSnapshot> _pendingSnapshots = new Dictionary<PersistentSyncDomainId, PersistentSyncBufferedSnapshot>();
         private HashSet<PersistentSyncDomainId> _requiredDomains = new HashSet<PersistentSyncDomainId>();
 
@@ -16,6 +17,7 @@ namespace LmpCommon.PersistentSync
             _requiredDomains = new HashSet<PersistentSyncDomainId>(requiredDomains ?? Enumerable.Empty<PersistentSyncDomainId>());
             _lastAppliedRevision.Clear();
             _hasInitialSnapshot.Clear();
+            _initialJoinHandshakeComplete.Clear();
             _pendingSnapshots.Clear();
         }
 
@@ -55,11 +57,41 @@ namespace LmpCommon.PersistentSync
             var applied = Math.Max(previousApplied, revision);
             _lastAppliedRevision[domainId] = applied;
             _hasInitialSnapshot[domainId] = true;
+            _initialJoinHandshakeComplete[domainId] = true;
 
             if (_pendingSnapshots.TryGetValue(domainId, out var pending) && pending.Revision <= applied)
             {
                 _pendingSnapshots.Remove(domainId);
             }
+        }
+
+        /// <summary>
+        /// Initial network join may receive and deserialize snapshots while live game objects are missing
+        /// (main menu). That must advance the join state machine without setting <see cref="HasInitialSnapshot"/>,
+        /// otherwise <see cref="ShouldIgnoreSnapshot"/> would drop re-sent payloads at the same revision before
+        /// <see cref="MarkApplied"/> runs (e.g. KSC facility levels never applied).
+        /// </summary>
+        public void MarkInitialJoinHandshakeComplete(PersistentSyncDomainId domainId)
+        {
+            _initialJoinHandshakeComplete[domainId] = true;
+        }
+
+        /// <summary>
+        /// True once a domain has either live-applied a snapshot revision (<see cref="HasInitialSnapshot"/>)
+        /// or completed the join-time deserialize/defer path (<see cref="MarkInitialJoinHandshakeComplete"/>).
+        /// </summary>
+        public bool IsInitialJoinHandshakeComplete(PersistentSyncDomainId domainId)
+        {
+            return HasInitialSnapshot(domainId) ||
+                   (_initialJoinHandshakeComplete.TryGetValue(domainId, out var done) && done);
+        }
+
+        /// <summary>
+        /// Used to leave <c>ClientState.SyncingPersistentState</c>; does not require live KSP singleton writes.
+        /// </summary>
+        public bool AreAllJoinHandshakesComplete()
+        {
+            return _requiredDomains.All(IsInitialJoinHandshakeComplete);
         }
 
         private long GetHighestKnownRevision(PersistentSyncDomainId domainId)
@@ -83,6 +115,10 @@ namespace LmpCommon.PersistentSync
             return _hasInitialSnapshot.TryGetValue(domainId, out var hasInitial) && hasInitial;
         }
 
+        /// <summary>
+        /// True only after each required domain has live-committed its initial snapshot (see <see cref="MarkApplied"/>).
+        /// Used before advancing into lock sync.
+        /// </summary>
         public bool AreAllInitialSnapshotsApplied()
         {
             return _requiredDomains.All(HasInitialSnapshot);

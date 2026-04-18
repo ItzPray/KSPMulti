@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Threading.Tasks;
+using Server.System.PersistentSync;
 
 namespace Server.System.Scenario
 {
@@ -16,8 +17,12 @@ namespace Server.System.Scenario
                 {
                     if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ScenarioUpgradeableFacilities", out var scenario)) return;
 
-                    var facilityNode = scenario.GetNode(facilityId).Value;
-                    facilityNode?.UpdateValue("lvl", level.ToString(CultureInfo.InvariantCulture));
+                    if (!UpgradeableFacilitiesScenarioNodes.TryGetFacilityNode(scenario, facilityId, out var facilityNode))
+                    {
+                        return;
+                    }
+
+                    facilityNode.UpdateValue(UpgradeableFacilitiesScenarioNodes.LevelValueName, level.ToString(CultureInfo.InvariantCulture));
                 }
             });
         }

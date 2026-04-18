@@ -7,12 +7,15 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
     {
         #region EventHandlers
 
-        public void FacilityUpgraded(UpgradeableFacility facility, int level)
+        public void FacilityUpgraded(UpgradeableFacility facility, int levelEventArg)
         {
             if (System.IgnoreEvents) return;
 
-            LunaLog.Log($"Facility {facility.id} upgraded to level: {level} (sending PersistentSync intent)");
-            System.MessageSender.SendFacilityUpgradeMessage(facility.id, level, (float)level / facility.MaxLevel);
+            // GameEvents.OnKSCFacilityUpgraded: use FacilityLevel after the upgrade, not the event int
+            // (OnKSCFacilityUpgrading's argument often matches the pre-upgrade value and caused server no-ops).
+            var level = facility.FacilityLevel;
+            LunaLog.Log($"Facility {facility.id} upgraded eventArg={levelEventArg} FacilityLevel={level} norm={facility.GetNormLevel()} (sending PersistentSync intent)");
+            System.MessageSender.SendFacilityUpgradeMessage(facility.id, level, facility.GetNormLevel());
         }
 
         #endregion

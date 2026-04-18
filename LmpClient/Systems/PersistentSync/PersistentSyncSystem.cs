@@ -7,6 +7,7 @@ using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 
 namespace LmpClient.Systems.PersistentSync
 {
@@ -92,7 +93,10 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         /// <summary>
-        /// Single place to consult whether required persistent-sync domains have their initial snapshots applied.
+        /// Whether the client may leave <see cref="ClientState.PersistentStateSynced"/> for lock sync.
+        /// Uses the same completion rule as leaving <see cref="ClientState.SyncingPersistentState"/>:
+        /// join-time snapshot acceptance (including deferred-until-ingame payloads), not live KSP writes.
+        /// Live apply continues via <see cref="FlushPendingState"/> and scene hooks.
         /// </summary>
         public bool IsPersistentSnapshotPhaseCompleteForCurrentSession()
         {
@@ -100,7 +104,7 @@ namespace LmpClient.Systems.PersistentSync
             var required = PersistentSyncDomainApplicability
                 .GetRequiredDomainsForInitialSync(SettingsSystem.ServerSettings.GameMode, caps)
                 .ToArray();
-            return !required.Any() || Reconciler.State.AreAllInitialSnapshotsApplied();
+            return !required.Any() || Reconciler.State.AreAllJoinHandshakesComplete();
         }
 
         public long GetKnownRevision(PersistentSyncDomainId domainId)
@@ -124,6 +128,27 @@ namespace LmpClient.Systems.PersistentSync
             NetworkSystem.BumpPersistentSyncJoinActivity();
             Reconciler.RetryDeferredSnapshots();
             Reconciler.FlushPendingState();
+
+            if (data != GameScenes.SPACECENTER || MainSystem.NetworkState < ClientState.PersistentStateSynced)
+            {
+                return;
+            }
+
+            // ScenarioUpgradeableFacilities can initialize KSC defaults after our first PersistentSync flush;
+            // re-apply the last server snapshot once GUI is ready so upgraded levels stick.
+            if (Domains[PersistentSyncDomainId.UpgradeableFacilities] is UpgradeableFacilitiesPersistentSyncClientDomain facilitiesDomain &&
+                facilitiesDomain.TryStageReassertFromLastServerSnapshot())
+            {
+                LunaLog.Log("[PersistentSync] KSC GUI ready re-staging facility snapshot for reconciler flush");
+                Reconciler.FlushPendingState();
+            }
+
+            // If we still never live-marked applied, ask the server to re-send (ClearDeferred in RequestResync).
+            if (Reconciler.State.IsInitialJoinHandshakeComplete(PersistentSyncDomainId.UpgradeableFacilities) &&
+                !Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.UpgradeableFacilities))
+            {
+                Reconciler.RequestResync(PersistentSyncDomainId.UpgradeableFacilities, "KscGuiReadyFacilityReapply");
+            }
         }
     }
 }

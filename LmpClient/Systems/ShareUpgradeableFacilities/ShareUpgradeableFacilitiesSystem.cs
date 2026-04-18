@@ -32,7 +32,9 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
         {
             base.OnEnabled();
 
-            GameEvents.OnKSCFacilityUpgrading.Add(ShareUpgradeableFacilitiesEvents.FacilityUpgraded);
+            // Upgrading fires before the facility's level is committed; intents then match the old server
+            // level and are dropped as no-ops. Upgraded carries the final FacilityLevel we must persist.
+            GameEvents.OnKSCFacilityUpgraded.Add(ShareUpgradeableFacilitiesEvents.FacilityUpgraded);
         }
 
         protected override void OnDisabled()
@@ -40,7 +42,7 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
             base.OnDisabled();
 
             //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
-            GameEvents.OnKSCFacilityUpgrading.Remove(ShareUpgradeableFacilitiesEvents.FacilityUpgraded);
+            GameEvents.OnKSCFacilityUpgraded.Remove(ShareUpgradeableFacilitiesEvents.FacilityUpgraded);
         }
     }
 }

@@ -165,6 +165,37 @@ namespace ServerPersistentSyncTest
         }
 
         [TestMethod]
+        public void UpgradeableFacilitiesDomainLoadsNestedKspScenarioLayout()
+        {
+            var nestedText = string.Join("\n", new[]
+            {
+                "name = ScenarioUpgradeableFacilities",
+                "scene = 5, 6, 7, 8",
+                "SpaceCenter",
+                "{",
+                "    LaunchPad",
+                "    {",
+                "        lvl = 0.5",
+                "    }",
+                "    MissionControl",
+                "    {",
+                "        lvl = 0",
+                "    }",
+                "}"
+            });
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = new ConfigNode(nestedText);
+
+            var store = new UpgradeableFacilitiesPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var snap = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(
+                store.GetCurrentSnapshot().Payload,
+                store.GetCurrentSnapshot().NumBytes);
+            Assert.AreEqual(1, snap["SpaceCenter/LaunchPad"]);
+            Assert.AreEqual(0, snap["SpaceCenter/MissionControl"]);
+        }
+
+        [TestMethod]
         public void UpgradeableFacilitiesNoRevisionIncrementOnSameStateIntent()
         {
             ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(
@@ -180,6 +211,33 @@ namespace ServerPersistentSyncTest
             Assert.IsFalse(result.Changed);
             Assert.AreEqual(0L, result.Snapshot.Revision);
             Assert.AreEqual("0.5", ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"].GetNode("SpaceCenter/MissionControl").Value.GetValue("lvl").Value);
+        }
+
+        [TestMethod]
+        public void UpgradeableFacilitiesIntentCannotDowngradeBelowPersistedLevel()
+        {
+            // lvl float 1 -> DeserializePersistentLevel => 2 (see UpgradeableFacilitiesPersistentSyncDomainStore)
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(
+                ("SpaceCenter/MissionControl", "1"));
+
+            var store = new UpgradeableFacilitiesPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var before = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(
+                store.GetCurrentSnapshot().Payload,
+                store.GetCurrentSnapshot().NumBytes);
+            Assert.AreEqual(2, before["SpaceCenter/MissionControl"]);
+
+            var downgradePayload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 0);
+            var result = store.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, downgradePayload, "Spurious KSC init"));
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsFalse(result.Changed);
+            Assert.AreEqual(0L, result.Snapshot.Revision);
+
+            var after = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            Assert.AreEqual(2, after["SpaceCenter/MissionControl"]);
+            Assert.AreEqual("1", ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"].GetNode("SpaceCenter/MissionControl").Value.GetValue("lvl").Value);
         }
 
         [TestMethod]

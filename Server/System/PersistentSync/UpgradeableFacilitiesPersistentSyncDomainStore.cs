@@ -1,7 +1,9 @@
 using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
+using Server.Log;
 using Server.System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -49,8 +51,12 @@ namespace Server.System.PersistentSync
 
             foreach (var facilityId in KnownFacilityIds)
             {
-                var facilityNode = scenario.GetNode(facilityId)?.Value;
-                var rawValue = facilityNode?.GetValue(LevelFieldName)?.Value;
+                if (!UpgradeableFacilitiesScenarioNodes.TryGetFacilityNode(scenario, facilityId, out var facilityNode))
+                {
+                    continue;
+                }
+
+                var rawValue = facilityNode.GetValue(LevelFieldName)?.Value;
                 if (string.IsNullOrEmpty(rawValue))
                 {
                     continue;
@@ -66,10 +72,32 @@ namespace Server.System.PersistentSync
             {
                 PersistCurrentState();
             }
+
+            LogFacilityLevelsSnapshot("LoadFromPersistence");
+        }
+
+        private void LogFacilityLevelsSnapshot(string context)
+        {
+            var summary = string.Join(",", _facilityLevels
+                .OrderBy(kvp => kvp.Key)
+                .Select(kvp => $"{FacilityShortName(kvp.Key)}={kvp.Value}"));
+            LunaLog.Debug($"[PersistentSync] UpgradeableFacilities {context} revision={Revision} levels=[{summary}]");
+        }
+
+        private static string FacilityShortName(string facilityId)
+        {
+            if (string.IsNullOrEmpty(facilityId))
+            {
+                return facilityId;
+            }
+
+            var slash = facilityId.LastIndexOf('/');
+            return slash >= 0 && slash < facilityId.Length - 1 ? facilityId.Substring(slash + 1) : facilityId;
         }
 
         public PersistentSyncDomainSnapshot GetCurrentSnapshot()
         {
+            LogFacilityLevelsSnapshot("GetCurrentSnapshot");
             var snapshotMap = new Dictionary<string, int>(_facilityLevels);
             var payload = UpgradeableFacilitiesSnapshotPayloadSerializer.Serialize(snapshotMap);
             return new PersistentSyncDomainSnapshot
@@ -101,15 +129,39 @@ namespace Server.System.PersistentSync
                 return new PersistentSyncDomainApplyResult { Accepted = false };
             }
 
-            if (_facilityLevels.TryGetValue(facilityId, out var existingLevel) && existingLevel == level)
+            if (!TryResolveCanonicalFacilityId(facilityId, out facilityId))
             {
-                return new PersistentSyncDomainApplyResult
+                return new PersistentSyncDomainApplyResult { Accepted = false };
+            }
+
+            if (_facilityLevels.TryGetValue(facilityId, out var existingLevel))
+            {
+                // KSC init fires OnKSCFacilityUpgraded with FacilityLevel 0 before the client applies the
+                // PersistentSync snapshot; those intents must not clobber a copied universe that already
+                // has higher persisted levels.
+                if (level < existingLevel)
                 {
-                    Accepted = true,
-                    Changed = false,
-                    ReplyToOriginClient = clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                    Snapshot = GetCurrentSnapshot()
-                };
+                    PersistCurrentState();
+                    return new PersistentSyncDomainApplyResult
+                    {
+                        Accepted = true,
+                        Changed = false,
+                        ReplyToOriginClient = clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
+                        Snapshot = GetCurrentSnapshot()
+                    };
+                }
+
+                if (existingLevel == level)
+                {
+                    PersistCurrentState();
+                    return new PersistentSyncDomainApplyResult
+                    {
+                        Accepted = true,
+                        Changed = false,
+                        ReplyToOriginClient = clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
+                        Snapshot = GetCurrentSnapshot()
+                    };
+                }
             }
 
             _facilityLevels[facilityId] = level;
@@ -134,14 +186,8 @@ namespace Server.System.PersistentSync
 
             foreach (var facility in _facilityLevels.OrderBy(kvp => kvp.Key))
             {
-                var facilityNode = scenario.GetNode(facility.Key)?.Value;
-                if (facilityNode == null)
-                {
-                    facilityNode = new LunaConfigNode.CfgNode.ConfigNode(facility.Key, scenario);
-                    scenario.AddNode(facilityNode);
-                }
-
-                facilityNode.UpdateValue(LevelFieldName, SerializePersistentLevel(facility.Value).ToString(CultureInfo.InvariantCulture));
+                var lvlText = SerializePersistentLevel(facility.Value).ToString(CultureInfo.InvariantCulture);
+                UpgradeableFacilitiesScenarioNodes.EnsureFacilityLevelValue(scenario, facility.Key, lvlText);
             }
         }
 
@@ -158,6 +204,40 @@ namespace Server.System.PersistentSync
             }
 
             return level / MaxPersistentLevel;
+        }
+
+        private static bool TryResolveCanonicalFacilityId(string rawFacilityId, out string canonicalFacilityId)
+        {
+            canonicalFacilityId = null;
+            if (string.IsNullOrEmpty(rawFacilityId))
+            {
+                return false;
+            }
+
+            var normalized = rawFacilityId.Replace('\\', '/');
+            foreach (var known in KnownFacilityIds)
+            {
+                if (string.Equals(known, normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    canonicalFacilityId = known;
+                    return true;
+                }
+            }
+
+            if (!normalized.StartsWith("SpaceCenter/", StringComparison.OrdinalIgnoreCase))
+            {
+                var withPrefix = "SpaceCenter/" + normalized;
+                foreach (var known in KnownFacilityIds)
+                {
+                    if (string.Equals(known, withPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        canonicalFacilityId = known;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
     }
 }
