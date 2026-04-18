@@ -75,6 +75,7 @@
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
     <Compile Include="SerializationTests.cs" />
+    <Compile Include="SessionAdmissionTests.cs" />
     <Compile Include="TimeTests.cs" />
   </ItemGroup>
   <ItemGroup>

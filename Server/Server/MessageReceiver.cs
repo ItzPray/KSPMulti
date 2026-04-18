@@ -1,5 +1,4 @@
 ﻿using Lidgren.Network;
-using LmpCommon;
 using LmpCommon.Enums;
 using LmpCommon.Message.Interface;
 using LmpCommon.Time;
@@ -58,13 +57,6 @@ namespace Server.Server
             LmpPluginHandler.FireOnMessageReceived(client, message);
             //A plugin has handled this message and requested suppression of the default behavior
             if (message.Handled) return;
-
-            if (message.VersionMismatch)
-            {
-                MessageQueuer.SendConnectionEnd(client, $"Version mismatch: Your version ({message.Data.MajorVersion}.{message.Data.MinorVersion}.{message.Data.BuildVersion}) " +
-                                                        $"does not match the server version: {LmpVersioning.CurrentVersion}.");
-                return;
-            }
 
             //Clients can only send HANDSHAKE until they are Authenticated.
             if (!client.Authenticated && message.MessageType != ClientMessageType.Handshake)

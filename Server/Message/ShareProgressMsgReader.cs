@@ -28,7 +28,8 @@ namespace Server.Message
                 case ShareProgressMessageType.TechnologyUpdate:
                     if (PersistentSyncRegistry.IsPersistentSyncInitialized)
                     {
-                        LunaLog.Warning($"[PersistentSync] ShareProgress technology fallback received from {client.PlayerName}; routing through canonical R&D snapshot store instead of one-off peer unlock truth.");
+                        LunaLog.Error($"[PersistentSync] bypass guard: ShareProgress technology path received from {client.PlayerName}; Technology now converges only via PersistentSync intents/snapshots. Message ignored.");
+                        break;
                     }
 
                     ShareTechnologySystem.TechnologyReceived(client, (ShareProgressTechnologyMsgData)data);
@@ -36,7 +37,8 @@ namespace Server.Message
                 case ShareProgressMessageType.ContractsUpdate:
                     if (PersistentSyncRegistry.IsPersistentSyncInitialized)
                     {
-                        LunaLog.Warning($"[PersistentSync] ShareProgress contract fallback received from {client.PlayerName}; routing through canonical contract authority instead of peer truth.");
+                        LunaLog.Error($"[PersistentSync] bypass guard: ShareProgress contracts path received from {client.PlayerName}; Contracts now converge only via PersistentSync intents/snapshots. Message ignored.");
+                        break;
                     }
 
                     ShareContractsSystem.ContractsReceived(client, (ShareProgressContractsMsgData)data);
@@ -62,13 +64,11 @@ namespace Server.Message
                 case ShareProgressMessageType.FacilityUpgrade:
                     if (PersistentSyncRegistry.IsPersistentSyncInitialized)
                     {
-                        LunaLog.Error("[PersistentSync] bypass guard: ShareProgress facility path received; UpgradeableFacilities now converge via PersistentSync snapshots. Message ignored.");
-                    }
-                    else
-                    {
-                        ShareUpgradeableFacilitiesSystem.UpgradeReceived(client, (ShareProgressFacilityUpgradeMsgData)data);
+                        LunaLog.Error($"[PersistentSync] bypass guard: ShareProgress facility path received from {client.PlayerName}; UpgradeableFacilities now converge only via PersistentSync. Message ignored.");
+                        break;
                     }
 
+                    ShareUpgradeableFacilitiesSystem.UpgradeReceived(client, (ShareProgressFacilityUpgradeMsgData)data);
                     break;
                 case ShareProgressMessageType.PartPurchase:
                     if (PersistentSyncRegistry.IsPersistentSyncInitialized)

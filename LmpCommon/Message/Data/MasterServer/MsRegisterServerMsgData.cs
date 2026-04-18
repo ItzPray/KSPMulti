@@ -32,6 +32,8 @@ namespace LmpCommon.Message.Data.MasterServer
         public int SecondaryVesselPositionUpdatesMsInterval;
         public bool RainbowEffect;
         public byte[] Color = new byte[3];
+        public string ProtocolForkId;
+        public string ExactSessionBuild;
 
         public override string ClassName { get; } = nameof(MsRegisterServerMsgData);
 
@@ -65,6 +67,8 @@ namespace LmpCommon.Message.Data.MasterServer
             lidgrenMsg.Write(RainbowEffect);
             for (var i = 0; i < 3; i++)
                 lidgrenMsg.Write(Color[i]);
+            lidgrenMsg.Write(ProtocolForkId ?? string.Empty);
+            lidgrenMsg.Write(ExactSessionBuild ?? string.Empty);
         }
 
         internal override void InternalDeserialize(NetIncomingMessage lidgrenMsg)
@@ -98,6 +102,8 @@ namespace LmpCommon.Message.Data.MasterServer
             RainbowEffect = lidgrenMsg.ReadBoolean();
             for (var i = 0; i < 3; i++)
                 Color[i] = lidgrenMsg.ReadByte();
+            ProtocolForkId = lidgrenMsg.ReadString();
+            ExactSessionBuild = lidgrenMsg.ReadString();
         }
 
         internal override int InternalGetMessageSize()
@@ -106,7 +112,8 @@ namespace LmpCommon.Message.Data.MasterServer
             return base.InternalGetMessageSize() + sizeof(long) + ServerVersion.GetByteCount() +
                    InternalEndpoint.GetByteCount() + InternalEndpoint6.GetByteCount() + sizeof(byte) +
                    sizeof(int) * 7 + ServerName.GetByteCount() + Description.GetByteCount() +
-                   CountryCode.GetByteCount() + Website.GetByteCount() + WebsiteText.GetByteCount() + sizeof(bool) * 3;
+                   CountryCode.GetByteCount() + Website.GetByteCount() + WebsiteText.GetByteCount() + sizeof(bool) * 3 +
+                   (ProtocolForkId ?? string.Empty).GetByteCount() + (ExactSessionBuild ?? string.Empty).GetByteCount();
         }
     }
 }

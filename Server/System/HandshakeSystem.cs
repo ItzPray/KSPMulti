@@ -1,4 +1,5 @@
-﻿using LmpCommon.Enums;
+﻿using LmpCommon;
+using LmpCommon.Enums;
 using LmpCommon.Message.Data.Handshake;
 using LmpCommon.Message.Data.PlayerConnection;
 using LmpCommon.Message.Server;
@@ -16,6 +17,15 @@ namespace Server.System
 
         public void HandleHandshakeRequest(ClientStructure client, HandshakeRequestMsgData data)
         {
+            if (!SessionAdmission.TryValidateClientHandshake(data.ProtocolForkId, data.ExactClientBuild, out var admissionReason, out var admissionReply))
+            {
+                LunaLog.Normal($"Client {data.PlayerName} rejected before authentication: {admissionReason}");
+                HandshakeSystemSender.SendHandshakeReply(client, admissionReply, admissionReason);
+                client.DisconnectClient = true;
+                ClientConnectionHandler.DisconnectClient(client, admissionReason);
+                return;
+            }
+
             var valid = CheckServerFull(client);
             valid &= valid && CheckUsernameLength(client, data.PlayerName);
             valid &= valid && CheckUsernameCharacters(client, data.PlayerName);
@@ -37,7 +47,7 @@ namespace Server.System
 
                 LmpPluginHandler.FireOnClientAuthenticated(client);
 
-                LunaLog.Normal($"Client {data.PlayerName} ({data.UniqueIdentifier}) handshake successfully, Version: {data.MajorVersion}.{data.MinorVersion}.{data.BuildVersion}");
+                LunaLog.Normal($"Client {data.PlayerName} ({data.UniqueIdentifier}) handshake successfully, fork: {SessionAdmission.LocalProtocolForkId}, build: {SessionAdmission.LocalExactBuild}");
 
                 HandshakeSystemSender.SendHandshakeReply(client, HandshakeReply.HandshookSuccessfully, "success");
 

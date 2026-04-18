@@ -8,6 +8,8 @@ namespace LmpCommon
         public IPEndPoint ExternalEndpoint { get; set; }
         public IPEndPoint InternalEndpoint6 { get; set; }
         public string Version { get; set; }
+        public string ProtocolForkId { get; set; }
+        public string ExactSessionBuild { get; set; }
         public bool Password { get; set; }
         public bool Cheats { get; set; }
         public int GameMode { get; set; }
@@ -25,6 +27,8 @@ namespace LmpCommon
             ExternalEndpoint = info.ExternalEndpoint;
             InternalEndpoint6 = info.InternalEndpoint6;
             Version = info.ServerVersion;
+            ProtocolForkId = info.ProtocolForkId;
+            ExactSessionBuild = info.ExactSessionBuild;
             Password = info.Password;
             Cheats = info.Cheats;
             GameMode = info.GameMode;

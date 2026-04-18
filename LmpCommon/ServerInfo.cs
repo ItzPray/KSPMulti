@@ -10,6 +10,10 @@ namespace LmpCommon
         public IPEndPoint InternalEndpoint6 { get; set; }
         public IPEndPoint ExternalEndpoint { get; set; }
         public string ServerVersion { get; set; }
+        /// <summary>Session fork/protocol identifier advertised for discovery (must match client SessionAdmission).</summary>
+        public string ProtocolForkId { get; set; }
+        /// <summary>Exact server session build string (must match client SessionAdmission.LocalExactBuild).</summary>
+        public string ExactSessionBuild { get; set; }
         public string DisplayedPing { get; set; } = "?";
         public string DisplayedPing6 { get; set; } = "?";
         public int Ping { get; set; } = int.MaxValue;

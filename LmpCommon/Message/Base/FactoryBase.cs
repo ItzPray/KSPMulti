@@ -68,7 +68,8 @@ namespace LmpCommon.Message.Base
 
                 msg.SetData(data);
                 msg.Data.ReceiveTime = receiveTime;
-                msg.VersionMismatch = !LmpVersioning.IsCompatible(msg.Data.MajorVersion, msg.Data.MinorVersion, msg.Data.BuildVersion);
+                // Session compatibility is enforced exclusively by HandshakeSystem + SessionAdmission (fork + exact build).
+                msg.VersionMismatch = false;
 
                 return msg;
             }

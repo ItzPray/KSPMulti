@@ -211,6 +211,8 @@ namespace LmpMasterServer.Lidgren
                 msgData.VesselUpdatesSendMsInterval = server.VesselUpdatesSendMsInterval;
                 msgData.WarpMode = server.WarpMode;
                 msgData.TerrainQuality = server.TerrainQuality;
+                msgData.ProtocolForkId = server.ProtocolForkId ?? string.Empty;
+                msgData.ExactSessionBuild = server.ExactSessionBuild ?? string.Empty;
 
                 var msg = MasterServerMessageFactory.CreateNew<MainMstSrvMsg>(msgData);
                 var outMsg = peer.CreateMessage(msg.GetMessageSize());

@@ -41,8 +41,7 @@ namespace LmpClient.Network
                 //Therefore we assert that the received message data is of MsReplyServersMsgData
                 if (msgDeserialized.Data is MsReplyServersMsgData data)
                 {
-                    //Filter servers with different version
-                    if (!LmpVersioning.IsCompatible(data.ServerVersion))
+                    if (!SessionAdmission.IsAdvertisedServerCompatible(data.ProtocolForkId, data.ExactSessionBuild))
                         return;
 
                     var server = new ServerInfo
@@ -67,7 +66,9 @@ namespace LmpClient.Network
                         DedicatedServer = data.DedicatedServer,
                         RainbowEffect = data.RainbowEffect,
                         VesselUpdatesSendMsInterval = data.VesselUpdatesSendMsInterval,
-                        ServerVersion = data.ServerVersion
+                        ServerVersion = data.ServerVersion,
+                        ProtocolForkId = data.ProtocolForkId ?? string.Empty,
+                        ExactSessionBuild = data.ExactSessionBuild ?? string.Empty
                     };
 
                     Array.Copy(data.Color, server.Color, 3);

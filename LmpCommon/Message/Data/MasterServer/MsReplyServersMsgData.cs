@@ -33,6 +33,8 @@ namespace LmpCommon.Message.Data.MasterServer
         public int WarpMode;
         public int TerrainQuality;
         public int VesselUpdatesSendMsInterval;
+        public string ProtocolForkId;
+        public string ExactSessionBuild;
 
         public override string ClassName { get; } = nameof(MsReplyServersMsgData);
 
@@ -63,6 +65,8 @@ namespace LmpCommon.Message.Data.MasterServer
             lidgrenMsg.Write(WarpMode);
             lidgrenMsg.Write(TerrainQuality);
             lidgrenMsg.Write(VesselUpdatesSendMsInterval);
+            lidgrenMsg.Write(ProtocolForkId ?? string.Empty);
+            lidgrenMsg.Write(ExactSessionBuild ?? string.Empty);
         }
 
         internal override void InternalDeserialize(NetIncomingMessage lidgrenMsg)
@@ -93,6 +97,8 @@ namespace LmpCommon.Message.Data.MasterServer
             WarpMode = lidgrenMsg.ReadInt32();
             TerrainQuality = lidgrenMsg.ReadInt32();
             VesselUpdatesSendMsInterval = lidgrenMsg.ReadInt32();
+            ProtocolForkId = lidgrenMsg.ReadString();
+            ExactSessionBuild = lidgrenMsg.ReadString();
         }
 
         internal override int InternalGetMessageSize()
@@ -101,7 +107,8 @@ namespace LmpCommon.Message.Data.MasterServer
                    InternalEndpoint.GetByteCount() + InternalEndpoint6.GetByteCount() +
                    ExternalEndpoint.GetByteCount() + ServerName.GetByteCount() + Description.GetByteCount() +
                    Country.GetByteCount() + Website.GetByteCount() + WebsiteText.GetByteCount() +
-                   sizeof(bool) * 5 + sizeof(int) * 6 + sizeof(byte) * 3;
+                   sizeof(bool) * 5 + sizeof(int) * 6 + sizeof(byte) * 3 +
+                   (ProtocolForkId ?? string.Empty).GetByteCount() + (ExactSessionBuild ?? string.Empty).GetByteCount();
         }
     }
 }

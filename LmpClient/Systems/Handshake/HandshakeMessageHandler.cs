@@ -5,6 +5,7 @@ using LmpClient.Base.Interface;
 using LmpClient.Network;
 using LmpClient.Systems.Mod;
 using LmpClient.Systems.TimeSync;
+using LmpCommon;
 using LmpCommon.Enums;
 using LmpCommon.Message.Data.Handshake;
 using LmpCommon.Message.Interface;
@@ -62,7 +63,7 @@ namespace LmpClient.Systems.Handshake
                     }
                     break;
                 default:
-                    var disconnectReason = $"Handshake failure: {data.Reason}";
+                    var disconnectReason = SessionAdmission.FormatClientDisconnectMessage(data.Response, data.Reason);
                     LunaLog.Log(disconnectReason);
                     NetworkConnection.Disconnect(disconnectReason);
                     break;

@@ -39,6 +39,8 @@ namespace LmpMasterServer.Structure
             Cheats = msg.Cheats;
             Password = msg.Password;
             ServerVersion = msg.ServerVersion;
+            ProtocolForkId = msg.ProtocolForkId ?? string.Empty;
+            ExactSessionBuild = msg.ExactSessionBuild ?? string.Empty;
             ServerName = msg.ServerName.Length > 30 ? msg.ServerName.Substring(0, 30) : msg.ServerName;
             Description = msg.Description.Length > 200 ? msg.Description.Substring(0, 200) : msg.Description;
 

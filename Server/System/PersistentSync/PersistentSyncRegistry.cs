@@ -1,5 +1,4 @@
 using LmpCommon.Enums;
-using LmpCommon.Message;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.Message.Server;
 using LmpCommon.PersistentSync;
@@ -15,7 +14,6 @@ namespace Server.System.PersistentSync
 {
     public static class PersistentSyncRegistry
     {
-        private static readonly ClientMessageFactory ClientMessageFactory = new ClientMessageFactory();
         private static readonly Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain> Domains = new Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain>();
         private static readonly HashSet<string> ServerScenarioBypasses = new HashSet<string>
         {
@@ -254,19 +252,6 @@ namespace Server.System.PersistentSync
                 LunaLog.Debug($"[PersistentSync] snapshot broadcast target=singleClient client={clientName} domain={data.DomainId} revision={result.Snapshot.Revision}");
                 MessageQueuer.SendToClient<PersistentSyncSrvMsg>(client, CreateSnapshotMessage(result.Snapshot));
             }
-        }
-
-        public static void HandleLegacyContractFallbackIntent(ClientStructure client, byte[] payload, int numBytes, string reason)
-        {
-            var data = ClientMessageFactory.CreateNewMessageData<PersistentSyncIntentMsgData>();
-            data.DomainId = PersistentSyncDomainId.Contracts;
-            data.ClientKnownRevision = Domains.TryGetValue(PersistentSyncDomainId.Contracts, out var domain)
-                ? domain.GetCurrentSnapshot().Revision
-                : 0;
-            data.Payload = payload;
-            data.NumBytes = numBytes;
-            data.Reason = reason;
-            HandleIntent(client, data);
         }
 
         public static PersistentSyncDomainApplyResult ApplyServerMutation(PersistentSyncDomainId domainId, byte[] payload, int numBytes, string reason)
