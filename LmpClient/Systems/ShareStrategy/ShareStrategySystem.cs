@@ -1,9 +1,11 @@
 ﻿using KSP.UI.Screens;
 using LmpClient.Events;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareFunds;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.ShareReputation;
 using LmpClient.Systems.ShareScience;
+using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Strategies;
@@ -27,11 +29,21 @@ namespace LmpClient.Systems.ShareStrategy
 
         protected override GameMode RelevantGameModes => GameMode.Career;
 
+        protected override bool UseSessionApplicabilityInsteadOfGameModeMask => true;
+
+        protected override bool IsShareSystemApplicableForSession()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Strategy,
+                SettingsSystem.ServerSettings.GameMode,
+                in caps);
+        }
+
         protected override void OnEnabled()
         {
             base.OnEnabled();
 
-            if (!CurrentGameModeIsRelevant) return;
             StrategyEvent.onStrategyActivated.Add(ShareStrategiesEvents.StrategyActivated);
             StrategyEvent.onStrategyDeactivated.Add(ShareStrategiesEvents.StrategyDeactivated);
         }

@@ -22,12 +22,14 @@ namespace LmpClient.Systems.ShareProgress
 
         /// <summary>
         /// When true, <see cref="OnEnabled"/> uses <see cref="IsShareSystemApplicableForSession"/> instead of
-        /// <see cref="CurrentGameModeIsRelevant"/> so migrated producers can follow central applicability rules.
+        /// <see cref="CurrentGameModeIsRelevant"/> so producers follow <see cref="LmpCommon.PersistentSync.PersistentSyncDomainApplicability"/>.
+        /// All concrete share-progress systems in this client set this to true.
         /// </summary>
         protected virtual bool UseSessionApplicabilityInsteadOfGameModeMask => false;
 
         /// <summary>
-        /// Gate for subscribing to stock events / running share queues. Defaults to legacy game-mode bitmask behavior.
+        /// Gate for subscribing to stock events / running share queues when <see cref="UseSessionApplicabilityInsteadOfGameModeMask"/> is true.
+        /// Otherwise <see cref="CurrentGameModeIsRelevant"/> is used.
         /// </summary>
         protected virtual bool IsShareSystemApplicableForSession() => CurrentGameModeIsRelevant;
 

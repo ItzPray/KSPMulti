@@ -21,8 +21,7 @@ namespace LmpClient.Systems.ShareAchievements
         protected override bool ShareSystemReady => ProgressTracking.Instance != null;
 
         /// <summary>
-        /// Legacy bitmask retained for systems still using <see cref="ShareProgressBaseSystem.CurrentGameModeIsRelevant"/> only;
-        /// this system uses <see cref="ShareProgressBaseSystem.IsShareSystemApplicableForSession"/> via persistent-sync applicability.
+        /// Unused when <see cref="ShareProgressBaseSystem.UseSessionApplicabilityInsteadOfGameModeMask"/> is true; kept for API completeness.
         /// </summary>
         protected override GameMode RelevantGameModes => GameMode.Career | GameMode.Science;
 

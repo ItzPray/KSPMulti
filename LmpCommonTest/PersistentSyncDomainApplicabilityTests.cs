@@ -91,6 +91,32 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
+        public void CareerShareProducersMatchCareerScenarioFlags()
+        {
+            var caps = PersistentSyncSessionCapabilities.OptimisticForServerGameMode(GameMode.Career);
+            Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Funds, GameMode.Career, in caps));
+            Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Reputation, GameMode.Career, in caps));
+            Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Strategy, GameMode.Career, in caps));
+            Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.UpgradeableFacilities, GameMode.Career, in caps));
+            Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Contracts, GameMode.Career, in caps));
+        }
+
+        [TestMethod]
+        public void ScienceModeShareProducerRejectsCareerOnlyFunds()
+        {
+            var caps = PersistentSyncSessionCapabilities.OptimisticForServerGameMode(GameMode.Science);
+            Assert.IsFalse(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Funds, GameMode.Science, in caps));
+            Assert.IsFalse(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Strategy, GameMode.Science, in caps));
+        }
+
+        [TestMethod]
         public void PartPurchaseProducerDisabledWhenDifficultyBypassesPurchases()
         {
             var caps = new PersistentSyncSessionCapabilities

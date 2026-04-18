@@ -1,6 +1,9 @@
 ﻿using LmpClient.Events;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
+using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
 using System;
 using Guid = System.Guid;
 
@@ -19,6 +22,17 @@ namespace LmpClient.Systems.ShareFunds
 
         protected override GameMode RelevantGameModes => GameMode.Career;
 
+        protected override bool UseSessionApplicabilityInsteadOfGameModeMask => true;
+
+        protected override bool IsShareSystemApplicableForSession()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Funds,
+                SettingsSystem.ServerSettings.GameMode,
+                in caps);
+        }
+
         public bool Reverting { get; set; }
 
         public Tuple<Guid, float> CurrentShipCost { get; set; }
@@ -27,7 +41,6 @@ namespace LmpClient.Systems.ShareFunds
         {
             base.OnEnabled();
 
-            if (!CurrentGameModeIsRelevant) return;
             GameEvents.OnFundsChanged.Add(ShareFundsEvents.FundsChanged);
 
             RevertEvent.onRevertingToLaunch.Add(ShareFundsEvents.RevertingDetected);

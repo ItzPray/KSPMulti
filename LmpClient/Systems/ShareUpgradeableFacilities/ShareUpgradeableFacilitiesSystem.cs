@@ -1,5 +1,8 @@
-﻿using LmpClient.Systems.ShareProgress;
+﻿using LmpClient.Systems.PersistentSync;
+using LmpClient.Systems.ShareProgress;
+using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
 
 namespace LmpClient.Systems.ShareUpgradeableFacilities
 {
@@ -14,11 +17,21 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
 
         protected override GameMode RelevantGameModes => GameMode.Career;
 
+        protected override bool UseSessionApplicabilityInsteadOfGameModeMask => true;
+
+        protected override bool IsShareSystemApplicableForSession()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.UpgradeableFacilities,
+                SettingsSystem.ServerSettings.GameMode,
+                in caps);
+        }
+
         protected override void OnEnabled()
         {
             base.OnEnabled();
 
-            if (!CurrentGameModeIsRelevant) return;
             GameEvents.OnKSCFacilityUpgrading.Add(ShareUpgradeableFacilitiesEvents.FacilityUpgraded);
         }
 

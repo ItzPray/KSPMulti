@@ -1,6 +1,9 @@
 ﻿using LmpClient.Events;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
+using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
 
 namespace LmpClient.Systems.ShareReputation
 {
@@ -17,13 +20,23 @@ namespace LmpClient.Systems.ShareReputation
 
         protected override GameMode RelevantGameModes => GameMode.Career;
 
+        protected override bool UseSessionApplicabilityInsteadOfGameModeMask => true;
+
+        protected override bool IsShareSystemApplicableForSession()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Reputation,
+                SettingsSystem.ServerSettings.GameMode,
+                in caps);
+        }
+
         public bool Reverting { get; set; }
 
         protected override void OnEnabled()
         {
             base.OnEnabled();
 
-            if (!CurrentGameModeIsRelevant) return;
             GameEvents.OnReputationChanged.Add(ShareReputationEvents.ReputationChanged);
 
             RevertEvent.onRevertingToLaunch.Add(ShareReputationEvents.RevertingDetected);
