@@ -52,7 +52,7 @@ namespace LmpClient.Systems.ShareExperimentalParts
         public void ReplaceExperimentalPartsStock(Dictionary<AvailablePart, int> stock, string source)
         {
             Traverse.Create(ResearchAndDevelopment.Instance).Field("experimentalPartsStock").SetValue(stock);
-            ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentUiAdapters(source);
+            ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentPurchasesOnly(source);
             LunaLog.Log($"Experimental parts snapshot applied from {source} count={stock.Count}");
         }
     }

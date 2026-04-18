@@ -45,12 +45,40 @@ namespace LmpClient.Systems.ShareTechnology
         }
 
         /// <summary>
-        /// Refreshes derived R&D/editor UI after local tech truth was already corrected.
+        /// Refreshes derived R&amp;D/editor UI after local tech truth was already corrected.
+        /// Reloads the tech tree only when the R&amp;D complex is open; otherwise stock builds the tree from
+        /// <see cref="ResearchAndDevelopment.Instance"/> when the player opens the facility. Calling
+        /// <see cref="ResearchAndDevelopment.RefreshTechTreeUI"/> repeatedly while the UI is absent or
+        /// mid-build stacks duplicate <see cref="RDNode"/> instances (PersistentSync flush + part list refresh).
         /// </summary>
         public void RefreshResearchAndDevelopmentUiAdapters(string source)
         {
-            RefreshTechTree(source);
+            if (RDController.Instance != null)
+            {
+                RefreshTechTree(source);
+            }
+
             RefreshResearchAndDevelopmentPanel(source);
+            RefreshEditorPartsList(source);
+        }
+
+        /// <summary>
+        /// Updates the R&amp;D side panel part list and VAB/SPH part browser without reloading the entire tech tree.
+        /// Used after part-purchase or experimental-part snapshots so one reconciler pass does not invoke
+        /// <see cref="ResearchAndDevelopment.RefreshTechTreeUI"/> twice (Technology domain then PartPurchases domain).
+        /// </summary>
+        public void RefreshResearchAndDevelopmentPurchasesOnly(string source)
+        {
+            RefreshResearchAndDevelopmentPanel(source);
+            RefreshEditorPartsList(source);
+        }
+
+        /// <summary>
+        /// When the R&amp;D building is closed, tech state is already in <see cref="ResearchAndDevelopment.Instance"/>;
+        /// refresh editor part categories only.
+        /// </summary>
+        public void RefreshEditorAfterTechSnapshot(string source)
+        {
             RefreshEditorPartsList(source);
         }
 

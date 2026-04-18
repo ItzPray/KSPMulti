@@ -3,11 +3,11 @@ using LmpClient.Base;
 using LmpClient.Events;
 using LmpClient.Systems.Network;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Utilities;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 namespace LmpClient.Systems.PersistentSync
 {
@@ -202,7 +202,12 @@ namespace LmpClient.Systems.PersistentSync
                 LunaLog.Log($"[PersistentSync] OnRnDComplexSpawn rdTechStates total={totalStates} available={available} unavailable={unavailable}");
             }
 
-            ReassertTechnologyAndPurchases("RnDComplexSpawn");
+            // Defer one frame: stock R&D UI allocates placeholder RDNodes first; an immediate flush + tree
+            // refresh here races that build (empty cog / "No text" nodes) before the real tree appears.
+            CoroutineUtil.StartFrameDelayedRoutine(
+                "PersistentSync.RndReassertNextFrame",
+                () => ReassertTechnologyAndPurchases("RnDComplexSpawn+nextFrame"),
+                1);
         }
 
         private void ReassertTechnologyAndPurchases(string source)

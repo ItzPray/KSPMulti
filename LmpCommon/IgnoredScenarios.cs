@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace LmpCommon
 {
@@ -8,10 +8,9 @@ namespace LmpCommon
         {
             "ScenarioDiscoverableObjects", //Asteroids have their own system
             "ScenarioCustomWaypoints", //Don't sync this
-            //Owned by the PersistentSync Technology + PartPurchases domains; if the server ever relays
-            //R&D through generic scenario sync the client's ProtoScenarioModule would carry stale
-            //techStates/partsPurchased and KSP would rebuild R&D.Instance from it, silently wiping
-            //the authoritative state PersistentSync had already applied.
+            //Owned by PersistentSync Technology + PartPurchases. Generic scenario receive for R&D can
+            //overwrite mid-session with a stale blob. The client still needs the in-game proto to match
+            //live R&D.Instance after PersistentSync applies — see ResearchAndDevelopmentProtoMirror on the client.
             "ResearchAndDevelopment",
         };
 

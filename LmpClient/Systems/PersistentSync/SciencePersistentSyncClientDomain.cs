@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using KSP.UI.Screens;
 using LmpClient.Extensions;
 using LmpClient.Systems.ShareAchievements;
 using LmpClient.Systems.ShareExperimentalParts;
@@ -358,6 +359,8 @@ namespace LmpClient.Systems.PersistentSync
                     ResearchAndDevelopment.Instance.SetTechState(tech.techID, techState);
                 }
 
+                ResearchAndDevelopmentProtoMirror.TrySyncLiveInstanceToGameProto("PartPurchasesFlush");
+
                 SharePurchasePartsSystem.Singleton.RefreshPurchaseUiAdapters("PersistentSyncSnapshotApply");
             }
             catch
@@ -482,7 +485,17 @@ namespace LmpClient.Systems.PersistentSync
 
             LunaLog.Log($"[PersistentSync] Technology FlushPendingState treeTechs={total} snapshotHits={applied} snapshotMisses={missedInSnapshot} pendingTechCount={_pendingTechnologyById.Count} postApplyAvailable={postApplyAvailable} postApplyUnavailable={postApplyUnavailable}");
 
-            ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentUiAdapters("PersistentSyncSnapshotApply");
+            ResearchAndDevelopmentProtoMirror.TrySyncLiveInstanceToGameProto("TechnologyFlush");
+
+            if (RDController.Instance != null)
+            {
+                ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentUiAdapters("PersistentSyncSnapshotApply");
+            }
+            else
+            {
+                ShareTechnologySystem.Singleton.RefreshEditorAfterTechSnapshot("PersistentSyncSnapshotApply");
+            }
+
             _pendingTechnologyById = null;
             return PersistentSyncApplyOutcome.Applied;
         }

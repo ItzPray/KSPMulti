@@ -47,7 +47,7 @@ namespace LmpClient.Systems.SharePurchaseParts
 
         public void RefreshPurchaseUiAdapters(string source)
         {
-            ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentUiAdapters(source);
+            ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentPurchasesOnly(source);
         }
     }
 }
