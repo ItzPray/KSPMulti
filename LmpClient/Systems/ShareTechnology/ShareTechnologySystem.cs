@@ -97,19 +97,17 @@ namespace LmpClient.Systems.ShareTechnology
 
         private static void RefreshResearchAndDevelopmentPanel(string source)
         {
-            if (!RDController.Instance)
+            var controller = RDController.Instance;
+            if (!controller || !controller.partList)
             {
+                // RDController exists before partList is wired during RnDComplex spawn; UpdatePanel() NREs in that window.
                 return;
             }
 
             try
             {
-                if (RDController.Instance.partList)
-                {
-                    RDController.Instance.partList.Refresh();
-                }
-
-                RDController.Instance.UpdatePanel();
+                controller.partList.Refresh();
+                controller.UpdatePanel();
                 LunaLog.Log($"[PersistentSync] technology UI refresh source={source} adapter=rd-controller");
             }
             catch (Exception e)

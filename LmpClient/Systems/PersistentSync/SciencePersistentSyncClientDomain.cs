@@ -359,8 +359,6 @@ namespace LmpClient.Systems.PersistentSync
                     ResearchAndDevelopment.Instance.SetTechState(tech.techID, techState);
                 }
 
-                ResearchAndDevelopmentProtoMirror.TrySyncLiveInstanceToGameProto("PartPurchasesFlush");
-
                 SharePurchasePartsSystem.Singleton.RefreshPurchaseUiAdapters("PersistentSyncSnapshotApply");
             }
             catch
@@ -484,8 +482,6 @@ namespace LmpClient.Systems.PersistentSync
             }
 
             LunaLog.Log($"[PersistentSync] Technology FlushPendingState treeTechs={total} snapshotHits={applied} snapshotMisses={missedInSnapshot} pendingTechCount={_pendingTechnologyById.Count} postApplyAvailable={postApplyAvailable} postApplyUnavailable={postApplyUnavailable}");
-
-            ResearchAndDevelopmentProtoMirror.TrySyncLiveInstanceToGameProto("TechnologyFlush");
 
             if (RDController.Instance != null)
             {

@@ -91,7 +91,6 @@ namespace LmpClient.Systems.PersistentSync
                     var facility = resolved[facilityLevel.Key];
                     facility.SetLevel(facilityLevel.Value);
                     postSetLevels[facilityLevel.Key] = facility.FacilityLevel;
-                    SyncScenarioProtoUpgradeable(facility);
                 }
             }
             catch (Exception ex)
@@ -112,12 +111,29 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         /// <summary>
-        /// Keeps the stock <see cref="ScenarioUpgradeableFacilities.protoUpgradeables"/> entry for this facility
-        /// in sync with our applied level. Without this, subsequent scene transitions fire
-        /// <see cref="UpgradeableFacility"/>.OnLevelLoaded -&gt; RegisterUpgradeable -&gt; Load(configNode),
-        /// where configNode still carries the default <c>lvl = 0</c> seeded by the module's
-        /// <c>getInitialState</c>, silently reverting facilities back to level 0 behind us.
+        /// After PersistentSync applies facility levels, <see cref="PersistentSyncGamePersistenceMaterializer"/>
+        /// calls <see cref="MaterializeUpgradeableProtosFromLiveScene"/> so stock reload paths read current
+        /// <c>lvl</c> values. This keeps <see cref="ScenarioUpgradeableFacilities.protoUpgradeables"/> in sync;
+        /// without it, scene transitions fire <see cref="UpgradeableFacility"/>.OnLevelLoaded -&gt; RegisterUpgradeable
+        /// -&gt; Load(configNode) where configNode still carries default <c>lvl = 0</c>.
         /// </summary>
+        public static void MaterializeUpgradeableProtosFromLiveScene(string reason)
+        {
+            var byId = IndexFacilitiesById();
+            var seen = new HashSet<int>();
+            foreach (var facility in byId.Values)
+            {
+                if (facility == null || !seen.Add(facility.GetInstanceID()))
+                {
+                    continue;
+                }
+
+                SyncScenarioProtoUpgradeable(facility);
+            }
+
+            LunaLog.Log($"[PersistentSync] UpgradeableFacilities proto materialize ok reason={reason} uniqueFacilities={seen.Count}");
+        }
+
         private static void SyncScenarioProtoUpgradeable(UpgradeableFacility facility)
         {
             if (facility == null || string.IsNullOrEmpty(facility.id))

@@ -112,15 +112,14 @@ namespace Server.System.PersistentSync
                 return;
             }
 
-            var progressNode = scenario.GetNode(ProgressNodeName)?.Value;
-            if (progressNode == null)
+            // Universe saves can accumulate multiple top-level nodes named "Progress". GetNode() requires a
+            // unique key and throws MixedCollection GetSingle — remove every Progress wrapper, then add one.
+            foreach (var existing in scenario.GetNodes(ProgressNodeName).Select(n => n.Value).Where(n => n != null).ToArray())
             {
-                progressNode = new ConfigNode(ProgressNodeName, scenario);
-                scenario.AddNode(progressNode);
+                scenario.RemoveNode(existing);
             }
 
-            scenario.RemoveNode(progressNode);
-            progressNode = new ConfigNode(BuildProgressNodeText(_achievementsById.Values.OrderBy(value => value.Id)));
+            var progressNode = new ConfigNode(BuildProgressNodeText(_achievementsById.Values.OrderBy(value => value.Id)));
             scenario.AddNode(progressNode);
         }
 

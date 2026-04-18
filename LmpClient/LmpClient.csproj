@@ -309,6 +309,8 @@
     <Compile Include="Systems\PersistentSync\ScalarPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\SciencePersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\ResearchAndDevelopmentProtoMirror.cs" />
+    <Compile Include="Systems\PersistentSync\PersistentSyncScenarioProtoMaterializer.cs" />
+    <Compile Include="Systems\PersistentSync\PersistentSyncGamePersistenceMaterializer.cs" />
     <Compile Include="Systems\PersistentSync\UpgradeableFacilitiesPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryMessageHandler.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryMessageSender.cs" />

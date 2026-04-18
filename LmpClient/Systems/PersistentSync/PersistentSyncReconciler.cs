@@ -102,6 +102,7 @@ namespace LmpClient.Systems.PersistentSync
 
         public void FlushPendingState()
         {
+            var appliedDomainIds = new List<PersistentSyncDomainId>();
             foreach (var entry in System.Domains)
             {
                 var domainId = entry.Key;
@@ -109,6 +110,7 @@ namespace LmpClient.Systems.PersistentSync
                 switch (outcome)
                 {
                     case PersistentSyncApplyOutcome.Applied:
+                        appliedDomainIds.Add(domainId);
                         if (State.TryGetDeferred(domainId, out var pending))
                         {
                             PsLog($"flush deferred->applied domain={domainId} revision={pending.Revision}");
@@ -125,6 +127,11 @@ namespace LmpClient.Systems.PersistentSync
                     case PersistentSyncApplyOutcome.Deferred:
                         break;
                 }
+            }
+
+            if (appliedDomainIds.Count > 0)
+            {
+                PersistentSyncGamePersistenceMaterializer.Materialize(appliedDomainIds, "FlushPendingState");
             }
         }
 

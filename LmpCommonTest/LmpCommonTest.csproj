@@ -66,6 +66,7 @@
     <Compile Include="EventDomainSerializersPlaceholderTests.cs" />
     <Compile Include="MessageStoreTest.cs" />
     <Compile Include="PersistentSyncDomainApplicabilityTests.cs" />
+    <Compile Include="PersistentSyncMaterializationDomainMapTests.cs" />
     <Compile Include="PersistentSyncReconcilerStateTests.cs" />
     <Compile Include="PersistentSyncSerializationTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
