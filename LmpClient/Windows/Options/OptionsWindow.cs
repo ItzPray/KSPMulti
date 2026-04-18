@@ -1,5 +1,6 @@
 ﻿using LmpClient.Base;
 using LmpClient.Localization;
+using LmpClient.Utilities;
 using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
 using UnityEngine;
@@ -109,7 +110,7 @@ namespace LmpClient.Windows.Options
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, "LMP_OptionsLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_OptionsLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

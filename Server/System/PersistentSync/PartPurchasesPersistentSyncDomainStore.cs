@@ -40,15 +40,22 @@ namespace Server.System.PersistentSync
                     continue;
                 }
 
-                _partNamesByTechId[techId] = new HashSet<string>(
+                var parts = new HashSet<string>(
                     techNode.GetValues(TechPartFieldName).Select(value => value.Value).Where(value => !string.IsNullOrEmpty(value)),
                     StringComparer.Ordinal);
+                // Omit techs with no persisted purchases: including them produced all-empty PartNames entries in
+                // snapshots and the client overwrote every tech's partsPurchased with an empty list.
+                if (parts.Count > 0)
+                {
+                    _partNamesByTechId[techId] = parts;
+                }
             }
         }
 
         public PersistentSyncDomainSnapshot GetCurrentSnapshot()
         {
             var payload = PartPurchasesSnapshotPayloadSerializer.Serialize(_partNamesByTechId
+                .Where(value => value.Value != null && value.Value.Count > 0)
                 .OrderBy(value => value.Key)
                 .Select(value => new PartPurchaseSnapshotInfo
                 {
@@ -120,15 +127,16 @@ namespace Server.System.PersistentSync
 
             foreach (var techNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null))
             {
-                while (techNode.GetValues(TechPartFieldName).Any())
-                {
-                    techNode.RemoveValue(TechPartFieldName);
-                }
-
                 var techId = techNode.GetValue(TechIdFieldName)?.Value;
                 if (string.IsNullOrEmpty(techId) || !_partNamesByTechId.TryGetValue(techId, out var parts))
                 {
+                    // Do not strip existing part= lines for techs we are not tracking (was wiping stock parts).
                     continue;
+                }
+
+                while (techNode.GetValues(TechPartFieldName).Any())
+                {
+                    techNode.RemoveValue(TechPartFieldName);
                 }
 
                 foreach (var partName in parts.OrderBy(value => value))

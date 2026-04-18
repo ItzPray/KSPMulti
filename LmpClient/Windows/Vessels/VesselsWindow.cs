@@ -1,4 +1,5 @@
 ﻿using LmpClient.Base;
+using LmpClient.Utilities;
 using LmpClient.Windows.Vessels.Structures;
 using LmpCommon.Enums;
 using LmpCommon.Time;
@@ -125,7 +126,7 @@ namespace LmpClient.Windows.Vessels
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, "LMP_VesselsWindowsLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_VesselsWindowsLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

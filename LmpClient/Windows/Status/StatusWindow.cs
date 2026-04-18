@@ -1,5 +1,6 @@
 ﻿using LmpClient.Base;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Utilities;
 using LmpClient.Systems.Warp;
 using LmpClient.Utilities;
 using LmpCommon.Enums;
@@ -144,7 +145,7 @@ namespace LmpClient.Windows.Status
                 var shouldLock = WindowRect.Contains(mousePos);
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, "LMP_PlayerStatusLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_PlayerStatusLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)
@@ -153,6 +154,14 @@ namespace LmpClient.Windows.Status
 
             if (!Display && IsWindowLocked)
                 RemoveWindowLock();
+        }
+
+        /// <summary>
+        /// Screen-space rectangle of the LMP status panel, for docking other UI (e.g. log console).
+        /// </summary>
+        public Rect GetStatusPanelScreenRect()
+        {
+            return WindowRect;
         }
     }
 }

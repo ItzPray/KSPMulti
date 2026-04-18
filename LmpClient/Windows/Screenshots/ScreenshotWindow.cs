@@ -1,5 +1,6 @@
 ﻿using LmpClient.Base;
 using LmpClient.Localization;
+using LmpClient.Utilities;
 using LmpClient.Systems.Screenshot;
 using LmpCommon.Enums;
 using LmpCommon.Time;
@@ -150,7 +151,7 @@ namespace LmpClient.Windows.Screenshots
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, "LMP_ScreenshotLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_ScreenshotLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

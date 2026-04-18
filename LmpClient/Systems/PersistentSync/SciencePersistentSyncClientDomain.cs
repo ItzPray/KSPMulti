@@ -353,13 +353,22 @@ namespace LmpClient.Systems.PersistentSync
                         continue;
                     }
 
-                    techState.partsPurchased = _pendingPurchases.TryGetValue(tech.techID, out var purchase)
-                        ? (purchase.PartNames ?? new string[0]).Select(ResolvePart).Where(part => part != null).Distinct().ToList()
-                        : new List<AvailablePart>();
+                    // Sparse snapshot: only techs the server tracks as purchased are present. Do not clear
+                    // partsPurchased for omitted techs — Available+empty is normalized afterward by
+                    // EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded (legacy LMP: full tech ownership).
+                    if (!_pendingPurchases.TryGetValue(tech.techID, out var purchase))
+                    {
+                        continue;
+                    }
+
+                    techState.partsPurchased = (purchase.PartNames ?? new string[0]).Select(ResolvePart).Where(part => part != null).Distinct().ToList();
                     ResearchAndDevelopment.Instance.SetTechState(tech.techID, techState);
                 }
 
                 SharePurchasePartsSystem.Singleton.RefreshPurchaseUiAdapters("PersistentSyncSnapshotApply");
+
+                TechnologyPersistentSyncClientDomain.SyncRnDTechTreeFromResearchInstance();
+                TechnologyPersistentSyncClientDomain.EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded("PartPurchasesFlush");
             }
             catch
             {
@@ -483,6 +492,11 @@ namespace LmpClient.Systems.PersistentSync
 
             LunaLog.Log($"[PersistentSync] Technology FlushPendingState treeTechs={total} snapshotHits={applied} snapshotMisses={missedInSnapshot} pendingTechCount={_pendingTechnologyById.Count} postApplyAvailable={postApplyAvailable} postApplyUnavailable={postApplyUnavailable}");
 
+            // R&D side panel reads partsPurchased/state from RnDTech tree nodes; SetTechState updates the
+            // singleton only. Stock UnlockProtoTechNode keeps them aligned — mirror after snapshot apply.
+            SyncRnDTechTreeFromResearchInstance();
+            EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded("TechnologyFlush");
+
             if (RDController.Instance != null)
             {
                 ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentUiAdapters("PersistentSyncSnapshotApply");
@@ -496,6 +510,108 @@ namespace LmpClient.Systems.PersistentSync
             return PersistentSyncApplyOutcome.Applied;
         }
 
+        /// <summary>
+        /// Legacy LMP contract (Career included): researching a node makes every part in that tech usable without a
+        /// separate R&amp;D purchase step. Stock can leave <see cref="ProtoTechNode.partsPurchased"/> empty while the
+        /// node is <see cref="RDTech.State.Available"/>, which makes the R&amp;D UI ask for purchases anyway.
+        /// For each Available tech with an empty list, assign all <see cref="PartLoader.LoadedPartsList"/> entries
+        /// whose <c>TechRequired</c> matches, then mirror the tree.
+        /// </summary>
+        public static void EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded(string reason)
+        {
+            if (ResearchAndDevelopment.Instance == null || AssetBase.RnDTechTree == null)
+            {
+                return;
+            }
+
+            var partsByTechId = new Dictionary<string, List<AvailablePart>>(StringComparer.Ordinal);
+            foreach (var ap in PartLoader.LoadedPartsList)
+            {
+                if (ap == null || string.IsNullOrEmpty(ap.TechRequired))
+                {
+                    continue;
+                }
+
+                if (!partsByTechId.TryGetValue(ap.TechRequired, out var list))
+                {
+                    list = new List<AvailablePart>();
+                    partsByTechId[ap.TechRequired] = list;
+                }
+
+                list.Add(ap);
+            }
+
+            var filled = 0;
+            foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(node => node != null))
+            {
+                var state = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
+                if (state == null || state.state != RDTech.State.Available)
+                {
+                    continue;
+                }
+
+                if (state.partsPurchased != null && state.partsPurchased.Count > 0)
+                {
+                    continue;
+                }
+
+                if (!partsByTechId.TryGetValue(tech.techID, out var implied) || implied.Count == 0)
+                {
+                    continue;
+                }
+
+                state.partsPurchased = implied;
+                ResearchAndDevelopment.Instance.SetTechState(tech.techID, state);
+                filled++;
+            }
+
+            if (filled > 0)
+            {
+                LunaLog.Log($"[PersistentSync] Implicit partsPurchased (legacy LMP: full tech ownership) filledTechs={filled} source={reason}");
+                SyncRnDTechTreeFromResearchInstance();
+            }
+        }
+
+        /// <summary>
+        /// Copies state, cost, and partsPurchased from <see cref="ResearchAndDevelopment.Instance"/> into each
+        /// <see cref="RDTech"/> tree node so the R&amp;D UI matches gameplay (VAB/editor use the singleton).
+        /// </summary>
+        public static void SyncRnDTechTreeFromResearchInstance()
+        {
+            if (ResearchAndDevelopment.Instance == null || AssetBase.RnDTechTree == null)
+            {
+                return;
+            }
+
+            foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(node => node != null))
+            {
+                var saved = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
+                if (saved == null)
+                {
+                    continue;
+                }
+
+                tech.state = saved.state;
+                tech.scienceCost = saved.scienceCost;
+                if (tech.partsPurchased == null)
+                {
+                    continue;
+                }
+
+                tech.partsPurchased.Clear();
+                if (saved.partsPurchased != null)
+                {
+                    foreach (var part in saved.partsPurchased)
+                    {
+                        if (part != null)
+                        {
+                            tech.partsPurchased.Add(part);
+                        }
+                    }
+                }
+            }
+        }
+
         private static void ApplyTechnologySnapshot(IReadOnlyDictionary<string, TechnologySnapshotInfo> technologyById, out int applied, out int total, out int missedInSnapshot)
         {
             applied = 0;
@@ -506,12 +622,16 @@ namespace LmpClient.Systems.PersistentSync
             foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(node => node != null))
             {
                 total++;
+                var saved = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
+                var baseParts = saved?.partsPurchased != null && saved.partsPurchased.Count > 0
+                    ? saved.partsPurchased
+                    : (tech.partsPurchased ?? new List<AvailablePart>());
                 var protoTechNode = new ProtoTechNode
                 {
                     techID = tech.techID,
                     scienceCost = tech.scienceCost,
                     state = tech.state,
-                    partsPurchased = new List<AvailablePart>(tech.partsPurchased ?? new List<AvailablePart>())
+                    partsPurchased = new List<AvailablePart>(baseParts.Where(part => part != null))
                 };
 
                 if (technologyById.TryGetValue(tech.techID, out var snapshot))

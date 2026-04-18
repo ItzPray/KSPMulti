@@ -186,6 +186,7 @@
     <Compile Include="Harmony\Part_Die.cs" />
     <Compile Include="Harmony\Part_Undock.cs" />
     <Compile Include="Harmony\PauseMenu_Display.cs" />
+    <Compile Include="Harmony\KspRnD_BlockPointerOverLmpDock.cs" />
     <Compile Include="Harmony\ResearchAndDevelopment_RemoveExperimentalPart.cs" />
     <Compile Include="Harmony\ResearchAndDevelopment_AddExperimentalPart.cs" />
     <Compile Include="Harmony\FlightIntegrator_FixedUpdate.cs" />
@@ -526,6 +527,8 @@
     <Compile Include="Systems\Warp\WarpMessageSender.cs" />
     <Compile Include="Systems\Warp\WarpStructures.cs" />
     <Compile Include="Utilities\CommonUtil.cs" />
+    <Compile Include="Utilities\LmpImguiInputLockMask.cs" />
+    <Compile Include="Utilities\LmpFacilityImguiPointerBlock.cs" />
     <Compile Include="Extensions\ConfigNodeSerializer.cs" />
     <Compile Include="Systems\AsteroidComet\AsteroidCometSystem.cs" />
     <Compile Include="Base\Interface\ISystem.cs" />
@@ -569,6 +572,8 @@
     <Compile Include="Utilities\InstallChecker.cs" />
     <Compile Include="Systems\Warp\WarpSystem.cs" />
     <Compile Include="Windows\Debug\DebugDrawer.cs" />
+    <Compile Include="Windows\LogConsole\LmpLogConsoleDrawer.cs" />
+    <Compile Include="Windows\LogConsole\LmpLogConsoleWindow.cs" />
     <Compile Include="Windows\Debug\DebugWindow.cs" />
     <Compile Include="Windows\Mod\ModDrawer.cs" />
     <Compile Include="Windows\Mod\ModWindow.cs" />

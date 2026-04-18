@@ -58,7 +58,7 @@ namespace LmpClient.Systems.ShareTechnology
                 RefreshTechTree(source);
             }
 
-            RefreshResearchAndDevelopmentPanel(source);
+            TryRefreshResearchAndDevelopmentControllerPartUi(source);
             RefreshEditorPartsList(source);
         }
 
@@ -69,7 +69,7 @@ namespace LmpClient.Systems.ShareTechnology
         /// </summary>
         public void RefreshResearchAndDevelopmentPurchasesOnly(string source)
         {
-            RefreshResearchAndDevelopmentPanel(source);
+            TryRefreshResearchAndDevelopmentControllerPartUi(source);
             RefreshEditorPartsList(source);
         }
 
@@ -95,7 +95,11 @@ namespace LmpClient.Systems.ShareTechnology
             }
         }
 
-        private static void RefreshResearchAndDevelopmentPanel(string source)
+        /// <summary>
+        /// Refreshes the R&amp;D side panel. <see cref="RDPartList.Refresh"/> can throw when stock has no selected node yet;
+        /// failures are swallowed so <see cref="RDController.UpdatePanel"/> still runs.
+        /// </summary>
+        public static void TryRefreshResearchAndDevelopmentControllerPartUi(string source)
         {
             var controller = RDController.Instance;
             if (!controller || !controller.partList)
@@ -106,7 +110,15 @@ namespace LmpClient.Systems.ShareTechnology
 
             try
             {
-                controller.partList.Refresh();
+                try
+                {
+                    controller.partList.Refresh();
+                }
+                catch
+                {
+                    // Stock RDPartList.SetupParts can throw when no RDNode is selected yet; skip noisy failures.
+                }
+
                 controller.UpdatePanel();
                 LunaLog.Log($"[PersistentSync] technology UI refresh source={source} adapter=rd-controller");
             }

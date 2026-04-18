@@ -118,14 +118,71 @@ namespace Server.System.PersistentSync
                 return;
             }
 
-            foreach (var existingTechNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null).ToArray())
+            // Never replace entire Tech nodes: stock (and PartPurchasesPersistentSyncDomainStore) persist
+            // purchased parts as repeated "part = ..." values on the same Tech node. Our snapshot only
+            // carries id/state/cost — nuking nodes would drop part lines and break persistence across
+            // server restarts. Update scalars in place and preserve all non-scalar values (parts).
+            var techNodes = scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null).ToList();
+
+            var firstNodeByTechId = new Dictionary<string, ConfigNode>(StringComparer.Ordinal);
+            foreach (var node in techNodes)
             {
-                scenario.RemoveNode(existingTechNode);
+                var techId = node.GetValue(TechIdFieldName)?.Value;
+                if (string.IsNullOrEmpty(techId))
+                {
+                    scenario.RemoveNode(node);
+                    continue;
+                }
+
+                if (firstNodeByTechId.ContainsKey(techId))
+                {
+                    scenario.RemoveNode(node);
+                    continue;
+                }
+
+                firstNodeByTechId[techId] = node;
+            }
+
+            foreach (var kvp in firstNodeByTechId.ToArray())
+            {
+                if (!_technologyById.ContainsKey(kvp.Key))
+                {
+                    scenario.RemoveNode(kvp.Value);
+                    firstNodeByTechId.Remove(kvp.Key);
+                }
             }
 
             foreach (var technology in _technologyById.Values.OrderBy(value => value.TechId))
             {
-                scenario.AddNode(CreateScenarioTechNode(technology));
+                if (firstNodeByTechId.TryGetValue(technology.TechId, out var techNode))
+                {
+                    ApplyTechnologyScalarsToScenarioNode(techNode, technology);
+                }
+                else
+                {
+                    scenario.AddNode(CreateScenarioTechNode(technology));
+                }
+            }
+        }
+
+        private static void ApplyTechnologyScalarsToScenarioNode(ConfigNode techNode, TechnologySnapshotInfo technology)
+        {
+            var parsed = ParseSnapshotNode(technology.Data, technology.NumBytes);
+            ReplaceScalarValue(techNode, TechIdFieldName, parsed.GetValue(TechIdFieldName)?.Value);
+            ReplaceScalarValue(techNode, TechStateFieldName, parsed.GetValue(TechStateFieldName)?.Value);
+            ReplaceScalarValue(techNode, TechCostFieldName, parsed.GetValue(TechCostFieldName)?.Value);
+        }
+
+        private static void ReplaceScalarValue(ConfigNode techNode, string key, string value)
+        {
+            while (techNode.GetValues(key).Any())
+            {
+                techNode.RemoveValue(key);
+            }
+
+            if (!string.IsNullOrEmpty(value))
+            {
+                techNode.CreateValue(new CfgNodeValue<string, string>(key, value));
             }
         }
 

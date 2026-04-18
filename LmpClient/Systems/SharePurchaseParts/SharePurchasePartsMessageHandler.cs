@@ -4,6 +4,7 @@ using LmpClient.Base.Interface;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareCareer;
 using LmpClient.Systems.ShareFunds;
+using LmpClient.Systems.ShareTechnology;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
@@ -68,11 +69,7 @@ namespace LmpClient.Systems.SharePurchaseParts
             }
 
             //Refresh RD nodes in case we are in the RD screen
-            if (RDController.Instance && RDController.Instance.partList)
-            {
-                RDController.Instance.partList.Refresh();
-                RDController.Instance.UpdatePanel();
-            }
+            ShareTechnologySystem.TryRefreshResearchAndDevelopmentControllerPartUi("legacy PartPurchase");
 
             //Refresh the part list in case we are in the VAB/SPH
             if (EditorPartList.Instance) EditorPartList.Instance.Refresh();

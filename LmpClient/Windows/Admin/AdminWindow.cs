@@ -1,5 +1,6 @@
 ﻿using LmpClient.Base;
 using LmpClient.Localization;
+using LmpClient.Utilities;
 using LmpClient.Systems.Admin;
 using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
@@ -97,7 +98,7 @@ namespace LmpClient.Windows.Admin
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, "LMP_AdminLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_AdminLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)
@@ -106,6 +107,28 @@ namespace LmpClient.Windows.Admin
 
             if (!Display && IsWindowLocked)
                 RemoveWindowLock();
+        }
+
+        /// <inheritdoc />
+        public override bool TryGetImguiOverlayRect(out Rect rect)
+        {
+            if (!Display)
+            {
+                rect = default;
+                return false;
+            }
+
+            rect = WindowRect;
+            if (!string.IsNullOrEmpty(_selectedPlayer))
+            {
+                var c = _confirmationWindowRect;
+                rect.xMin = Mathf.Min(rect.xMin, c.xMin);
+                rect.yMin = Mathf.Min(rect.yMin, c.yMin);
+                rect.xMax = Mathf.Max(rect.xMax, c.xMax);
+                rect.yMax = Mathf.Max(rect.yMax, c.yMax);
+            }
+
+            return rect.width >= 2f && rect.height >= 2f;
         }
     }
 }

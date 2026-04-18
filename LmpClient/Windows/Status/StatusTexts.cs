@@ -11,6 +11,7 @@ namespace LmpClient.Windows.Status
     public class StatusTexts
     {
         public const string DebugBtnTxt = "Debug";
+        public const string LogConsoleBtnTxt = "Console";
         public const string SystemsBtnTxt = "Systems";
         public const string VesselsBtnTxt = "Vessels";
 

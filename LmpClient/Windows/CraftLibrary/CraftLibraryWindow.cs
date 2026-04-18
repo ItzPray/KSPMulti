@@ -1,5 +1,6 @@
 ﻿using LmpClient.Base;
 using LmpClient.Localization;
+using LmpClient.Utilities;
 using LmpClient.Systems.CraftLibrary;
 using LmpCommon.Enums;
 using LmpCommon.Time;
@@ -170,7 +171,7 @@ namespace LmpClient.Windows.CraftLibrary
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, "LMP_CraftLibraryLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_CraftLibraryLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

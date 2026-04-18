@@ -49,8 +49,7 @@ namespace LmpClient.Systems.ShareTechnology
             }
 
             LunaLog.Log($"[CareerSync:e0] tech update applied from TechnologyUpdate message (single-node unlock path) techId={tech.Id}");
-            //Unlock the technology
-            ResearchAndDevelopment.Instance.UnlockProtoTechNode(node);
+            ShareTechnologyMessageSender.UnlockProtoTechNodeCompat((object)node);
 
             System.RefreshResearchAndDevelopmentUiAdapters("LegacyTechnologyUpdate");
 

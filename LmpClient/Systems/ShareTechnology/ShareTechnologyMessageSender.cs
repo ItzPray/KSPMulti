@@ -1,3 +1,5 @@
+﻿using KSP.UI.Screens;
+using LmpClient;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
@@ -24,14 +26,34 @@ namespace LmpClient.Systems.ShareTechnology
         {
             if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
             {
-                var technologies = CreateCurrentTechnologySnapshot();
-                if (technologies.Count == 0)
+                // Do not call UnlockProtoTechNode here: OnTechnologyResearched already ran after stock applied
+                // the unlock. Re-invoking stock unlock can reset or corrupt local tech state on some KSP builds,
+                // which then yields empty/wrong technology snapshots and breaks R&D. We only push authoritative
+                // state to the server and sync the RnD tree from the singleton for UI.
+                System.StartIgnoringEvents();
+                try
                 {
-                    return;
+                    if (ResearchAndDevelopment.Instance != null && tech != null)
+                    {
+                        TechnologyPersistentSyncClientDomain.SyncRnDTechTreeFromResearchInstance();
+                        TechnologyPersistentSyncClientDomain.EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded($"TechnologyUnlock:{tech.techID}");
+                    }
+
+                    var technologies = CreateCurrentTechnologySnapshot();
+                    if (technologies.Count == 0)
+                    {
+                        return;
+                    }
+
+                    var reason = $"TechnologyUnlock:{tech.techID}";
+                    PersistentSyncSystem.Singleton.MessageSender.SendTechnologyIntent(technologies.ToArray(), reason);
+                    SendPartPurchasesIntentForUnlockedTech(tech?.techID, reason);
+                }
+                finally
+                {
+                    System.StopIgnoringEvents();
                 }
 
-                var reason = $"TechnologyUnlock:{tech.techID}";
-                PersistentSyncSystem.Singleton.MessageSender.SendTechnologyIntent(technologies.ToArray(), reason);
                 return;
             }
 
@@ -125,6 +147,140 @@ namespace LmpClient.Systems.ShareTechnology
             LunaLog.Log($"[PersistentSync] CreateCurrentTechnologySnapshot treeTechs={treeTechCount} nullState={nullStateCount} stateCounts=[{stateSummary}] sending={technologies.Count} availableIds=[{string.Join(",", availableIds.OrderBy(id => id))}]");
 
             return technologies;
+        }
+
+        /// <summary>
+        /// Invokes whichever <see cref="ResearchAndDevelopment.UnlockProtoTechNode"/> overload exists in the
+        /// referenced KSP assemblies. RnD tree nodes may be <see cref="RDTech"/> or <see cref="ProtoTechNode"/>
+        /// depending on game version; pass the tree reference as <see cref="object"/>.
+        /// </summary>
+        internal static void UnlockProtoTechNodeCompat(object rdTreeOrProto)
+        {
+            if (ResearchAndDevelopment.Instance == null || rdTreeOrProto == null)
+            {
+                return;
+            }
+
+            var rd = ResearchAndDevelopment.Instance;
+            var rdType = typeof(ResearchAndDevelopment);
+            var unlockRdt = rdType.GetMethod("UnlockProtoTechNode", new[] { typeof(RDTech) });
+            var unlockProto = rdType.GetMethod("UnlockProtoTechNode", new[] { typeof(ProtoTechNode) });
+
+            if (rdTreeOrProto is RDTech rdt)
+            {
+                if (unlockRdt != null)
+                {
+                    unlockRdt.Invoke(rd, new object[] { rdt });
+                    return;
+                }
+
+                if (unlockProto != null)
+                {
+                    var proto = rd.GetTechState(rdt.techID) ?? ProtoTechNodeFromRnDTech(rdt);
+                    if (proto != null)
+                    {
+                        unlockProto.Invoke(rd, new object[] { proto });
+                    }
+
+                    return;
+                }
+            }
+
+            if (rdTreeOrProto is ProtoTechNode protoNode)
+            {
+                if (unlockProto != null)
+                {
+                    unlockProto.Invoke(rd, new object[] { protoNode });
+                    return;
+                }
+
+                if (unlockRdt != null && AssetBase.RnDTechTree != null)
+                {
+                    // GetTreeTechs() may be typed as ProtoTechNode; cast via object so `is RDTech` is legal.
+                    foreach (var candidate in AssetBase.RnDTechTree.GetTreeTechs().Where(x => x != null))
+                    {
+                        if ((object)candidate is RDTech treeRdt && treeRdt.techID == protoNode.techID)
+                        {
+                            unlockRdt.Invoke(rd, new object[] { treeRdt });
+                            return;
+                        }
+                    }
+                }
+            }
+
+            LunaLog.LogWarning("[LMP] ResearchAndDevelopment.UnlockProtoTechNode has no compatible overload or tree node type; stock unlock skipped.");
+        }
+
+        private static ProtoTechNode ProtoTechNodeFromRnDTech(RDTech tech)
+        {
+            if (tech == null)
+            {
+                return null;
+            }
+
+            return new ProtoTechNode
+            {
+                techID = tech.techID,
+                scienceCost = tech.scienceCost,
+                state = tech.state,
+                partsPurchased = new List<AvailablePart>((tech.partsPurchased ?? new List<AvailablePart>()).Where(part => part != null))
+            };
+        }
+
+        private static void SendPartPurchasesIntentForUnlockedTech(string techId, string technologyReason)
+        {
+            if (string.IsNullOrEmpty(techId) || PersistentSyncSystem.Singleton == null || !PersistentSyncSystem.Singleton.Enabled)
+            {
+                return;
+            }
+
+            var rd = ResearchAndDevelopment.Instance;
+            if (rd == null)
+            {
+                return;
+            }
+
+            var state = rd.GetTechState(techId);
+            if (state == null || state.state != RDTech.State.Available)
+            {
+                return;
+            }
+
+            var names = (state.partsPurchased ?? new List<AvailablePart>())
+                .Where(part => part != null)
+                .Select(part => part.name)
+                .Distinct()
+                .ToArray();
+
+            if (names.Length == 0)
+            {
+                var treeTech = AssetBase.RnDTechTree?.GetTreeTechs()?.FirstOrDefault(t => t != null && t.techID == techId);
+                if (treeTech?.partsPurchased == null || treeTech.partsPurchased.Count == 0)
+                {
+                    LunaLog.LogWarning($"[PersistentSync] Technology unlock had no purchasable part names for techId={techId}; PartPurchases intent skipped ({technologyReason})");
+                    return;
+                }
+
+                names = treeTech.partsPurchased
+                    .Where(part => part != null)
+                    .Select(part => part.name)
+                    .Distinct()
+                    .ToArray();
+            }
+
+            if (names.Length == 0)
+            {
+                return;
+            }
+
+            PersistentSyncSystem.Singleton.MessageSender.SendPartPurchasesIntent(new[]
+            {
+                new PartPurchaseSnapshotInfo
+                {
+                    TechId = techId,
+                    PartNames = names
+                }
+            }, $"{technologyReason}:parts");
         }
     }
 }

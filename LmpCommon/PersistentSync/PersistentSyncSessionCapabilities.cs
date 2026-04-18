@@ -18,7 +18,8 @@ namespace LmpCommon.PersistentSync
         public bool HasStrategySystemScenario;
 
         /// <summary>
-        /// When false, stock does not emit part-purchase progression (difficulty bypass). Snapshots may still apply.
+        /// When false, stock difficulty has <c>BypassEntryPurchaseAfterResearch</c> (no per-part entry purchase).
+        /// Share producers skip mirroring individual purchases; R&amp;D still converges via PersistentSync.
         /// </summary>
         public bool PartPurchaseMechanismEnabled;
 

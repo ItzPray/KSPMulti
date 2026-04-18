@@ -13,16 +13,44 @@ namespace Server.System
 {
     public partial class HandshakeSystem
     {
+        internal struct HandshakeAdmissionResult
+        {
+            public bool Allowed;
+            public string Reason;
+            public HandshakeReply Reply;
+        }
+
         private string Reason { get; set; }
 
-        public void HandleHandshakeRequest(ClientStructure client, HandshakeRequestMsgData data)
+        internal HandshakeAdmissionResult EvaluateHandshakeRequest(HandshakeRequestMsgData data)
         {
             if (!SessionAdmission.TryValidateClientHandshake(data.ProtocolForkId, data.ExactClientBuild, out var admissionReason, out var admissionReply))
             {
-                LunaLog.Normal($"Client {data.PlayerName} rejected before authentication: {admissionReason}");
-                HandshakeSystemSender.SendHandshakeReply(client, admissionReply, admissionReason);
+                return new HandshakeAdmissionResult
+                {
+                    Allowed = false,
+                    Reason = admissionReason,
+                    Reply = admissionReply
+                };
+            }
+
+            return new HandshakeAdmissionResult
+            {
+                Allowed = true,
+                Reason = string.Empty,
+                Reply = HandshakeReply.HandshookSuccessfully
+            };
+        }
+
+        public void HandleHandshakeRequest(ClientStructure client, HandshakeRequestMsgData data)
+        {
+            var admission = EvaluateHandshakeRequest(data);
+            if (!admission.Allowed)
+            {
+                LunaLog.Normal($"Client {data.PlayerName} rejected before authentication: {admission.Reason}");
+                HandshakeSystemSender.SendHandshakeReply(client, admission.Reply, admission.Reason);
                 client.DisconnectClient = true;
-                ClientConnectionHandler.DisconnectClient(client, admissionReason);
+                ClientConnectionHandler.DisconnectClient(client, admission.Reason);
                 return;
             }
 

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using UnityEngine;
 using UnityEngine.Profiling;
 
 // ReSharper disable ForCanBeConvertedToForeach
@@ -71,6 +72,32 @@ namespace LmpClient.Windows
                     MainSystem.Singleton.HandleException(e, "WindowsHandler-OnGui");
                 }
             }
+        }
+
+        /// <summary>
+        /// Screen-space IMGUI point (Y down from top, same as <see cref="GUI"/> / window rects).
+        /// </summary>
+        public static Vector2 MousePositionImGui()
+        {
+            var p = Input.mousePosition;
+            p.y = Screen.height - p.y;
+            return p;
+        }
+
+        /// <summary>
+        /// True when the point lies inside any visible LMP IMGUI window (used to suppress uGUI under IMGUI at KSC facilities).
+        /// </summary>
+        public static bool IsPointerOverVisibleLmpImguiOverlay(Vector2 imGuiPoint)
+        {
+            for (var i = 0; i < Windows.Length; i++)
+            {
+                if (Windows[i].TryGetImguiOverlayRect(out var r) && r.Contains(imGuiPoint))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

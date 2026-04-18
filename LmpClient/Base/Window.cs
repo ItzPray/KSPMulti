@@ -141,6 +141,19 @@ namespace LmpClient.Base
             //Implement your own code
         }
 
+        /// <inheritdoc />
+        public virtual bool TryGetImguiOverlayRect(out Rect rect)
+        {
+            rect = default;
+            if (!Display)
+            {
+                return false;
+            }
+
+            rect = WindowRect;
+            return rect.width >= 2f && rect.height >= 2f;
+        }
+
         /// <summary>
         /// Define here the style and components of your window
         /// </summary>

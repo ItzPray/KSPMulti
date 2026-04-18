@@ -1,5 +1,6 @@
 ﻿using LmpClient.Base;
 using LmpClient.Network;
+using LmpClient.Utilities;
 using LmpClient.Systems.TimeSync;
 using LmpClient.Systems.Warp;
 using LmpCommon.Enums;
@@ -142,7 +143,7 @@ namespace LmpClient.Windows.Debug
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, "LMP_DebugLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_DebugLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

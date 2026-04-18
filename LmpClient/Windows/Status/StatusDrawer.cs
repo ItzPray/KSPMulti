@@ -9,6 +9,7 @@ using LmpClient.Windows.Admin;
 using LmpClient.Windows.Chat;
 using LmpClient.Windows.CraftLibrary;
 using LmpClient.Windows.Debug;
+using LmpClient.Windows.LogConsole;
 using LmpClient.Windows.Options;
 using LmpClient.Windows.Screenshots;
 using LmpClient.Windows.Systems;
@@ -28,12 +29,22 @@ namespace LmpClient.Windows.Status
             GUI.DragWindow(MoveRect);
 
             DrawTopButtons();
+            DrawLogConsoleToggleRow();
             DrawSubspaces();
 #if DEBUG
             DrawDebugSection();
 #endif
             DrawBottomButtons();
             GUILayout.EndVertical();
+        }
+
+        private static void DrawLogConsoleToggleRow()
+        {
+            GUILayout.BeginHorizontal();
+            LmpLogConsoleWindow.Singleton.Display = GUILayout.Toggle(LmpLogConsoleWindow.Singleton.Display,
+                StatusTexts.LogConsoleBtnTxt, ToggleButtonStyle);
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
         }
 
         private static void DrawBottomButtons()

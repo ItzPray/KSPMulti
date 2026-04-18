@@ -441,6 +441,26 @@ Tech
         }
 
         [TestMethod]
+        public void TechnologyDomainPersistPreservesPurchasedPartLinesOnTechNodes()
+        {
+            var basicRocketry = CreateTechnologySnapshotInfo("basicRocketry", "Available", 5, "liquidEngine");
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateResearchAndDevelopmentScenario(basicRocketry);
+            var store = new TechnologyPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var costUpdate = CreateTechnologySnapshotInfo("basicRocketry", "Available", 9, "liquidEngine");
+            var mutationPayload = TechnologySnapshotPayloadSerializer.Serialize(new[] { costUpdate });
+            var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Update cost only");
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+
+            var persisted = ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].ToString();
+            StringAssert.Contains(persisted, "part = liquidEngine");
+            StringAssert.Contains(persisted, "cost = 9");
+        }
+
+        [TestMethod]
         public void StrategyDomainLoadsPersistsAndReturnsSnapshot()
         {
             ScenarioStoreSystem.CurrentScenarios["StrategySystem"] = CreateStrategyScenario(
