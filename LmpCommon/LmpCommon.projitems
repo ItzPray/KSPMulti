@@ -56,6 +56,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PartPurchasesSnapshotPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncBufferedSnapshot.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncDomainId.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncDomainApplicability.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncSessionCapabilities.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncReconcilerState.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ReputationIntentPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ReputationSnapshotPayloadSerializer.cs" />

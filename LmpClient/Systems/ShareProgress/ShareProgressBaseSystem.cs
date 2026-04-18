@@ -20,11 +20,25 @@ namespace LmpClient.Systems.ShareProgress
 
         protected bool CurrentGameModeIsRelevant => (SettingsSystem.ServerSettings.GameMode & RelevantGameModes) != 0;
 
+        /// <summary>
+        /// When true, <see cref="OnEnabled"/> uses <see cref="IsShareSystemApplicableForSession"/> instead of
+        /// <see cref="CurrentGameModeIsRelevant"/> so migrated producers can follow central applicability rules.
+        /// </summary>
+        protected virtual bool UseSessionApplicabilityInsteadOfGameModeMask => false;
+
+        /// <summary>
+        /// Gate for subscribing to stock events / running share queues. Defaults to legacy game-mode bitmask behavior.
+        /// </summary>
+        protected virtual bool IsShareSystemApplicableForSession() => CurrentGameModeIsRelevant;
+
         protected override void OnEnabled()
         {
             base.OnEnabled();
 
-            if (!CurrentGameModeIsRelevant) return;
+            var applicable = UseSessionApplicabilityInsteadOfGameModeMask
+                ? IsShareSystemApplicableForSession()
+                : CurrentGameModeIsRelevant;
+            if (!applicable) return;
 
             IgnoreEvents = false;
             _actionQueue = new Queue<Action>();

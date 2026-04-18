@@ -1,6 +1,9 @@
 ﻿using KSP.UI.Screens;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
+using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
 using System;
 
 namespace LmpClient.Systems.ShareTechnology
@@ -15,11 +18,21 @@ namespace LmpClient.Systems.ShareTechnology
 
         protected override GameMode RelevantGameModes => GameMode.Career | GameMode.Science;
 
+        protected override bool UseSessionApplicabilityInsteadOfGameModeMask => true;
+
+        protected override bool IsShareSystemApplicableForSession()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Technology,
+                SettingsSystem.ServerSettings.GameMode,
+                in caps);
+        }
+
         protected override void OnEnabled()
         {
             base.OnEnabled();
 
-            if (!CurrentGameModeIsRelevant) return;
             GameEvents.OnTechnologyResearched.Add(ShareTechnologyEvents.TechnologyResearched);
         }
 

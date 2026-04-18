@@ -1,7 +1,10 @@
 ﻿using HarmonyLib;
 using LmpClient.Events;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
+using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
 using System.Collections.Generic;
 
 namespace LmpClient.Systems.ShareScienceSubject
@@ -32,13 +35,23 @@ namespace LmpClient.Systems.ShareScienceSubject
 
         protected override GameMode RelevantGameModes => GameMode.Career | GameMode.Science;
 
+        protected override bool UseSessionApplicabilityInsteadOfGameModeMask => true;
+
+        protected override bool IsShareSystemApplicableForSession()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.ScienceSubjects,
+                SettingsSystem.ServerSettings.GameMode,
+                in caps);
+        }
+
         public bool Reverting { get; set; }
 
         protected override void OnEnabled()
         {
             base.OnEnabled();
 
-            if (!CurrentGameModeIsRelevant) return;
             GameEvents.OnScienceRecieved.Add(ShareScienceSubjectEvents.ScienceRecieved);
 
             RevertEvent.onRevertingToLaunch.Add(ShareScienceSubjectEvents.RevertingDetected);

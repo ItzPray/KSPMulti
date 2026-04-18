@@ -304,6 +304,7 @@
     <Compile Include="Systems\PersistentSync\PersistentSyncMessageSender.cs" />
     <Compile Include="Systems\PersistentSync\PersistentSyncReconciler.cs" />
     <Compile Include="Systems\PersistentSync\PersistentSyncSystem.cs" />
+    <Compile Include="Systems\PersistentSync\PersistentSyncSessionCapabilitiesFactory.cs" />
     <Compile Include="Systems\PersistentSync\ReputationPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\ScalarPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\SciencePersistentSyncClientDomain.cs" />

@@ -19,7 +19,8 @@ namespace Server.Message
                 case ShareProgressMessageType.ScienceSubjectUpdate:
                     if (PersistentSyncRegistry.IsPersistentSyncInitialized)
                     {
-                        LunaLog.Warning($"[PersistentSync] ShareProgress science subject fallback received from {client.PlayerName}; routing through canonical science-subject snapshot store instead of one-off relay truth.");
+                        LunaLog.Error($"[PersistentSync] bypass guard: ShareProgress science-subject path received from {client.PlayerName}; ScienceSubjects now converge only via PersistentSync snapshots. Message ignored.");
+                        break;
                     }
 
                     ShareScienceSubjectSystem.ScienceSubjectReceived(client, (ShareProgressScienceSubjectMsgData)data);
@@ -43,7 +44,8 @@ namespace Server.Message
                 case ShareProgressMessageType.AchievementsUpdate:
                     if (PersistentSyncRegistry.IsPersistentSyncInitialized)
                     {
-                        LunaLog.Warning($"[PersistentSync] ShareProgress achievements fallback received from {client.PlayerName}; routing through canonical achievements snapshot store instead of one-off relay truth.");
+                        LunaLog.Error($"[PersistentSync] bypass guard: ShareProgress achievements path received from {client.PlayerName}; Achievements now converge only via PersistentSync snapshots. Message ignored.");
+                        break;
                     }
 
                     ShareAchievementsSystem.AchievementsReceived(client, (ShareProgressAchievementsMsgData)data);
@@ -51,7 +53,8 @@ namespace Server.Message
                 case ShareProgressMessageType.StrategyUpdate:
                     if (PersistentSyncRegistry.IsPersistentSyncInitialized)
                     {
-                        LunaLog.Warning($"[PersistentSync] ShareProgress strategy fallback received from {client.PlayerName}; routing through canonical strategy snapshot store instead of one-off relay truth.");
+                        LunaLog.Error($"[PersistentSync] bypass guard: ShareProgress strategy path received from {client.PlayerName}; Strategy now converge only via PersistentSync snapshots. Message ignored.");
+                        break;
                     }
 
                     ShareStrategySystem.StrategyReceived(client, (ShareProgressStrategyMsgData)data);
@@ -70,7 +73,8 @@ namespace Server.Message
                 case ShareProgressMessageType.PartPurchase:
                     if (PersistentSyncRegistry.IsPersistentSyncInitialized)
                     {
-                        LunaLog.Warning($"[PersistentSync] ShareProgress part purchase fallback received from {client.PlayerName}; routing through canonical part-purchase snapshot store instead of event relay truth.");
+                        LunaLog.Error($"[PersistentSync] bypass guard: ShareProgress part-purchase path received from {client.PlayerName}; PartPurchases now converge only via PersistentSync snapshots. Message ignored.");
+                        break;
                     }
 
                     SharePartPurchaseSystem.PurchaseReceived(client, (ShareProgressPartPurchaseMsgData)data);
@@ -78,7 +82,8 @@ namespace Server.Message
                 case ShareProgressMessageType.ExperimentalPart:
                     if (PersistentSyncRegistry.IsPersistentSyncInitialized)
                     {
-                        LunaLog.Warning($"[PersistentSync] ShareProgress experimental-part fallback received from {client.PlayerName}; routing through canonical experimental-parts snapshot store instead of event relay truth.");
+                        LunaLog.Error($"[PersistentSync] bypass guard: ShareProgress experimental-part path received from {client.PlayerName}; ExperimentalParts now converge only via PersistentSync snapshots. Message ignored.");
+                        break;
                     }
 
                     ShareExperimentalPartSystem.ExperimentalPartReceived(client, (ShareProgressExperimentalPartMsgData)data);

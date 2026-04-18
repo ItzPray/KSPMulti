@@ -1,8 +1,11 @@
 ﻿using HarmonyLib;
 using LmpClient.Events;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.ShareTechnology;
+using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
 using System.Collections.Generic;
 
 namespace LmpClient.Systems.ShareExperimentalParts
@@ -16,13 +19,22 @@ namespace LmpClient.Systems.ShareExperimentalParts
         //This queue system is not used because we use one big queue in ShareCareerSystem for this system.
         protected override bool ShareSystemReady => true;
 
-        protected override GameMode RelevantGameModes => GameMode.Career;
+        protected override GameMode RelevantGameModes => GameMode.Career | GameMode.Science;
+
+        protected override bool UseSessionApplicabilityInsteadOfGameModeMask => true;
+
+        protected override bool IsShareSystemApplicableForSession()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.ExperimentalParts,
+                SettingsSystem.ServerSettings.GameMode,
+                in caps);
+        }
 
         protected override void OnEnabled()
         {
             base.OnEnabled();
-
-            if (!CurrentGameModeIsRelevant) return;
 
             ExperimentalPartEvent.onExperimentalPartRemoved.Add(ShareExperimentalPartsEvents.ExperimentalPartRemoved);
             ExperimentalPartEvent.onExperimentalPartAdded.Add(ShareExperimentalPartsEvents.ExperimentalPartAdded);

@@ -11,28 +11,6 @@ namespace LmpClient.Systems.PersistentSync
 {
     public class PersistentSyncSystem : MessageSystem<PersistentSyncSystem, PersistentSyncMessageSender, PersistentSyncMessageHandler>
     {
-        private static readonly PersistentSyncDomainId[] CareerDomains =
-        {
-            PersistentSyncDomainId.Funds,
-            PersistentSyncDomainId.Science,
-            PersistentSyncDomainId.Reputation,
-            PersistentSyncDomainId.Strategy,
-            PersistentSyncDomainId.Achievements,
-            PersistentSyncDomainId.ScienceSubjects,
-            PersistentSyncDomainId.Technology,
-            PersistentSyncDomainId.ExperimentalParts,
-            PersistentSyncDomainId.PartPurchases,
-            PersistentSyncDomainId.UpgradeableFacilities,
-            PersistentSyncDomainId.Contracts
-        };
-
-        private static readonly PersistentSyncDomainId[] ScienceDomains =
-        {
-            PersistentSyncDomainId.Science,
-            PersistentSyncDomainId.ScienceSubjects,
-            PersistentSyncDomainId.Technology
-        };
-
         public override string SystemName { get; } = nameof(PersistentSyncSystem);
 
         public override int ExecutionOrder => -50;
@@ -73,7 +51,10 @@ namespace LmpClient.Systems.PersistentSync
 
         public void StartInitialSync()
         {
-            var requiredDomains = GetRequiredDomainsForCurrentGameMode().ToArray();
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            var requiredDomains = PersistentSyncDomainApplicability
+                .GetRequiredDomainsForInitialSync(SettingsSystem.ServerSettings.GameMode, caps)
+                .ToArray();
             Reconciler.Reset(requiredDomains);
 
             if (!requiredDomains.Any())
@@ -93,26 +74,16 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         public bool IsPersistentSnapshotPhaseCompleteForCurrentSession()
         {
-            var required = GetRequiredDomainsForCurrentGameMode().ToArray();
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            var required = PersistentSyncDomainApplicability
+                .GetRequiredDomainsForInitialSync(SettingsSystem.ServerSettings.GameMode, caps)
+                .ToArray();
             return !required.Any() || Reconciler.State.AreAllInitialSnapshotsApplied();
         }
 
         public long GetKnownRevision(PersistentSyncDomainId domainId)
         {
             return Reconciler.GetKnownRevision(domainId);
-        }
-
-        private static IEnumerable<PersistentSyncDomainId> GetRequiredDomainsForCurrentGameMode()
-        {
-            switch (SettingsSystem.ServerSettings.GameMode)
-            {
-                case GameMode.Career:
-                    return CareerDomains;
-                case GameMode.Science:
-                    return ScienceDomains;
-                default:
-                    return new PersistentSyncDomainId[0];
-            }
         }
 
         /// <summary>

@@ -1,10 +1,13 @@
 ﻿using HarmonyLib;
 using LmpClient.Events;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareFunds;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.ShareReputation;
 using LmpClient.Systems.ShareScience;
+using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
 using System.Linq;
 
 namespace LmpClient.Systems.ShareAchievements
@@ -17,9 +20,22 @@ namespace LmpClient.Systems.ShareAchievements
 
         protected override bool ShareSystemReady => ProgressTracking.Instance != null;
 
-        //We don't need to synchronize achievements in science mode because they have no effect and are not shown to the user.
-        //They will only appear in the debug console.
-        protected override GameMode RelevantGameModes => GameMode.Career;
+        /// <summary>
+        /// Legacy bitmask retained for systems still using <see cref="ShareProgressBaseSystem.CurrentGameModeIsRelevant"/> only;
+        /// this system uses <see cref="ShareProgressBaseSystem.IsShareSystemApplicableForSession"/> via persistent-sync applicability.
+        /// </summary>
+        protected override GameMode RelevantGameModes => GameMode.Career | GameMode.Science;
+
+        protected override bool UseSessionApplicabilityInsteadOfGameModeMask => true;
+
+        protected override bool IsShareSystemApplicableForSession()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                PersistentSyncDomainId.Achievements,
+                SettingsSystem.ServerSettings.GameMode,
+                in caps);
+        }
 
         private ConfigNode _lastAchievements;
 
@@ -29,7 +45,6 @@ namespace LmpClient.Systems.ShareAchievements
         {
             base.OnEnabled();
 
-            if (!CurrentGameModeIsRelevant) return;
             GameEvents.OnProgressReached.Add(ShareAchievementsEvents.AchievementReached);
             GameEvents.OnProgressComplete.Add(ShareAchievementsEvents.AchievementCompleted);
             GameEvents.OnProgressAchieved.Add(ShareAchievementsEvents.AchievementAchieved);
