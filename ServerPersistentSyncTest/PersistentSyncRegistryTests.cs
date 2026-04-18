@@ -368,6 +368,63 @@ namespace ServerPersistentSyncTest
         }
 
         [TestMethod]
+        public void TechnologyDomainLoadsRealWorldScenarioWithMixedNodesAndSci()
+        {
+            var scenarioText = @"name = ResearchAndDevelopment
+scene = 7, 8, 5, 6
+sci = 85.96483
+Tech
+{
+    id = start
+    state = Available
+    cost = 0
+    part = basicFin
+    part = mk1pod
+}
+Science
+{
+    id = crewReport@KerbinSrfLandedLaunchPad
+    title = Crew Report from LaunchPad
+    sci = 1.5
+}
+Tech
+{
+    id = basicRocketry
+    state = Available
+    cost = 5
+    part = fuelTankSmallFlat
+}
+Tech
+{
+    id = engineering101
+    state = Available
+    cost = 5
+    part = SurfAntenna
+}
+Tech
+{
+    id = generalRocketry
+    state = Available
+    cost = 20
+}
+";
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = new ConfigNode(scenarioText);
+            var store = new TechnologyPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var snapshot = TechnologySnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+
+            var techIds = snapshot.Select(t => t.TechId).OrderBy(id => id).ToArray();
+            CollectionAssert.AreEqual(new[] { "basicRocketry", "engineering101", "generalRocketry", "start" }, techIds);
+            foreach (var info in snapshot)
+            {
+                var node = new ConfigNode(Encoding.UTF8.GetString(info.Data, 0, info.NumBytes));
+                Assert.AreEqual("Available", node.GetValue("state")?.Value, $"tech {info.TechId} state");
+                Assert.IsFalse(string.IsNullOrEmpty(node.GetValue("cost")?.Value), $"tech {info.TechId} cost missing");
+            }
+        }
+
+        [TestMethod]
         public void TechnologyDomainNoRevisionIncrementOnEquivalentMutation()
         {
             var basicRocketry = CreateTechnologySnapshotInfo("basicRocketry", "Available", 5, "liquidEngine");

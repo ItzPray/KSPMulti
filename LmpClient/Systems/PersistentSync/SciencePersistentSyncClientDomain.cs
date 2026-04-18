@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LmpClient.Extensions;
 using LmpClient.Systems.ShareAchievements;
 using LmpClient.Systems.ShareExperimentalParts;
 using LmpClient.Systems.SharePurchaseParts;
@@ -118,7 +119,14 @@ namespace LmpClient.Systems.PersistentSync
             {
                 foreach (var achievement in _pendingAchievements.Where(value => value != null && value.NumBytes > 0))
                 {
-                    rootNode.AddNode(new ConfigNode(System.Text.Encoding.UTF8.GetString(achievement.Data, 0, achievement.NumBytes)));
+                    // Payload is a ConfigNodeSerializer-serialized node; `new ConfigNode(string)` would
+                    // silently store the entire text as the node name with no child values, so the
+                    // achievement tree would receive empty nodes. Use the matching deserializer.
+                    var achievementNode = achievement.Data.DeserializeToConfigNode(achievement.NumBytes);
+                    if (achievementNode != null)
+                    {
+                        rootNode.AddNode(achievementNode);
+                    }
                 }
             }
             catch
@@ -284,6 +292,13 @@ namespace LmpClient.Systems.PersistentSync
     {
         private Dictionary<string, PartPurchaseSnapshotInfo> _pendingPurchases;
 
+        /// <summary>
+        /// Last deserialized server purchased-parts map. Mirrors the reassert pattern used by
+        /// <see cref="TechnologyPersistentSyncClientDomain"/>: when KSP re-hydrates R&amp;D state the
+        /// purchased parts ride along with techStates, so we must re-stage both together.
+        /// </summary>
+        private Dictionary<string, PartPurchaseSnapshotInfo> _authoritativePurchases;
+
         public PersistentSyncDomainId DomainId => PersistentSyncDomainId.PartPurchases;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
@@ -293,6 +308,7 @@ namespace LmpClient.Systems.PersistentSync
                 _pendingPurchases = PartPurchasesSnapshotPayloadSerializer.Deserialize(snapshot.Payload)
                     .Where(value => value != null && !string.IsNullOrEmpty(value.TechId))
                     .ToDictionary(value => value.TechId, value => value, StringComparer.Ordinal);
+                _authoritativePurchases = new Dictionary<string, PartPurchaseSnapshotInfo>(_pendingPurchases, StringComparer.Ordinal);
             }
             catch
             {
@@ -300,6 +316,17 @@ namespace LmpClient.Systems.PersistentSync
             }
 
             return FlushPendingState();
+        }
+
+        public bool TryStageReassertFromLastServerSnapshot()
+        {
+            if (_authoritativePurchases == null || _authoritativePurchases.Count == 0)
+            {
+                return false;
+            }
+
+            _pendingPurchases = new Dictionary<string, PartPurchaseSnapshotInfo>(_authoritativePurchases, StringComparer.Ordinal);
+            return true;
         }
 
         public PersistentSyncApplyOutcome FlushPendingState()
@@ -367,6 +394,14 @@ namespace LmpClient.Systems.PersistentSync
     {
         private Dictionary<string, TechnologySnapshotInfo> _pendingTechnologyById;
 
+        /// <summary>
+        /// Last deserialized server tech states. KSP can reinitialize R&D.Instance (or re-hydrate it from a
+        /// stale ProtoScenarioModule configNode) after our first <see cref="FlushPendingState"/>, silently
+        /// reverting techs back to Unavailable. Re-staging from this cache on scene-ready and on
+        /// <see cref="GameEvents.onGUIRnDComplexSpawn"/> reasserts the server-authoritative state.
+        /// </summary>
+        private Dictionary<string, TechnologySnapshotInfo> _authoritativeTechnologyById;
+
         public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Technology;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
@@ -376,13 +411,32 @@ namespace LmpClient.Systems.PersistentSync
                 _pendingTechnologyById = TechnologySnapshotPayloadSerializer.Deserialize(snapshot.Payload, snapshot.NumBytes)
                     .Where(technology => technology != null && !string.IsNullOrEmpty(technology.TechId))
                     .ToDictionary(technology => technology.TechId, technology => technology, StringComparer.Ordinal);
+                _authoritativeTechnologyById = new Dictionary<string, TechnologySnapshotInfo>(_pendingTechnologyById, StringComparer.Ordinal);
             }
             catch
             {
                 return PersistentSyncApplyOutcome.Rejected;
             }
 
+            LunaLog.Log($"[PersistentSync] Technology ApplySnapshot revision={snapshot.Revision} receivedTechCount={_pendingTechnologyById.Count} techIds=[{string.Join(",", _pendingTechnologyById.Keys.OrderBy(k => k))}]");
+
             return FlushPendingState();
+        }
+
+        /// <summary>
+        /// Stages the last server tech map for <see cref="FlushPendingState"/> via the reconciler
+        /// so <see cref="PersistentSyncReconciler.FlushPendingState"/> can reassert state when
+        /// KSP may have rebuilt R&D.Instance behind us (e.g. on R&D panel spawn).
+        /// </summary>
+        public bool TryStageReassertFromLastServerSnapshot()
+        {
+            if (_authoritativeTechnologyById == null || _authoritativeTechnologyById.Count == 0)
+            {
+                return false;
+            }
+
+            _pendingTechnologyById = new Dictionary<string, TechnologySnapshotInfo>(_authoritativeTechnologyById, StringComparer.Ordinal);
+            return true;
         }
 
         public PersistentSyncApplyOutcome FlushPendingState()
@@ -394,16 +448,21 @@ namespace LmpClient.Systems.PersistentSync
 
             if (ResearchAndDevelopment.Instance == null || AssetBase.RnDTechTree == null)
             {
+                LunaLog.Log($"[PersistentSync] Technology FlushPendingState deferred: R&D.Instance={(ResearchAndDevelopment.Instance != null)} RnDTechTree={(AssetBase.RnDTechTree != null)}");
                 return PersistentSyncApplyOutcome.Deferred;
             }
 
             ShareTechnologySystem.Singleton.StartIgnoringEvents();
+            int applied = 0;
+            int total = 0;
+            int missedInSnapshot = 0;
             try
             {
-                ApplyTechnologySnapshot(_pendingTechnologyById);
+                ApplyTechnologySnapshot(_pendingTechnologyById, out applied, out total, out missedInSnapshot);
             }
-            catch
+            catch (Exception ex)
             {
+                LunaLog.LogError($"[PersistentSync] Technology FlushPendingState exception: {ex}");
                 return PersistentSyncApplyOutcome.Rejected;
             }
             finally
@@ -411,15 +470,33 @@ namespace LmpClient.Systems.PersistentSync
                 ShareTechnologySystem.Singleton.StopIgnoringEvents();
             }
 
+            var postApplyAvailable = 0;
+            var postApplyUnavailable = 0;
+            foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(node => node != null))
+            {
+                var state = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
+                if (state == null) continue;
+                if (state.state == RDTech.State.Available) postApplyAvailable++;
+                else postApplyUnavailable++;
+            }
+
+            LunaLog.Log($"[PersistentSync] Technology FlushPendingState treeTechs={total} snapshotHits={applied} snapshotMisses={missedInSnapshot} pendingTechCount={_pendingTechnologyById.Count} postApplyAvailable={postApplyAvailable} postApplyUnavailable={postApplyUnavailable}");
+
             ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentUiAdapters("PersistentSyncSnapshotApply");
             _pendingTechnologyById = null;
             return PersistentSyncApplyOutcome.Applied;
         }
 
-        private static void ApplyTechnologySnapshot(IReadOnlyDictionary<string, TechnologySnapshotInfo> technologyById)
+        private static void ApplyTechnologySnapshot(IReadOnlyDictionary<string, TechnologySnapshotInfo> technologyById, out int applied, out int total, out int missedInSnapshot)
         {
+            applied = 0;
+            total = 0;
+            missedInSnapshot = 0;
+            var snapshotMatched = new HashSet<string>(StringComparer.Ordinal);
+
             foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(node => node != null))
             {
+                total++;
                 var protoTechNode = new ProtoTechNode
                 {
                     techID = tech.techID,
@@ -431,22 +508,69 @@ namespace LmpClient.Systems.PersistentSync
                 if (technologyById.TryGetValue(tech.techID, out var snapshot))
                 {
                     ApplySnapshotInfo(protoTechNode, snapshot);
+                    snapshotMatched.Add(tech.techID);
+                    applied++;
                 }
 
                 ResearchAndDevelopment.Instance.SetTechState(tech.techID, protoTechNode);
+            }
+
+            foreach (var snapshotId in technologyById.Keys)
+            {
+                if (!snapshotMatched.Contains(snapshotId))
+                {
+                    missedInSnapshot++;
+                    LunaLog.LogWarning($"[PersistentSync] Technology snapshot tech '{snapshotId}' not found in RnDTechTree.GetTreeTechs(); skipping");
+                }
             }
         }
 
         private static void ApplySnapshotInfo(ProtoTechNode protoTechNode, TechnologySnapshotInfo snapshot)
         {
-            var node = new ConfigNode(System.Text.Encoding.UTF8.GetString(snapshot.Data, 0, snapshot.NumBytes));
-            var stateValue = node.GetValue("state");
-            if (!string.IsNullOrEmpty(stateValue))
+            // CRITICAL: the server serializes Technology Data as bare "key = value" lines with NO
+            // surrounding braces (see TechnologyPersistentSyncDomainStore.BuildBareNodeText on the
+            // server). KSP's brace-aware ConfigNode parser (PreFormatConfig/RecurseFormat, used by
+            // ConfigNodeSerializer.DeserializeToConfigNode) returns an empty node for that format,
+            // which made GetValue("state") always return null and every tech stay Unavailable.
+            // Parse the bare key=value lines directly to match the server wire format.
+            if (snapshot?.Data == null || snapshot.NumBytes <= 0)
             {
-                protoTechNode.state = (RDTech.State)Enum.Parse(typeof(RDTech.State), stateValue);
+                LunaLog.LogWarning($"[PersistentSync] Technology snapshot for '{snapshot?.TechId}' has no data; retaining default tech state");
+                return;
             }
 
-            if (int.TryParse(node.GetValue("cost"), out var cost))
+            var text = System.Text.Encoding.UTF8.GetString(snapshot.Data, 0, snapshot.NumBytes);
+            string stateValue = null;
+            string costValue = null;
+            foreach (var rawLine in text.Split('\n'))
+            {
+                var line = rawLine.Trim();
+                if (line.Length == 0) continue;
+                var eq = line.IndexOf('=');
+                if (eq <= 0) continue;
+                var key = line.Substring(0, eq).Trim();
+                var value = line.Substring(eq + 1).Trim();
+                if (string.Equals(key, "state", StringComparison.Ordinal)) stateValue = value;
+                else if (string.Equals(key, "cost", StringComparison.Ordinal)) costValue = value;
+            }
+
+            if (!string.IsNullOrEmpty(stateValue))
+            {
+                try
+                {
+                    protoTechNode.state = (RDTech.State)Enum.Parse(typeof(RDTech.State), stateValue, ignoreCase: true);
+                }
+                catch (Exception ex)
+                {
+                    LunaLog.LogWarning($"[PersistentSync] Technology snapshot for '{snapshot.TechId}' had unparseable state='{stateValue}': {ex.Message}");
+                }
+            }
+            else
+            {
+                LunaLog.LogWarning($"[PersistentSync] Technology snapshot for '{snapshot.TechId}' missing 'state' value; retaining default tech state. payload='{text.Replace('\n', '|')}'");
+            }
+
+            if (int.TryParse(costValue, out var cost))
             {
                 protoTechNode.scienceCost = cost;
             }

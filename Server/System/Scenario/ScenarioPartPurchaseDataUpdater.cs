@@ -1,4 +1,4 @@
-﻿using LmpCommon.Message.Data.ShareProgress;
+using LmpCommon.Message.Data.ShareProgress;
 using LunaConfigNode.CfgNode;
 using System.Globalization;
 using System.Threading.Tasks;
@@ -36,7 +36,7 @@ namespace Server.System.Scenario
                     else
                     {
                         if (experimentalPartMsg.Count == 0)
-                            expPartNode.Value.RemoveValue(specificExpPart.Value);
+                            expPartNode.Value.RemoveValue(specificExpPart.Key);
                         else
                             specificExpPart.Value = experimentalPartMsg.Count.ToString(CultureInfo.InvariantCulture);
                     }

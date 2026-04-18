@@ -1,4 +1,4 @@
-﻿using LmpClient.Base;
+using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
 using LmpClient.Network;
@@ -79,13 +79,33 @@ namespace LmpClient.Systems.ShareTechnology
                 return technologies;
             }
 
+            var stateCounts = new Dictionary<RDTech.State, int>();
+            var availableIds = new List<string>();
+            var treeTechCount = 0;
+            var nullStateCount = 0;
+
             foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(t => t != null))
             {
+                treeTechCount++;
                 var techState = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
-                if (techState == null || techState.state == RDTech.State.Unavailable)
+                if (techState == null)
+                {
+                    nullStateCount++;
+                    continue;
+                }
+
+                if (!stateCounts.ContainsKey(techState.state))
+                {
+                    stateCounts[techState.state] = 0;
+                }
+                stateCounts[techState.state]++;
+
+                if (techState.state == RDTech.State.Unavailable)
                 {
                     continue;
                 }
+
+                availableIds.Add(techState.techID);
 
                 var configNode = new ConfigNode();
                 configNode.AddValue("id", techState.techID);
@@ -100,6 +120,9 @@ namespace LmpClient.Systems.ShareTechnology
                     Data = data
                 });
             }
+
+            var stateSummary = string.Join(",", stateCounts.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}={kv.Value}"));
+            LunaLog.Log($"[PersistentSync] CreateCurrentTechnologySnapshot treeTechs={treeTechCount} nullState={nullStateCount} stateCounts=[{stateSummary}] sending={technologies.Count} availableIds=[{string.Join(",", availableIds.OrderBy(id => id))}]");
 
             return technologies;
         }

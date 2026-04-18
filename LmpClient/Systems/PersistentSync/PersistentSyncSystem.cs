@@ -42,12 +42,14 @@ namespace LmpClient.Systems.PersistentSync
             base.OnEnabled();
             SetupRoutine(new RoutineDefinition(1000, RoutineExecution.Update, FlushPendingState));
             GameEvents.onLevelWasLoadedGUIReady.Add(OnSceneReady);
+            GameEvents.onGUIRnDComplexSpawn.Add(OnRnDComplexSpawn);
         }
 
         protected override void OnDisabled()
         {
             base.OnDisabled();
             GameEvents.onLevelWasLoadedGUIReady.Remove(OnSceneReady);
+            GameEvents.onGUIRnDComplexSpawn.Remove(OnRnDComplexSpawn);
             Reconciler.Reset(new PersistentSyncDomainId[0]);
         }
 
@@ -126,6 +128,25 @@ namespace LmpClient.Systems.PersistentSync
         private void OnSceneReady(GameScenes data)
         {
             NetworkSystem.BumpPersistentSyncJoinActivity();
+
+            if (ResearchAndDevelopment.Instance != null && AssetBase.RnDTechTree != null)
+            {
+                int available = 0, unavailable = 0, totalStates = 0;
+                foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(t => t != null))
+                {
+                    var state = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
+                    if (state == null) continue;
+                    totalStates++;
+                    if (state.state == RDTech.State.Available) available++;
+                    else unavailable++;
+                }
+                LunaLog.Log($"[PersistentSync] OnSceneReady scene={data} rdTechStates total={totalStates} available={available} unavailable={unavailable}");
+            }
+            else
+            {
+                LunaLog.Log($"[PersistentSync] OnSceneReady scene={data} rdInstance={(ResearchAndDevelopment.Instance != null)} rdTree={(AssetBase.RnDTechTree != null)}");
+            }
+
             Reconciler.RetryDeferredSnapshots();
             Reconciler.FlushPendingState();
 
@@ -143,11 +164,70 @@ namespace LmpClient.Systems.PersistentSync
                 Reconciler.FlushPendingState();
             }
 
+            // ResearchAndDevelopment can be rebuilt from stale ProtoScenarioModule config after our first
+            // apply; reassert the authoritative tech + purchases so opening R&D sees the server-correct tree.
+            ReassertTechnologyAndPurchases("KSCGuiReady");
+
             // If we still never live-marked applied, ask the server to re-send (ClearDeferred in RequestResync).
             if (Reconciler.State.IsInitialJoinHandshakeComplete(PersistentSyncDomainId.UpgradeableFacilities) &&
                 !Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.UpgradeableFacilities))
             {
                 Reconciler.RequestResync(PersistentSyncDomainId.UpgradeableFacilities, "KscGuiReadyFacilityReapply");
+            }
+        }
+
+        /// <summary>
+        /// KSP's R&D complex GUI reads tech state at spawn time; if the stock module reinitialized
+        /// R&D.Instance behind us, the panel would show a fresh tree even though our apply succeeded
+        /// earlier. Reassert the last server snapshots here so the panel reflects server truth.
+        /// </summary>
+        private void OnRnDComplexSpawn()
+        {
+            if (MainSystem.NetworkState < ClientState.PersistentStateSynced)
+            {
+                return;
+            }
+
+            if (ResearchAndDevelopment.Instance != null && AssetBase.RnDTechTree != null)
+            {
+                int available = 0, unavailable = 0, totalStates = 0;
+                foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(t => t != null))
+                {
+                    var state = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
+                    if (state == null) continue;
+                    totalStates++;
+                    if (state.state == RDTech.State.Available) available++;
+                    else unavailable++;
+                }
+                LunaLog.Log($"[PersistentSync] OnRnDComplexSpawn rdTechStates total={totalStates} available={available} unavailable={unavailable}");
+            }
+
+            ReassertTechnologyAndPurchases("RnDComplexSpawn");
+        }
+
+        private void ReassertTechnologyAndPurchases(string source)
+        {
+            var flushNeeded = false;
+
+            if (Domains.TryGetValue(PersistentSyncDomainId.Technology, out var techDomainObj) &&
+                techDomainObj is TechnologyPersistentSyncClientDomain techDomain &&
+                techDomain.TryStageReassertFromLastServerSnapshot())
+            {
+                LunaLog.Log($"[PersistentSync] {source} re-staging Technology snapshot for reconciler flush");
+                flushNeeded = true;
+            }
+
+            if (Domains.TryGetValue(PersistentSyncDomainId.PartPurchases, out var partsDomainObj) &&
+                partsDomainObj is PartPurchasesPersistentSyncClientDomain partsDomain &&
+                partsDomain.TryStageReassertFromLastServerSnapshot())
+            {
+                LunaLog.Log($"[PersistentSync] {source} re-staging PartPurchases snapshot for reconciler flush");
+                flushNeeded = true;
+            }
+
+            if (flushNeeded)
+            {
+                Reconciler.FlushPendingState();
             }
         }
     }

@@ -2,6 +2,7 @@ using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
+using Server.Log;
 using Server.System;
 using System;
 using System.Collections.Generic;
@@ -31,8 +32,11 @@ namespace Server.System.PersistentSync
 
             if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
             {
+                LunaLog.Normal($"[PersistentSync] Technology LoadFromPersistence: scenario '{ScenarioName}' not found; starting empty");
                 return;
             }
+
+            var scenarioTechNodeCount = scenario.GetNodes(TechNodeName).Count(node => node?.Value != null);
 
             foreach (var techNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null))
             {
@@ -42,11 +46,14 @@ namespace Server.System.PersistentSync
                     _technologyById[info.TechId] = info;
                 }
             }
+
+            LunaLog.Normal($"[PersistentSync] Technology LoadFromPersistence: scenarioTechNodes={scenarioTechNodeCount} loaded={_technologyById.Count} techIds=[{string.Join(",", _technologyById.Keys.OrderBy(k => k))}]");
         }
 
         public PersistentSyncDomainSnapshot GetCurrentSnapshot()
         {
             var payload = TechnologySnapshotPayloadSerializer.Serialize(_technologyById.Values.OrderBy(v => v.TechId).Select(CloneInfo));
+            LunaLog.Normal($"[PersistentSync] Technology GetCurrentSnapshot: revision={Revision} techCount={_technologyById.Count} payloadBytes={payload.Length}");
             return new PersistentSyncDomainSnapshot
             {
                 DomainId = DomainId,

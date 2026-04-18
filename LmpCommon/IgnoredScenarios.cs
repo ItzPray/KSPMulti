@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace LmpCommon
 {
@@ -8,6 +8,11 @@ namespace LmpCommon
         {
             "ScenarioDiscoverableObjects", //Asteroids have their own system
             "ScenarioCustomWaypoints", //Don't sync this
+            //Owned by the PersistentSync Technology + PartPurchases domains; if the server ever relays
+            //R&D through generic scenario sync the client's ProtoScenarioModule would carry stale
+            //techStates/partsPurchased and KSP would rebuild R&D.Instance from it, silently wiping
+            //the authoritative state PersistentSync had already applied.
+            "ResearchAndDevelopment",
         };
 
         public static List<string> IgnoreSend { get; } = new List<string>

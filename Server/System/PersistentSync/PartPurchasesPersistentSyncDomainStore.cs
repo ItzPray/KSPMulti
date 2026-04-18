@@ -120,9 +120,9 @@ namespace Server.System.PersistentSync
 
             foreach (var techNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null))
             {
-                foreach (var partValue in techNode.GetValues(TechPartFieldName).ToArray())
+                while (techNode.GetValues(TechPartFieldName).Any())
                 {
-                    techNode.RemoveValue(partValue.Value);
+                    techNode.RemoveValue(TechPartFieldName);
                 }
 
                 var techId = techNode.GetValue(TechIdFieldName)?.Value;

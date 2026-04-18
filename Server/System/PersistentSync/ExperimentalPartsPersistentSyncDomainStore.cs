@@ -142,7 +142,7 @@ namespace Server.System.PersistentSync
 
             foreach (var existingValue in expPartsNode.GetAllValues().ToArray())
             {
-                expPartsNode.RemoveValue(existingValue.Value);
+                expPartsNode.RemoveValue(existingValue.Key);
             }
 
             foreach (var value in _partCounts.OrderBy(pair => pair.Key))
