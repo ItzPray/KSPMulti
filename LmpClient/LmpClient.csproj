@@ -189,6 +189,7 @@
     <Compile Include="Harmony\KspRnD_BlockPointerOverLmpDock.cs" />
     <Compile Include="Harmony\ResearchAndDevelopment_RemoveExperimentalPart.cs" />
     <Compile Include="Harmony\ResearchAndDevelopment_AddExperimentalPart.cs" />
+    <Compile Include="Harmony\ResearchAndDevelopment_RefreshTechTreeUI.cs" />
     <Compile Include="Harmony\FlightIntegrator_FixedUpdate.cs" />
     <Compile Include="Harmony\FlightIntegrator_Update.cs" />
     <Compile Include="Harmony\ScenarioDiscoverableObjects_SpawnAsteroid.cs" />

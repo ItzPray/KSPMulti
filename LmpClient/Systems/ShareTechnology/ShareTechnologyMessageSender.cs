@@ -5,6 +5,7 @@ using LmpClient.Base.Interface;
 using LmpClient.Extensions;
 using LmpClient.Network;
 using LmpClient.Systems.PersistentSync;
+using LmpClient.Utilities;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
@@ -52,6 +53,38 @@ namespace LmpClient.Systems.ShareTechnology
                 finally
                 {
                     System.StopIgnoringEvents();
+                }
+
+                // Stock clears graph selection and leaves purchase affordances stale until the node is clicked again.
+                if (tech != null && RDController.Instance != null)
+                {
+                    ShareTechnologySystem.RegisterLocalResearchTechForSidePanelReselect(tech.techID);
+                    System.RefreshResearchAndDevelopmentPurchasesOnly($"TechnologyUnlockUi:{tech.techID}");
+                    var techId = tech.techID;
+                    CoroutineUtil.StartFrameDelayedRoutine(
+                        nameof(ShareTechnologySystem) + ".TechnologyUnlockUiTail2",
+                        () =>
+                        {
+                            if (RDController.Instance != null)
+                            {
+                                ShareTechnologySystem.TryReselectRnDTechOnControllerForSidePanel(techId);
+                                ShareTechnologySystem.Singleton?.RefreshResearchAndDevelopmentPurchasesOnly(
+                                    $"TechnologyUnlockUi+2f:{techId}");
+                            }
+                        },
+                        2);
+                    CoroutineUtil.StartFrameDelayedRoutine(
+                        nameof(ShareTechnologySystem) + ".TechnologyUnlockUiTail5",
+                        () =>
+                        {
+                            if (RDController.Instance != null)
+                            {
+                                ShareTechnologySystem.TryReselectRnDTechOnControllerForSidePanel(techId);
+                                ShareTechnologySystem.Singleton?.RefreshResearchAndDevelopmentPurchasesOnly(
+                                    $"TechnologyUnlockUi+5f:{techId}");
+                            }
+                        },
+                        5);
                 }
 
                 return;
