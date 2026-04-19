@@ -14,6 +14,8 @@ namespace LmpClient.Systems.PersistentSync
 {
     public class ContractsPersistentSyncClientDomain : IPersistentSyncClientDomain
     {
+        private const string LmpOfferTitleFieldName = "lmpOfferTitle";
+
         private ContractSnapshotInfo[] _pendingContracts;
 
         public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
@@ -164,6 +166,7 @@ namespace LmpClient.Systems.PersistentSync
             }
 
             node.RemoveValues("type");
+            node.RemoveValues(LmpOfferTitleFieldName);
             var contractType = ContractSystem.GetContractType(typeValue);
             return Contract.Load((Contract)Activator.CreateInstance(contractType), node);
         }

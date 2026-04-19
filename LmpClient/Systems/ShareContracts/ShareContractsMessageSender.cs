@@ -16,6 +16,8 @@ namespace LmpClient.Systems.ShareContracts
 {
     public class ShareContractsMessageSender : SubSystem<ShareContractsSystem>, IMessageSender
     {
+        private const string LmpOfferTitleFieldName = "lmpOfferTitle";
+
         public void SendMessage(IMessageData msg)
         {
             TaskFactory.StartNew(() => NetworkSender.QueueOutgoingMessage(MessageFactory.CreateNew<ShareProgressCliMsg>(msg)));
@@ -62,6 +64,7 @@ namespace LmpClient.Systems.ShareContracts
             try
             {
                 contract.Save(configNode);
+                WriteSyntheticOfferMetadata(configNode, contract);
             }
             catch (Exception e)
             {
@@ -70,6 +73,23 @@ namespace LmpClient.Systems.ShareContracts
             }
 
             return configNode;
+        }
+
+        private static void WriteSyntheticOfferMetadata(ConfigNode configNode, Contract contract)
+        {
+            if (configNode == null || contract == null)
+            {
+                return;
+            }
+
+            var title = ShareContractsSystem.NormalizeOfferTitleForDedupe(contract.Title);
+            if (string.IsNullOrEmpty(title))
+            {
+                return;
+            }
+
+            configNode.RemoveValues(LmpOfferTitleFieldName);
+            configNode.AddValue(LmpOfferTitleFieldName, title);
         }
 
         private static List<ContractSnapshotInfo> CreateCanonicalContractSnapshots(IEnumerable<Contract> contracts)

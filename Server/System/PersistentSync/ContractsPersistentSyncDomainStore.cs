@@ -20,6 +20,7 @@ namespace Server.System.PersistentSync
         private const string StateFieldName = "state";
         private const string TypeFieldName = "type";
         private const string TitleFieldName = "title";
+        private const string LmpOfferTitleFieldName = "lmpOfferTitle";
 
         private readonly Dictionary<Guid, ContractSnapshotInfo> _contractsByGuid = new Dictionary<Guid, ContractSnapshotInfo>();
 
@@ -332,7 +333,9 @@ namespace Server.System.PersistentSync
                 var type = contractNode.GetValue(TypeFieldName)?.Value?.Trim()
                            ?? TryReadContractLineValue(text, TypeFieldName);
                 // Serialized CONTRACT nodes sometimes omit `title` at the root; fall back to fields stock still writes.
-                var rawTitle = contractNode.GetValue(TitleFieldName)?.Value
+                var rawTitle = contractNode.GetValue(LmpOfferTitleFieldName)?.Value
+                               ?? TryReadContractLineValue(text, LmpOfferTitleFieldName)
+                               ?? contractNode.GetValue(TitleFieldName)?.Value
                                ?? TryReadContractLineValue(text, TitleFieldName)
                                ?? TryReadContractLineValue(text, "Title")
                                ?? contractNode.GetValue("synopsis")?.Value
