@@ -2,6 +2,7 @@
 using Server.System.Vessel.Classes;
 using ServerTest.Extension;
 using System.IO;
+using System.Linq;
 
 namespace ServerTest
 {
@@ -31,6 +32,17 @@ namespace ServerTest
 
                 Assert.AreEqual(originalFile, vesselBackToText);
             }
+        }
+
+        [TestMethod]
+        public void PartAllowsDuplicateModuleTypeNames()
+        {
+            var path = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "XmlExampleFiles", "Special", "duplicate-fx-modules-vessel.txt");
+            var vessel = new Vessel(File.ReadAllText(path));
+            var modules = vessel.GetPart(99).GetModulesNamed("FXModuleThrottleEffects").ToList();
+            Assert.AreEqual(2, modules.Count);
+            Assert.AreEqual("a", modules[0].GetValue("testField").Value);
+            Assert.AreEqual("b", modules[1].GetValue("testField").Value);
         }
 
         [TestMethod]

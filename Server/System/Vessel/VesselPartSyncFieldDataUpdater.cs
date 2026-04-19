@@ -1,7 +1,10 @@
 ﻿using LmpCommon.Enums;
 using LmpCommon.Message.Data.Vessel;
+using LunaConfigNode.CfgNode;
+using Server.Log;
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Server.System.Vessel
@@ -25,11 +28,18 @@ namespace Server.System.Vessel
             //Sync part changes ALWAYS and ignore the rate they arrive
             Task.Run(() =>
             {
-                lock (Semaphore.GetOrAdd(msgData.VesselId, new object()))
+                try
                 {
-                    if (!VesselStoreSystem.CurrentVessels.TryGetValue(msgData.VesselId, out var vessel)) return;
+                    lock (Semaphore.GetOrAdd(msgData.VesselId, new object()))
+                    {
+                        if (!VesselStoreSystem.CurrentVessels.TryGetValue(msgData.VesselId, out var vessel)) return;
 
-                    UpdateProtoVesselFileWithNewPartSyncFieldData(vessel, msgData);
+                        UpdateProtoVesselFileWithNewPartSyncFieldData(vessel, msgData);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LunaLog.Error($"[VesselPartSyncField] vessel={msgData.VesselId} part={msgData.PartFlightId} module={msgData.ModuleName} field={msgData.FieldName}: {ex}");
                 }
             });
         }
@@ -40,64 +50,76 @@ namespace Server.System.Vessel
         private static void UpdateProtoVesselFileWithNewPartSyncFieldData(Classes.Vessel vessel, VesselPartSyncFieldMsgData msgData)
         {
             var part = vessel.GetPart(msgData.PartFlightId);
-            if (part != null)
+            if (part == null)
             {
-                var module = part.GetSingleModule(msgData.ModuleName);
-                if (module != null)
-                {
-                    switch (msgData.FieldType)
-                    {
-                        case PartSyncFieldType.Boolean:
-                            module.UpdateValue(msgData.FieldName, msgData.BoolValue.ToString(CultureInfo.InvariantCulture));
-                            break;
-                        case PartSyncFieldType.Short:
-                            module.UpdateValue(msgData.FieldName, msgData.ShortValue.ToString(CultureInfo.InvariantCulture));
-                            break;
-                        case PartSyncFieldType.UShort:
-                            module.UpdateValue(msgData.FieldName, msgData.UShortValue.ToString(CultureInfo.InvariantCulture));
-                            break;
-                        case PartSyncFieldType.Integer:
-                            module.UpdateValue(msgData.FieldName, msgData.IntValue.ToString(CultureInfo.InvariantCulture));
-                            break;
-                        case PartSyncFieldType.UInteger:
-                            module.UpdateValue(msgData.FieldName, msgData.UIntValue.ToString(CultureInfo.InvariantCulture));
-                            break;
-                        case PartSyncFieldType.Float:
-                            module.UpdateValue(msgData.FieldName, msgData.FloatValue.ToString(CultureInfo.InvariantCulture));
-                            break;
-                        case PartSyncFieldType.Long:
-                            module.UpdateValue(msgData.FieldName, msgData.LongValue.ToString(CultureInfo.InvariantCulture));
-                            break;
-                        case PartSyncFieldType.ULong:
-                            module.UpdateValue(msgData.FieldName, msgData.ULongValue.ToString(CultureInfo.InvariantCulture));
-                            break;
-                        case PartSyncFieldType.Double:
-                            module.UpdateValue(msgData.FieldName, msgData.DoubleValue.ToString(CultureInfo.InvariantCulture));
-                            break;
-                        case PartSyncFieldType.Vector2:
-                            module.UpdateValue(msgData.FieldName, $"{msgData.VectorValue[0].ToString(CultureInfo.InvariantCulture)}," +
-                                                    $"{msgData.VectorValue[1].ToString(CultureInfo.InvariantCulture)}");
-                            break;
-                        case PartSyncFieldType.Vector3:
-                            module.UpdateValue(msgData.FieldName, $"{msgData.VectorValue[0].ToString(CultureInfo.InvariantCulture)}," +
-                                                    $"{msgData.VectorValue[1].ToString(CultureInfo.InvariantCulture)}," +
-                                                    $"{msgData.VectorValue[2].ToString(CultureInfo.InvariantCulture)}");
-                            break;
-                        case PartSyncFieldType.Quaternion:
-                            module.UpdateValue(msgData.FieldName, $"{msgData.QuaternionValue[0].ToString(CultureInfo.InvariantCulture)}," +
-                                                    $"{msgData.QuaternionValue[1].ToString(CultureInfo.InvariantCulture)}," +
-                                                    $"{msgData.QuaternionValue[2].ToString(CultureInfo.InvariantCulture)}," +
-                                                    $"{msgData.QuaternionValue[3].ToString(CultureInfo.InvariantCulture)}");
-                            break;
-                        case PartSyncFieldType.Object:
-                        case PartSyncFieldType.String:
-                        case PartSyncFieldType.Enum:
-                            module.UpdateValue(msgData.FieldName, msgData.StrValue);
-                            break;
-                        default:
-                            throw new ArgumentOutOfRangeException();
-                    }
-                }
+                return;
+            }
+
+            var modules = part.GetModulesNamed(msgData.ModuleName).ToList();
+            if (modules.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var module in modules)
+            {
+                ApplyPartSyncFieldToModule(module, msgData);
+            }
+        }
+
+        private static void ApplyPartSyncFieldToModule(ConfigNode module, VesselPartSyncFieldMsgData msgData)
+        {
+            switch (msgData.FieldType)
+            {
+                case PartSyncFieldType.Boolean:
+                    module.UpdateValue(msgData.FieldName, msgData.BoolValue.ToString(CultureInfo.InvariantCulture));
+                    break;
+                case PartSyncFieldType.Short:
+                    module.UpdateValue(msgData.FieldName, msgData.ShortValue.ToString(CultureInfo.InvariantCulture));
+                    break;
+                case PartSyncFieldType.UShort:
+                    module.UpdateValue(msgData.FieldName, msgData.UShortValue.ToString(CultureInfo.InvariantCulture));
+                    break;
+                case PartSyncFieldType.Integer:
+                    module.UpdateValue(msgData.FieldName, msgData.IntValue.ToString(CultureInfo.InvariantCulture));
+                    break;
+                case PartSyncFieldType.UInteger:
+                    module.UpdateValue(msgData.FieldName, msgData.UIntValue.ToString(CultureInfo.InvariantCulture));
+                    break;
+                case PartSyncFieldType.Float:
+                    module.UpdateValue(msgData.FieldName, msgData.FloatValue.ToString(CultureInfo.InvariantCulture));
+                    break;
+                case PartSyncFieldType.Long:
+                    module.UpdateValue(msgData.FieldName, msgData.LongValue.ToString(CultureInfo.InvariantCulture));
+                    break;
+                case PartSyncFieldType.ULong:
+                    module.UpdateValue(msgData.FieldName, msgData.ULongValue.ToString(CultureInfo.InvariantCulture));
+                    break;
+                case PartSyncFieldType.Double:
+                    module.UpdateValue(msgData.FieldName, msgData.DoubleValue.ToString(CultureInfo.InvariantCulture));
+                    break;
+                case PartSyncFieldType.Vector2:
+                    module.UpdateValue(msgData.FieldName, $"{msgData.VectorValue[0].ToString(CultureInfo.InvariantCulture)}," +
+                                            $"{msgData.VectorValue[1].ToString(CultureInfo.InvariantCulture)}");
+                    break;
+                case PartSyncFieldType.Vector3:
+                    module.UpdateValue(msgData.FieldName, $"{msgData.VectorValue[0].ToString(CultureInfo.InvariantCulture)}," +
+                                            $"{msgData.VectorValue[1].ToString(CultureInfo.InvariantCulture)}," +
+                                            $"{msgData.VectorValue[2].ToString(CultureInfo.InvariantCulture)}");
+                    break;
+                case PartSyncFieldType.Quaternion:
+                    module.UpdateValue(msgData.FieldName, $"{msgData.QuaternionValue[0].ToString(CultureInfo.InvariantCulture)}," +
+                                            $"{msgData.QuaternionValue[1].ToString(CultureInfo.InvariantCulture)}," +
+                                            $"{msgData.QuaternionValue[2].ToString(CultureInfo.InvariantCulture)}," +
+                                            $"{msgData.QuaternionValue[3].ToString(CultureInfo.InvariantCulture)}");
+                    break;
+                case PartSyncFieldType.Object:
+                case PartSyncFieldType.String:
+                case PartSyncFieldType.Enum:
+                    module.UpdateValue(msgData.FieldName, msgData.StrValue);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
     }

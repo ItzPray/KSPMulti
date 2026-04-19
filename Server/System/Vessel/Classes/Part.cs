@@ -1,5 +1,7 @@
 ﻿using LunaConfigNode;
 using LunaConfigNode.CfgNode;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
@@ -8,8 +10,17 @@ namespace Server.System.Vessel.Classes
     public class Part
     {
         public MixedCollection<string, string> Fields;
-        public MixedCollection<string, ConfigNode> Modules;
-        public MixedCollection<string, ConfigNode> Resources;
+        /// <summary>
+        /// MODULE entries in vessel file order. Keys repeat for some parts (e.g. multiple FXModuleThrottleEffects on one engine).
+        /// Do not use MixedCollection here — duplicate module type names are valid in KSP.
+        /// </summary>
+        private readonly List<CfgNodeValue<string, ConfigNode>> _modules;
+
+        /// <summary>
+        /// RESOURCE entries in file order (names are normally unique per part).
+        /// </summary>
+        private readonly List<CfgNodeValue<string, ConfigNode>> _resources;
+
         public ConfigNode Events;
         public ConfigNode Actions;
         public ConfigNode Effects;
@@ -19,8 +30,12 @@ namespace Server.System.Vessel.Classes
         public Part(ConfigNode cfgNode)
         {
             Fields = new MixedCollection<string, string>(cfgNode.GetAllValues());
-            Modules = new MixedCollection<string, ConfigNode>(cfgNode.GetNodes("MODULE").Select(m => new CfgNodeValue<string, ConfigNode>(m.Value.GetValue("name").Value, m.Value)));
-            Resources = new MixedCollection<string, ConfigNode>(cfgNode.GetNodes("RESOURCE").Select(m => new CfgNodeValue<string, ConfigNode>(m.Value.GetValue("name").Value, m.Value)));
+            _modules = cfgNode.GetNodes("MODULE")
+                .Select(m => new CfgNodeValue<string, ConfigNode>(m.Value.GetValue("name").Value, m.Value))
+                .ToList();
+            _resources = cfgNode.GetNodes("RESOURCE")
+                .Select(m => new CfgNodeValue<string, ConfigNode>(m.Value.GetValue("name").Value, m.Value))
+                .ToList();
 
             Events = cfgNode.GetNode("EVENTS")?.Value;
             Actions = cfgNode.GetNode("ACTIONS")?.Value;
@@ -29,9 +44,58 @@ namespace Server.System.Vessel.Classes
             VesselNaming = cfgNode.GetNode("VESSELNAMING")?.Value;
         }
 
+        /// <summary>
+        /// All MODULE nodes of the given module type name, in vessel order.
+        /// </summary>
+        public IEnumerable<ConfigNode> GetModulesNamed(string moduleTypeName)
+        {
+            foreach (var module in _modules)
+            {
+                if (string.Equals(module.Key, moduleTypeName, StringComparison.Ordinal))
+                {
+                    yield return module.Value;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns the first MODULE of the given type when several exist (see <see cref="GetModulesNamed"/>).
+        /// </summary>
         public ConfigNode GetSingleModule(string moduleName)
         {
-            return Modules.GetSingle(moduleName).Value;
+            ConfigNode first = null;
+            foreach (var module in _modules)
+            {
+                if (!string.Equals(module.Key, moduleName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (first != null)
+                {
+                    return first;
+                }
+
+                first = module.Value;
+            }
+
+            return first;
+        }
+
+        /// <summary>
+        /// First RESOURCE node matching <paramref name="resourceName"/>, or null.
+        /// </summary>
+        public ConfigNode GetResourceNode(string resourceName)
+        {
+            foreach (var resource in _resources)
+            {
+                if (string.Equals(resource.Key, resourceName, StringComparison.Ordinal))
+                {
+                    return resource.Value;
+                }
+            }
+
+            return null;
         }
 
         public override string ToString()
@@ -47,12 +111,12 @@ namespace Server.System.Vessel.Classes
             if (Effects != null) builder.AppendLine(CfgNodeWriter.WriteConfigNode(Effects));
             if (Partdata != null) builder.AppendLine(CfgNodeWriter.WriteConfigNode(Partdata));
 
-            foreach (var module in Modules.GetAll())
+            foreach (var module in _modules)
             {
                 builder.AppendLine(CfgNodeWriter.WriteConfigNode(module.Value));
             }
 
-            foreach (var resource in Resources.GetAll())
+            foreach (var resource in _resources)
             {
                 builder.AppendLine(CfgNodeWriter.WriteConfigNode(resource.Value));
             }

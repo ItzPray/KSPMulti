@@ -1,0 +1,101 @@
+pid = 00000000000000000000000000000001
+name = Test duplicate MODULE names
+type = Debris
+sit = ORBITING
+landed = False
+landedAt = 
+displaylandedAt = 
+splashed = False
+met = 0
+lct = 0
+lastUT = -1
+root = 0
+lat = 0
+lon = 0
+alt = 100000
+hgt = -1
+nrm = 0,1,0
+rot = 0,0,0,1
+CoM = 0,0,0
+stg = 0
+prst = False
+ref = 0
+ctrl = False
+ORBIT
+{
+	SMA = 700000
+	ECC = 0
+	INC = 0
+	LPE = 0
+	LAN = 0
+	MNA = 0
+	EPH = 0
+	REF = 0
+}
+PART
+{
+	name = fuelTank
+	cid = 0
+	uid = 99
+	mid = 0
+	launchID = 0
+	parent = 0
+	position = 0,0,0
+	rotation = 0,0,0,1
+	mirror = 1,1,1
+	symMethod = Radial
+	istg = 0
+	resPri = 0
+	dstg = 0
+	sqor = 0
+	sepI = 0
+	sidx = 0
+	attm = 0
+	srfN = None, -1
+	mass = 1
+	shielded = False
+	temp = -1
+	tempExt = 0
+	tempExtUnexp = 0
+	expt = 0.1
+	state = 0
+	attached = True
+	autostrutMode = Off
+	rigidAttachment = False
+	flag = 
+	rTrf = 
+	modCost = 0
+	MODULE
+	{
+		name = FXModuleThrottleEffects
+		testField = a
+	}
+	MODULE
+	{
+		name = FXModuleThrottleEffects
+		testField = b
+	}
+}
+ACTIONGROUPS
+{
+}
+DISCOVERY
+{
+	state = 1
+	lastObservedTime = 0
+	lifetime = Infinity
+	refTime = Infinity
+	size = 0
+}
+FLIGHTPLAN
+{
+}
+CTRLSTATE
+{
+}
+VESSELMODULES
+{
+	FlightIntegrator
+	{
+	}
+}

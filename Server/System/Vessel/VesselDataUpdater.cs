@@ -30,20 +30,27 @@ namespace Server.System.Vessel
         {
             Task.Run(() =>
             {
-                var vessel = new Classes.Vessel(vesselDataInConfigNodeFormat);
-                if (GeneralSettings.SettingsStore.ModControl)
+                try
                 {
-                    var vesselParts = vessel.Parts.GetAllValues().Select(p => p.Fields.GetSingle("name").Value);
-                    var bannedParts = vesselParts.Except(ModFileSystem.ModControl.AllowedParts);
-                    if (bannedParts.Any())
+                    var vessel = new Classes.Vessel(vesselDataInConfigNodeFormat);
+                    if (GeneralSettings.SettingsStore.ModControl)
                     {
-                        LunaLog.Warning($"Received a vessel with BANNED parts! {vesselId}");
-                        return;
+                        var vesselParts = vessel.Parts.GetAllValues().Select(p => p.Fields.GetSingle("name").Value);
+                        var bannedParts = vesselParts.Except(ModFileSystem.ModControl.AllowedParts);
+                        if (bannedParts.Any())
+                        {
+                            LunaLog.Warning($"Received a vessel with BANNED parts! {vesselId}");
+                            return;
+                        }
+                    }
+                    lock (Semaphore.GetOrAdd(vesselId, new object()))
+                    {
+                        VesselStoreSystem.CurrentVessels.AddOrUpdate(vesselId, vessel, (key, existingVal) => vessel);
                     }
                 }
-                lock (Semaphore.GetOrAdd(vesselId, new object()))
+                catch (Exception ex)
                 {
-                    VesselStoreSystem.CurrentVessels.AddOrUpdate(vesselId, vessel, (key, existingVal) => vessel);
+                    LunaLog.Error($"[VesselData] RawConfigNodeInsertOrUpdate vessel={vesselId}: {ex}");
                 }
             });
         }

@@ -1,4 +1,4 @@
-﻿using Contracts;
+using Contracts;
 using Contracts.Templates;
 using LmpClient;
 using LmpClient.Base;

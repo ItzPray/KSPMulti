@@ -1,4 +1,5 @@
 ﻿using LmpCommon.Message.Data.Vessel;
+using Server.Log;
 using System;
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -39,23 +40,30 @@ namespace Server.System.Vessel
 
                 Task.Run(() =>
                 {
-                    lock (Semaphore.GetOrAdd(msgData.VesselId, new object()))
+                    try
                     {
-                        if (!VesselStoreSystem.CurrentVessels.TryGetValue(msgData.VesselId, out var vessel)) return;
-
-                        foreach (var resource in msgData.Resources)
+                        lock (Semaphore.GetOrAdd(msgData.VesselId, new object()))
                         {
-                            var part = vessel.GetPart(resource.PartFlightId);
-                            if (part != null)
+                            if (!VesselStoreSystem.CurrentVessels.TryGetValue(msgData.VesselId, out var vessel)) return;
+
+                            foreach (var resource in msgData.Resources)
                             {
-                                var resourceNode = part.Resources.GetSingle(resource.ResourceName).Value;
-                                if (resourceNode != null)
+                                var part = vessel.GetPart(resource.PartFlightId);
+                                if (part != null)
                                 {
-                                    resourceNode.UpdateValue("amount", resource.Amount.ToString(CultureInfo.InvariantCulture));
-                                    resourceNode.UpdateValue("flowState", resource.FlowState.ToString(CultureInfo.InvariantCulture));
+                                    var resourceNode = part.GetResourceNode(resource.ResourceName);
+                                    if (resourceNode != null)
+                                    {
+                                        resourceNode.UpdateValue("amount", resource.Amount.ToString(CultureInfo.InvariantCulture));
+                                        resourceNode.UpdateValue("flowState", resource.FlowState.ToString(CultureInfo.InvariantCulture));
+                                    }
                                 }
                             }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        LunaLog.Error($"[VesselResource] vessel={msgData.VesselId}: {ex}");
                     }
                 });
             }
