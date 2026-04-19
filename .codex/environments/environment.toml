@@ -11,6 +11,11 @@ icon = "run"
 command = "cmd /c Scripts\\BuildAndDeployTestStack.bat Release"
 
 [[actions]]
-name = "Build KSPMulti"
+name = "Build KSPMulti Release"
 icon = "tool"
 command = "cmd /c Scripts\\BuildOnly.bat Release"
+
+[[actions]]
+name = "Build KSPMulti Debug"
+icon = "debug"
+command = "cmd /c Scripts\\BuildOnly.bat Debug"

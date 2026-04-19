@@ -19,7 +19,8 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (lockDefinition.Type == LockType.Contract && lockDefinition.PlayerName == SettingsSystem.CurrentSettings.PlayerName)
             {
-                ContractSystem.generateContractIterations = ShareContractsSystem.Singleton.DefaultContractGenerateIterations;
+                System.RequestControlledStockContractRefresh("ContractLockAcquire");
+                System.ApplyStockContractMutationPolicy("ContractLockAcquire");
             }
         }
 
@@ -30,6 +31,7 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (lockDefinition.Type == LockType.Contract)
             {
+                System.ApplyStockContractMutationPolicy("ContractLockReleased");
                 System.TryGetContractLock();
             }
         }
@@ -40,6 +42,8 @@ namespace LmpClient.Systems.ShareContracts
         public void LevelLoaded(GameScenes data)
         {
             System.TryGetContractLock();
+            System.RequestControlledStockContractRefresh("LevelLoaded");
+            System.ApplyStockContractMutationPolicy("LevelLoaded");
         }
 
         #region EventHandlers

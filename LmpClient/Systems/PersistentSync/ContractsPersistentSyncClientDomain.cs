@@ -59,6 +59,7 @@ namespace LmpClient.Systems.PersistentSync
                 // ContractsApp/MissionControl for this source (those stock paths can spawn offers). We also avoid
                 // onContractsLoaded / RefreshContracts here — they regenerate default offers on top of server truth.
                 ShareContractsSystem.Singleton.RefreshContractUiAdapters("PersistentSyncSnapshotApply");
+                ShareContractsSystem.Singleton.NotifyAuthoritativeContractsSnapshotApplied("PersistentSyncSnapshotApply");
             }
             catch (Exception)
             {

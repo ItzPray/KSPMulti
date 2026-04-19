@@ -21,11 +21,8 @@ namespace LmpClient.Harmony
         {
             if (MainSystem.NetworkState < ClientState.Connected) return;
 
-            if (ShareContractsSystem.Singleton.DefaultContractGenerateIterations == 0)
-                ShareContractsSystem.Singleton.DefaultContractGenerateIterations = ContractSystem.generateContractIterations;
-
-            ContractSystem.generateContractIterations = LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName) ?
-                ShareContractsSystem.Singleton.DefaultContractGenerateIterations : 0;
+            ShareContractsSystem.Singleton.CaptureDefaultContractGenerateIterationsIfNeeded();
+            ShareContractsSystem.Singleton.ApplyStockContractMutationPolicy("ContractSystem.OnAwake");
         }
     }
 }

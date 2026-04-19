@@ -7,6 +7,7 @@ using LmpClient.Systems.Lock;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Systems.Warp;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using System;
@@ -35,11 +36,32 @@ namespace LmpClient.Systems.ShareContracts
         /// <summary>
         /// Large <see cref="Planetarium.SetUniversalTime"/> jumps (subspace sync) make stock ContractSystem run its
         /// progression offer pass many times in one frame when <see cref="ContractSystem.generateContractIterations"/> is
-        /// non-zero for the contract lock holder. Briefly zero iterations across the jump, then restore.
+        /// non-zero for the contract lock holder. Treat the whole transient sync window as "stock refresh suspended",
+        /// then force a single safe replenish pass after the clock settles.
         /// </summary>
-        private Coroutine _restoreContractGenerateIterationsCoroutine;
+        private const int StockFallbackContractGenerateIterations = 50;
 
-        private int _savedGenerateContractIterationsForTimeJump;
+        private Coroutine _resumeStockContractPolicyCoroutine;
+
+        private Coroutine _clearAwaitingAuthoritativeSnapshotCoroutine;
+
+        private Coroutine _pendingControlledStockRefreshCoroutine;
+
+        private bool _suppressStockContractRefreshForTimeJump;
+
+        private bool _pendingStockContractRefreshAfterTransientState;
+
+        private bool _allowStockContractRefreshWindow;
+
+        private bool _awaitingAuthoritativeSnapshotAfterControlledRefresh;
+
+        private int _lastAppliedGenerateContractIterations = int.MinValue;
+
+        private string _lastControlledStockRefreshBlockReason;
+
+        private const float ControlledStockRefreshSettleSeconds = 1.5f;
+
+        private const float ControlledStockRefreshPollSeconds = 0.25f;
 
         //This queue system is not used because we use one big queue in ShareCareerSystem for this system.
         protected override bool ShareSystemReady => true;
@@ -61,7 +83,8 @@ namespace LmpClient.Systems.ShareContracts
         {
             base.OnEnabled();
 
-            ContractSystem.generateContractIterations = 0;
+            CaptureDefaultContractGenerateIterationsIfNeeded();
+            ApplyStockContractMutationPolicy(nameof(OnEnabled));
 
             LockEvent.onLockAcquire.Add(ShareContractsEvents.LockAcquire);
             LockEvent.onLockRelease.Add(ShareContractsEvents.LockReleased);
@@ -83,17 +106,35 @@ namespace LmpClient.Systems.ShareContracts
             if (IsShareSystemApplicableForSession())
             {
                 SetupRoutine(new RoutineDefinition(400, RoutineExecution.Update, FlushDeferredContractOffersIfReady));
+                SetupRoutine(new RoutineDefinition(250, RoutineExecution.Update, RefreshStockContractMutationPolicy));
             }
         }
 
         protected override void OnDisabled()
         {
             _deferredContractOffers.Clear();
+            _pendingStockContractRefreshAfterTransientState = false;
+            _suppressStockContractRefreshForTimeJump = false;
+            _allowStockContractRefreshWindow = false;
+            _awaitingAuthoritativeSnapshotAfterControlledRefresh = false;
+            _lastAppliedGenerateContractIterations = int.MinValue;
 
-            if (_restoreContractGenerateIterationsCoroutine != null && MainSystem.Singleton != null)
+            if (_resumeStockContractPolicyCoroutine != null && MainSystem.Singleton != null)
             {
-                MainSystem.Singleton.StopCoroutine(_restoreContractGenerateIterationsCoroutine);
-                _restoreContractGenerateIterationsCoroutine = null;
+                MainSystem.Singleton.StopCoroutine(_resumeStockContractPolicyCoroutine);
+                _resumeStockContractPolicyCoroutine = null;
+            }
+
+            if (_clearAwaitingAuthoritativeSnapshotCoroutine != null && MainSystem.Singleton != null)
+            {
+                MainSystem.Singleton.StopCoroutine(_clearAwaitingAuthoritativeSnapshotCoroutine);
+                _clearAwaitingAuthoritativeSnapshotCoroutine = null;
+            }
+
+            if (_pendingControlledStockRefreshCoroutine != null && MainSystem.Singleton != null)
+            {
+                MainSystem.Singleton.StopCoroutine(_pendingControlledStockRefreshCoroutine);
+                _pendingControlledStockRefreshCoroutine = null;
             }
 
             base.OnDisabled();
@@ -129,16 +170,19 @@ namespace LmpClient.Systems.ShareContracts
             {
                 if (!IsShareSystemApplicableForSession())
                 {
+                    LunaLog.Log($"[PersistentSync] contract refresh skip source=LargeUniversalTimeJumpStart reason=share-not-applicable targetTime={targetTick}");
                     return;
                 }
 
                 if (PersistentSyncSystem.Singleton == null || !PersistentSyncSystem.Singleton.Enabled)
                 {
+                    LunaLog.Log($"[PersistentSync] contract refresh skip source=LargeUniversalTimeJumpStart reason=persistent-sync-disabled targetTime={targetTick}");
                     return;
                 }
 
                 if (ContractSystem.Instance == null || MainSystem.Singleton == null)
                 {
+                    LunaLog.Log($"[PersistentSync] contract refresh skip source=LargeUniversalTimeJumpStart reason=contract-or-main-missing targetTime={targetTick}");
                     return;
                 }
 
@@ -149,16 +193,18 @@ namespace LmpClient.Systems.ShareContracts
                     return;
                 }
 
-                _savedGenerateContractIterationsForTimeJump = ContractSystem.generateContractIterations;
-                ContractSystem.generateContractIterations = 0;
+                LunaLog.Log($"[PersistentSync] contract refresh request source=LargeUniversalTimeJumpStart targetTime={targetTick} now={now} delta={targetTick - now} state={DescribeControlledStockRefreshState()}");
+                _suppressStockContractRefreshForTimeJump = true;
+                RequestControlledStockContractRefresh("LargeUniversalTimeJumpStart");
+                ApplyStockContractMutationPolicy("LargeUniversalTimeJumpStart");
 
-                if (_restoreContractGenerateIterationsCoroutine != null)
+                if (_resumeStockContractPolicyCoroutine != null)
                 {
-                    MainSystem.Singleton.StopCoroutine(_restoreContractGenerateIterationsCoroutine);
+                    MainSystem.Singleton.StopCoroutine(_resumeStockContractPolicyCoroutine);
                 }
 
-                _restoreContractGenerateIterationsCoroutine =
-                    MainSystem.Singleton.StartCoroutine(RestoreContractGenerateIterationsAfterUniversalTimeJumpCoroutine());
+                _resumeStockContractPolicyCoroutine =
+                    MainSystem.Singleton.StartCoroutine(ResumeStockContractPolicyAfterUniversalTimeJumpCoroutine());
             }
             catch (Exception e)
             {
@@ -166,7 +212,7 @@ namespace LmpClient.Systems.ShareContracts
             }
         }
 
-        private IEnumerator RestoreContractGenerateIterationsAfterUniversalTimeJumpCoroutine()
+        private IEnumerator ResumeStockContractPolicyAfterUniversalTimeJumpCoroutine()
         {
             yield return null;
             yield return null;
@@ -175,15 +221,16 @@ namespace LmpClient.Systems.ShareContracts
             {
                 if (ContractSystem.Instance != null)
                 {
-                    ContractSystem.generateContractIterations = _savedGenerateContractIterationsForTimeJump;
+                    _suppressStockContractRefreshForTimeJump = false;
+                    ApplyStockContractMutationPolicy("LargeUniversalTimeJumpEnd");
                 }
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[PersistentSync] Restore contract generate iterations after UT jump failed: {e}");
+                LunaLog.LogError($"[PersistentSync] Resume stock contract policy after UT jump failed: {e}");
             }
 
-            _restoreContractGenerateIterationsCoroutine = null;
+            _resumeStockContractPolicyCoroutine = null;
         }
 
         /// <summary>
@@ -313,6 +360,267 @@ namespace LmpClient.Systems.ShareContracts
             {
                 LockSystem.Singleton.AcquireContractLock();
             }
+        }
+
+        public void CaptureDefaultContractGenerateIterationsIfNeeded()
+        {
+            if (DefaultContractGenerateIterations > 0)
+            {
+                return;
+            }
+
+            DefaultContractGenerateIterations = ContractSystem.generateContractIterations > 0
+                ? ContractSystem.generateContractIterations
+                : StockFallbackContractGenerateIterations;
+        }
+
+        public bool ShouldSuppressStockContractRefresh()
+        {
+            if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
+            {
+                return false;
+            }
+
+            if (!LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
+            {
+                return true;
+            }
+
+            return !_allowStockContractRefreshWindow;
+        }
+
+        public void NoteSuppressedStockContractRefresh(string source)
+        {
+            RequestControlledStockContractRefresh(source);
+        }
+
+        public void RequestControlledStockContractRefresh(string source)
+        {
+            if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
+            {
+                LunaLog.Log($"[PersistentSync] contract refresh request ignored source={source} reason=share-not-applicable-or-contract-missing state={DescribeControlledStockRefreshState()}");
+                return;
+            }
+
+            _pendingStockContractRefreshAfterTransientState = true;
+            LunaLog.Log($"[PersistentSync] contract refresh request queued source={source} state={DescribeControlledStockRefreshState()}");
+
+            if (_pendingControlledStockRefreshCoroutine == null && MainSystem.Singleton != null)
+            {
+                _pendingControlledStockRefreshCoroutine =
+                    MainSystem.Singleton.StartCoroutine(WaitForSafeControlledStockRefreshCoroutine(source));
+            }
+        }
+
+        public void NotifyAuthoritativeContractsSnapshotApplied(string source)
+        {
+            if (!_awaitingAuthoritativeSnapshotAfterControlledRefresh || MainSystem.Singleton == null)
+            {
+                return;
+            }
+
+            LunaLog.Log($"[PersistentSync] contract refresh authoritative snapshot applied source={source} state={DescribeControlledStockRefreshState()}");
+            RestartAwaitingAuthoritativeSnapshotSettleTimer(source);
+        }
+
+        public void ApplyStockContractMutationPolicy(string source)
+        {
+            if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
+            {
+                return;
+            }
+
+            CaptureDefaultContractGenerateIterationsIfNeeded();
+
+            var targetIterations = _allowStockContractRefreshWindow ? DefaultContractGenerateIterations : 0;
+            if (ContractSystem.generateContractIterations != targetIterations)
+            {
+                ContractSystem.generateContractIterations = targetIterations;
+            }
+
+            if (_lastAppliedGenerateContractIterations != targetIterations)
+            {
+                _lastAppliedGenerateContractIterations = targetIterations;
+                LunaLog.Log($"[PersistentSync] contract stock policy source={source} iterations={targetIterations} pendingRefresh={_pendingStockContractRefreshAfterTransientState} awaitingSnapshot={_awaitingAuthoritativeSnapshotAfterControlledRefresh}");
+            }
+        }
+
+        private void RefreshStockContractMutationPolicy()
+        {
+            ApplyStockContractMutationPolicy("RuntimePolicyRefresh");
+
+            if (_pendingStockContractRefreshAfterTransientState && CanRunControlledStockContractRefreshNow())
+            {
+                TryRunPostTransientStockRefresh("RuntimePolicyRefresh");
+            }
+        }
+
+        private string GetControlledStockRefreshBlockReason()
+        {
+            if (!IsShareSystemApplicableForSession())
+            {
+                return "share-not-applicable";
+            }
+
+            if (ContractSystem.Instance == null)
+            {
+                return "contract-system-missing";
+            }
+
+            if (_allowStockContractRefreshWindow)
+            {
+                return "refresh-window-open";
+            }
+
+            if (_awaitingAuthoritativeSnapshotAfterControlledRefresh)
+            {
+                return "awaiting-authoritative-snapshot";
+            }
+
+            if (!LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
+            {
+                var owner = LockSystem.LockQuery.ContractLockOwner();
+                return $"contract-lock-owned-by:{(string.IsNullOrEmpty(owner) ? "none" : owner)}";
+            }
+
+            if (WarpSystem.Singleton == null)
+            {
+                return "warp-system-missing";
+            }
+
+            if (_suppressStockContractRefreshForTimeJump)
+            {
+                return "universal-time-jump-in-progress";
+            }
+
+            if (WarpSystem.Singleton.CurrentSubspace == -1)
+            {
+                return "current-subspace-warping";
+            }
+
+            if (WarpSystem.Singleton.WaitingSubspaceIdFromServer)
+            {
+                return "waiting-subspace-id-from-server";
+            }
+
+            if (!IsGameClockApproximatelyOneX())
+            {
+                return $"clock-not-1x(rateIndex={TimeWarp.CurrentRateIndex},rate={TimeWarp.CurrentRate:0.00})";
+            }
+
+            return string.Empty;
+        }
+
+        private string DescribeControlledStockRefreshState()
+        {
+            var warp = WarpSystem.Singleton;
+            var owner = LockSystem.LockQuery.ContractLockOwner();
+            return $"pending={_pendingStockContractRefreshAfterTransientState} awaiting={_awaitingAuthoritativeSnapshotAfterControlledRefresh} allowWindow={_allowStockContractRefreshWindow} suppressForJump={_suppressStockContractRefreshForTimeJump} contractLockOwner={(string.IsNullOrEmpty(owner) ? "none" : owner)} currentSubspace={(warp != null ? warp.CurrentSubspace.ToString() : "null")} waitingSubspace={(warp != null && warp.WaitingSubspaceIdFromServer)} timeWarpRateIndex={TimeWarp.CurrentRateIndex} timeWarpRate={TimeWarp.CurrentRate:0.00}";
+        }
+
+        private bool IsStockContractMutationTransientState()
+        {
+            if (_suppressStockContractRefreshForTimeJump)
+            {
+                return true;
+            }
+
+            return WarpSystem.Singleton != null &&
+                   (WarpSystem.Singleton.CurrentSubspace == -1 || WarpSystem.Singleton.WaitingSubspaceIdFromServer);
+        }
+
+        private bool CanRunControlledStockContractRefreshNow()
+        {
+            return string.IsNullOrEmpty(GetControlledStockRefreshBlockReason()) && !IsStockContractMutationTransientState();
+        }
+
+        private void TryRunPostTransientStockRefresh(string source)
+        {
+            _pendingStockContractRefreshAfterTransientState = false;
+            try
+            {
+                _allowStockContractRefreshWindow = true;
+                _awaitingAuthoritativeSnapshotAfterControlledRefresh = true;
+                RestartAwaitingAuthoritativeSnapshotSettleTimer(source + ":RefreshStarted");
+                ApplyStockContractMutationPolicy(source + ":OpenWindow");
+                InvokeOptionalMethod(ContractSystem.Instance, "RefreshContracts");
+                LunaLog.Log($"[PersistentSync] forced stock contract refresh source={source} offered={ContractSystem.Instance.Contracts.Count} finished={ContractSystem.Instance.ContractsFinished.Count}");
+            }
+            catch (Exception e)
+            {
+                _pendingStockContractRefreshAfterTransientState = true;
+                LunaLog.LogError($"[PersistentSync] forced stock contract refresh failed source={source} error={e}");
+            }
+            finally
+            {
+                _allowStockContractRefreshWindow = false;
+                ApplyStockContractMutationPolicy(source + ":CloseWindow");
+            }
+        }
+
+        private IEnumerator ClearAwaitingAuthoritativeSnapshotAfterSettleCoroutine(string source)
+        {
+            yield return new WaitForSecondsRealtime(ControlledStockRefreshSettleSeconds);
+            _awaitingAuthoritativeSnapshotAfterControlledRefresh = false;
+            LunaLog.Log($"[PersistentSync] contract refresh settle complete source={source} state={DescribeControlledStockRefreshState()}");
+            _clearAwaitingAuthoritativeSnapshotCoroutine = null;
+            ApplyStockContractMutationPolicy(source + ":SnapshotSettled");
+        }
+
+        private IEnumerator WaitForSafeControlledStockRefreshCoroutine(string source)
+        {
+            LunaLog.Log($"[PersistentSync] contract refresh wait start source={source} state={DescribeControlledStockRefreshState()}");
+            while (Enabled && IsShareSystemApplicableForSession() && ContractSystem.Instance != null)
+            {
+                ApplyStockContractMutationPolicy(source + ":Wait");
+
+                if (!_pendingStockContractRefreshAfterTransientState)
+                {
+                    LunaLog.Log($"[PersistentSync] contract refresh wait end source={source} reason=no-pending-refresh state={DescribeControlledStockRefreshState()}");
+                    break;
+                }
+
+                var blockReason = GetControlledStockRefreshBlockReason();
+                if (string.IsNullOrEmpty(blockReason) && !IsStockContractMutationTransientState())
+                {
+                    _lastControlledStockRefreshBlockReason = null;
+                    TryRunPostTransientStockRefresh(source);
+                    break;
+                }
+
+                if (!string.Equals(_lastControlledStockRefreshBlockReason, blockReason, StringComparison.Ordinal))
+                {
+                    _lastControlledStockRefreshBlockReason = blockReason;
+                    LunaLog.Log($"[PersistentSync] contract refresh wait blocked source={source} reason={blockReason} state={DescribeControlledStockRefreshState()}");
+                }
+
+                yield return new WaitForSecondsRealtime(ControlledStockRefreshPollSeconds);
+            }
+
+            if (!Enabled || ContractSystem.Instance == null || !IsShareSystemApplicableForSession())
+            {
+                LunaLog.Log($"[PersistentSync] contract refresh wait abort source={source} enabled={Enabled} applicable={IsShareSystemApplicableForSession()} contractSystem={(ContractSystem.Instance != null)}");
+            }
+
+            _lastControlledStockRefreshBlockReason = null;
+            _pendingControlledStockRefreshCoroutine = null;
+        }
+
+        private void RestartAwaitingAuthoritativeSnapshotSettleTimer(string source)
+        {
+            if (MainSystem.Singleton == null)
+            {
+                return;
+            }
+
+            if (_clearAwaitingAuthoritativeSnapshotCoroutine != null)
+            {
+                MainSystem.Singleton.StopCoroutine(_clearAwaitingAuthoritativeSnapshotCoroutine);
+            }
+
+            LunaLog.Log($"[PersistentSync] contract refresh settle timer source={source} delaySeconds={ControlledStockRefreshSettleSeconds} state={DescribeControlledStockRefreshState()}");
+            _clearAwaitingAuthoritativeSnapshotCoroutine =
+                MainSystem.Singleton.StartCoroutine(ClearAwaitingAuthoritativeSnapshotAfterSettleCoroutine(source));
         }
 
         /// <summary>
