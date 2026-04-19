@@ -155,6 +155,7 @@ namespace LmpClient.Systems.ShareTechnology
             base.OnEnabled();
 
             GameEvents.OnTechnologyResearched.Add(ShareTechnologyEvents.TechnologyResearched);
+            GameEvents.onGUIRnDComplexDespawn.Add(OnRnDComplexDespawnClearPendingTechReselect);
         }
 
         protected override void OnDisabled()
@@ -165,8 +166,20 @@ namespace LmpClient.Systems.ShareTechnology
             _persistentSyncRnDUiRefreshWantsTechTreeReload = false;
             _lastLocalResearchTechIdForSidePanelReselect = null;
 
+            GameEvents.onGUIRnDComplexDespawn.Remove(OnRnDComplexDespawnClearPendingTechReselect);
+
             //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
             GameEvents.OnTechnologyResearched.Remove(ShareTechnologyEvents.TechnologyResearched);
+        }
+
+        /// <summary>
+        /// When the R&amp;D building UI closes, stock tears down <see cref="RDController"/>; a lingering pending tech id
+        /// makes <see cref="NotifyStockRefreshTechTreeUiCompleted"/> run recovery on half-built UI and can invoke the wrong
+        /// reflected controller methods on reopen.
+        /// </summary>
+        private void OnRnDComplexDespawnClearPendingTechReselect()
+        {
+            _lastLocalResearchTechIdForSidePanelReselect = null;
         }
 
         /// <summary>
@@ -1016,7 +1029,18 @@ namespace LmpClient.Systems.ShareTechnology
 
         private static readonly string[] RdControllerRdNodeSelectionMethodNames =
         {
-            "SelectNode", "SetSelectedNode", "SelectRDNode", "ShowNode", "OnNodeSelected", "selectNode", "showNode"
+            "SelectNode", "SetSelectedNode", "SelectRDNode", "ShowNode", "ShowNodePanel", "OnNodeSelected", "selectNode",
+            "showNode"
+        };
+
+        /// <summary>
+        /// Names that matched <see cref="RdControllerMethodNameLooksLikeSelection"/> but are not player-style selection
+        /// (e.g. <c>RegisterNode</c> wires graph bookkeeping and clears <see cref="RDController.node_selected"/>).
+        /// </summary>
+        private static readonly string[] RdControllerHeuristicExcludedMethodNames =
+        {
+            "RegisterNode", "UnregisterNode", "RegisterTree", "UnregisterTree", "DestroyNode", "RemoveNode", "ResetTree",
+            "ClearTree"
         };
 
         private static bool TryInvokeRdControllerSingleArg(RDController controller, object argument)
@@ -1081,6 +1105,11 @@ namespace LmpClient.Systems.ShareTechnology
                         continue;
                     }
 
+                    if (RdControllerMethodNameExcludedFromNavigationHeuristic(method.Name))
+                    {
+                        continue;
+                    }
+
                     try
                     {
                         method.Invoke(controller, new[] { argument });
@@ -1096,6 +1125,32 @@ namespace LmpClient.Systems.ShareTechnology
             catch
             {
                 // Stock API differs by version.
+            }
+
+            return false;
+        }
+
+        private static bool RdControllerMethodNameExcludedFromNavigationHeuristic(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+
+            foreach (var ex in RdControllerHeuristicExcludedMethodNames)
+            {
+                if (string.Equals(name, ex, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            // Broad: "Register*" wiring methods are not selection; allow Show*/Select* names through.
+            if (name.IndexOf("Register", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                name.IndexOf("Select", StringComparison.OrdinalIgnoreCase) < 0 &&
+                name.IndexOf("Show", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return true;
             }
 
             return false;
@@ -1416,6 +1471,11 @@ namespace LmpClient.Systems.ShareTechnology
                     }
 
                     if (!RdControllerMethodNameLooksLikeSelection(method.Name))
+                    {
+                        continue;
+                    }
+
+                    if (RdControllerMethodNameExcludedFromNavigationHeuristic(method.Name))
                     {
                         continue;
                     }
