@@ -8,6 +8,7 @@ using LmpClient.Systems.ShareScience;
 using LmpCommon.PersistentSync;
 using System;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace LmpClient.Systems.PersistentSync
 {
@@ -54,6 +55,10 @@ namespace LmpClient.Systems.PersistentSync
             try
             {
                 ReplaceContractsFromSnapshot(_pendingContracts);
+                // Keep ShareContractsSystem ignoring events through UI refresh: RefreshContracts / onContractsLoaded
+                // can spawn stock offers for the contract-lock holder; each ContractOffered would otherwise send
+                // duplicate intents and inflate the server's offered list.
+                ShareContractsSystem.Singleton.RefreshContractUiAdapters("PersistentSyncSnapshotApply");
             }
             catch (Exception)
             {
@@ -68,13 +73,14 @@ namespace LmpClient.Systems.PersistentSync
                 ShareContractsSystem.Singleton.StopIgnoringEvents();
             }
 
-            ShareContractsSystem.Singleton.RefreshContractUiAdapters("PersistentSyncSnapshotApply");
             _pendingContracts = null;
             return PersistentSyncApplyOutcome.Applied;
         }
 
         private static void ReplaceContractsFromSnapshot(ContractSnapshotInfo[] contracts)
         {
+            contracts = DedupeContractsByGuidPreserveOrder(contracts);
+
             foreach (var contract in ContractSystem.Instance.Contracts.ToArray())
             {
                 contract.Unregister();
@@ -111,6 +117,35 @@ namespace LmpClient.Systems.PersistentSync
                         break;
                 }
             }
+        }
+
+        /// <summary>
+        /// Snapshot payloads should be unique by contract GUID; if duplicates appear (wire bugs or repeated intents),
+        /// keep a single row per GUID so Mission Control does not list the same offer multiple times.
+        /// </summary>
+        private static ContractSnapshotInfo[] DedupeContractsByGuidPreserveOrder(ContractSnapshotInfo[] contracts)
+        {
+            if (contracts == null || contracts.Length == 0)
+            {
+                return Array.Empty<ContractSnapshotInfo>();
+            }
+
+            var ordered = contracts
+                .Where(c => c != null && c.ContractGuid != Guid.Empty)
+                .OrderBy(c => c.Order >= 0 ? c.Order : int.MaxValue)
+                .ThenBy(c => c.ContractGuid);
+
+            var seen = new HashSet<Guid>();
+            var list = new List<ContractSnapshotInfo>();
+            foreach (var c in ordered)
+            {
+                if (seen.Add(c.ContractGuid))
+                {
+                    list.Add(c);
+                }
+            }
+
+            return list.ToArray();
         }
 
         private static Contract DeserializeContract(ContractSnapshotInfo contractInfo)
