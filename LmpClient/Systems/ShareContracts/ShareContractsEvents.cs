@@ -21,6 +21,7 @@ namespace LmpClient.Systems.ShareContracts
             {
                 System.RequestControlledStockContractRefresh("ContractLockAcquire");
                 System.ApplyStockContractMutationPolicy("ContractLockAcquire");
+                System.ReplenishStockOffersAfterPersistentSnapshotApply("ContractLockAcquire");
             }
         }
 

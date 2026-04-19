@@ -6,6 +6,7 @@ using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Server.Client;
+using Server.Settings.Structures;
 using Server.System;
 using Server.System.PersistentSync;
 using System;
@@ -301,6 +302,32 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual("Offered", registryContract.ContractState);
             var registryNode = new ConfigNode(Encoding.UTF8.GetString(registryContract.Data, 0, registryContract.NumBytes));
             Assert.AreEqual("Complete", registryNode.GetNode("PARAM").Value.GetValue("state").Value);
+        }
+
+        [TestMethod]
+        public void ContractsDomainSeedsStarterOffersWhenPersistenceHasNoReadableContracts_CareerOnly()
+        {
+            var previousMode = GeneralSettings.SettingsStore.GameMode;
+            try
+            {
+                GeneralSettings.SettingsStore.GameMode = GameMode.Career;
+
+                var emptyScenario = new ConfigNode(@"name = ContractSystem
+scene = 7, 8, 5, 6
+CONTRACTS
+{
+}");
+                ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = emptyScenario;
+                var store = new ContractsPersistentSyncDomainStore();
+                store.LoadFromPersistence(false);
+
+                var snapshot = ContractSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+                Assert.IsTrue(snapshot.Count > 0, "Career server with empty CONTRACTS should seed from embedded template.");
+            }
+            finally
+            {
+                GeneralSettings.SettingsStore.GameMode = previousMode;
+            }
         }
 
         [TestMethod]

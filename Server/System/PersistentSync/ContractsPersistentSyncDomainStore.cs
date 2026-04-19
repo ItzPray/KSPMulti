@@ -2,6 +2,9 @@ using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
+using Server.Log;
+using Server.Properties;
+using Server.Settings.Structures;
 using Server.System;
 using System;
 using System.Collections.Generic;
@@ -37,27 +40,117 @@ namespace Server.System.PersistentSync
 
             lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
+                // Match PersistentSyncDomainApplicability / ScenarioSystem: any save that includes the Career bit.
+                var careerContracts = (GeneralSettings.SettingsStore.GameMode & GameMode.Career) != 0;
+                var needsPersist = false;
+
                 if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    return;
-                }
-
-                var contractsNode = scenario.GetNode(ContractsNodeName)?.Value;
-                if (contractsNode == null)
-                {
-                    return;
-                }
-
-                var order = 0;
-                foreach (var contractNode in contractsNode.GetNodes(ContractNodeName).Select(n => n.Value).Where(n => n != null))
-                {
-                    var snapshotInfo = CreateSnapshotInfo(contractNode, order++);
-                    if (snapshotInfo != null)
+                    if (!careerContracts)
                     {
-                        _contractsByGuid[snapshotInfo.ContractGuid] = snapshotInfo;
+                        return;
+                    }
+
+                    scenario = new ConfigNode(Resources.ContractSystem);
+                    ScenarioStoreSystem.CurrentScenarios[ScenarioName] = scenario;
+                    needsPersist = true;
+                }
+
+                IngestContractsFromScenario(scenario);
+
+                if (careerContracts && _contractsByGuid.Count == 0)
+                {
+                    if (TryPopulateContractsFromEmbeddedTemplate())
+                    {
+                        needsPersist = true;
                     }
                 }
+
+                if (needsPersist && _contractsByGuid.Count > 0)
+                {
+                    PersistCurrentState();
+                }
+
+                if (careerContracts)
+                {
+                    LunaLog.Normal(
+                        $"[PersistentSync] Contracts LoadFromPersistence: gameMode={GeneralSettings.SettingsStore.GameMode} " +
+                        $"contractRows={_contractsByGuid.Count} seededOrInsertedScenario={needsPersist}");
+                }
             }
+        }
+
+        private void IngestContractsFromScenario(ConfigNode scenario)
+        {
+            _contractsByGuid.Clear();
+
+            var contractsNode = scenario.GetNode(ContractsNodeName)?.Value;
+            if (contractsNode == null)
+            {
+                return;
+            }
+
+            var order = 0;
+            foreach (var contractNode in contractsNode.GetNodes(ContractNodeName).Select(n => n.Value).Where(n => n != null))
+            {
+                var snapshotInfo = CreateSnapshotInfo(contractNode, order++);
+                if (snapshotInfo != null)
+                {
+                    _contractsByGuid[snapshotInfo.ContractGuid] = snapshotInfo;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Career saves sometimes end up with an empty or unreadable CONTRACTS block (for example after a bad sync).
+        /// Stock seeds starter offers on new games; mirror that from the embedded template so PersistentSync snapshots
+        /// are never authoritative-empty while the server is in Career mode.
+        /// </summary>
+        private bool TryPopulateContractsFromEmbeddedTemplate()
+        {
+            ConfigNode templateRoot;
+            try
+            {
+                templateRoot = new ConfigNode(Resources.ContractSystem);
+            }
+            catch (Exception ex)
+            {
+                LunaLog.Error($"[PersistentSync] Contracts: failed to parse embedded ContractSystem template: {ex.Message}");
+                return false;
+            }
+
+            var templateContracts = templateRoot.GetNode(ContractsNodeName)?.Value;
+            if (templateContracts == null)
+            {
+                return false;
+            }
+
+            var addedAny = false;
+            var order = 0;
+            foreach (var templateContractWrapper in templateContracts.GetNodes(ContractNodeName))
+            {
+                var templateContract = templateContractWrapper.Value;
+                if (templateContract == null)
+                {
+                    continue;
+                }
+
+                var snapshotInfo = CreateSnapshotInfo(templateContract, order++);
+                if (snapshotInfo == null)
+                {
+                    continue;
+                }
+
+                _contractsByGuid[snapshotInfo.ContractGuid] = snapshotInfo;
+                addedAny = true;
+            }
+
+            if (addedAny)
+            {
+                LunaLog.Warning("[PersistentSync] Contracts: universe ContractSystem had no readable offers; seeded starter contracts from embedded template.");
+            }
+
+            return addedAny;
         }
 
         public PersistentSyncDomainSnapshot GetCurrentSnapshot()

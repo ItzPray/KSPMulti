@@ -9,6 +9,7 @@ using LmpCommon.PersistentSync;
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Text;
 
 namespace LmpClient.Systems.PersistentSync
 {
@@ -27,6 +28,8 @@ namespace LmpClient.Systems.PersistentSync
                 _pendingContracts = ContractSnapshotPayloadSerializer.Deserialize(snapshot.Payload, snapshot.NumBytes)
                     .OrderBy(contract => contract.Order)
                     .ToArray();
+                LunaLog.Log(
+                    $"[PersistentSync] Contracts snapshot received wireRows={_pendingContracts.Length} payloadBytes={snapshot.NumBytes}");
             }
             catch (Exception)
             {
@@ -62,6 +65,15 @@ namespace LmpClient.Systems.PersistentSync
                 ShareContractsSystem.Singleton.CancelPendingControlledStockContractRefresh("PersistentSyncSnapshotApply:PreReplace");
 
                 ReplaceContractsFromSnapshot(_pendingContracts);
+                // Stock RefreshContracts reloads from HighLogic.CurrentGame.scenarios ContractSystem proto. We mutate
+                // ContractSystem.Instance lists only — without mirroring here, a later RefreshContracts (subspace lock,
+                // Mission Control, etc.) rebuilds from stale proto and wipes offers while keeping ContractsFinished.
+                PersistentSyncScenarioProtoMaterializer.TryMirrorScenarioModule(
+                    ContractSystem.Instance,
+                    "ContractSystem",
+                    "PersistentSyncSnapshotApply:Contracts");
+
+                ShareContractsSystem.Singleton.ReplenishStockOffersAfterPersistentSnapshotApply("PersistentSyncSnapshotApply");
                 ShareContractsSystem.LogMcUiContractInventory("PersistentSyncSnapshotApply:afterReplaceContractsFromSnapshot");
                 // Keep ShareContractsSystem ignoring events through UI refresh. RefreshContractUiAdapters uses
                 // psApply-safe paths (no RefreshContracts / contract GameEvents) while rebuilding ContractsApp and
@@ -104,13 +116,19 @@ namespace LmpClient.Systems.PersistentSync
             ContractSystem.Instance.Contracts.Clear();
             ContractSystem.Instance.ContractsFinished.Clear();
 
+            var wireRows = contracts?.Length ?? 0;
+            var materialized = 0;
+            var skippedNull = 0;
             foreach (var contractInfo in contracts ?? Array.Empty<ContractSnapshotInfo>())
             {
                 var contract = DeserializeContract(contractInfo);
                 if (contract == null)
                 {
+                    skippedNull++;
                     continue;
                 }
+
+                materialized++;
 
                 // Finished: runtime terminal states (and snapshot-safe archive semantics).
                 if (ShouldPlaceInContractsFinished(contract))
@@ -140,7 +158,22 @@ namespace LmpClient.Systems.PersistentSync
                 else
                 {
                     ContractSystem.Instance.Contracts.Add(contract);
+                    try
+                    {
+                        contract.Register();
+                    }
+                    catch (Exception e)
+                    {
+                        LunaLog.LogError($"[PersistentSync] contract Register failed guid={contract.ContractGuid}: {e.Message}");
+                    }
                 }
+            }
+
+            if (wireRows > 0 && materialized == 0)
+            {
+                LunaLog.LogError(
+                    $"[PersistentSync] Contracts snapshot had {wireRows} wire rows but none deserialized into Contract objects " +
+                    $"(skippedNull={skippedNull}). First guid={(contracts != null && contracts.Length > 0 ? contracts[0].ContractGuid.ToString() : "n/a")}");
             }
         }
 
@@ -243,22 +276,103 @@ namespace LmpClient.Systems.PersistentSync
 
         private static Contract DeserializeContract(ContractSnapshotInfo contractInfo)
         {
-            var node = contractInfo.Data.DeserializeToConfigNode(contractInfo.NumBytes);
-            if (node == null)
+            try
+            {
+                var node = TryParseContractConfigNode(contractInfo);
+                if (node == null)
+                {
+                    return null;
+                }
+
+                var typeValue = node.GetValue("type");
+                if (typeValue == null)
+                {
+                    return null;
+                }
+
+                node.RemoveValues("type");
+                node.RemoveValues(LmpOfferTitleFieldName);
+                var contractType = ContractSystem.GetContractType(typeValue);
+                return Contract.Load((Contract)Activator.CreateInstance(contractType), node);
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[PersistentSync] Contract materialize failed guid={contractInfo?.ContractGuid}: {e.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Server snapshots store LunaConfigNode UTF-8 text per contract. Parse through the same line-based pipeline as
+        /// <see cref="ConfigNodeSerializer.DeserializeToConfigNode"/> (do not use <c>new ConfigNode(string)</c> for full cfg
+        /// text — in stock KSP that constructor treats the argument as a <b>node name</b>, not serialized config, which
+        /// produced no <c>type</c> value and caused every snapshot row to fail).
+        /// </summary>
+        private static ConfigNode TryParseContractConfigNode(ContractSnapshotInfo contractInfo)
+        {
+            if (contractInfo == null || contractInfo.NumBytes <= 0 || contractInfo.Data == null || contractInfo.Data.Length == 0)
             {
                 return null;
             }
 
-            var typeValue = node.GetValue("type");
-            if (typeValue == null)
+            var raw = Encoding.UTF8.GetString(contractInfo.Data, 0, contractInfo.NumBytes);
+            var node = DeserializeContractConfigText(raw);
+            var resolved = FindFirstConfigNodeWithType(node);
+            if (resolved != null)
+            {
+                return resolved;
+            }
+
+            var trimmed = raw.Trim();
+            if (trimmed.Length == 0)
             {
                 return null;
             }
 
-            node.RemoveValues("type");
-            node.RemoveValues(LmpOfferTitleFieldName);
-            var contractType = ContractSystem.GetContractType(typeValue);
-            return Contract.Load((Contract)Activator.CreateInstance(contractType), node);
+            if (!trimmed.StartsWith("CONTRACT", StringComparison.OrdinalIgnoreCase))
+            {
+                trimmed = "CONTRACT\n{\n" + trimmed + "\n}\n";
+            }
+
+            node = DeserializeContractConfigText(trimmed);
+            return FindFirstConfigNodeWithType(node);
+        }
+
+        private static ConfigNode DeserializeContractConfigText(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            // Luna/server templates use tabs; the reflected stock line parser is happier with spaces.
+            var normalized = text.Replace("\t", "    ").TrimEnd();
+            var bytes = Encoding.UTF8.GetBytes(normalized);
+            return bytes.DeserializeToConfigNode(bytes.Length);
+        }
+
+        private static ConfigNode FindFirstConfigNodeWithType(ConfigNode root, int depth = 0)
+        {
+            if (root == null || depth > 24)
+            {
+                return null;
+            }
+
+            if (root.GetValue("type") != null)
+            {
+                return root;
+            }
+
+            foreach (ConfigNode child in root.GetNodes())
+            {
+                var hit = FindFirstConfigNodeWithType(child, depth + 1);
+                if (hit != null)
+                {
+                    return hit;
+                }
+            }
+
+            return null;
         }
     }
 }

@@ -125,6 +125,24 @@ namespace LmpClient.Systems.PersistentSync
             Reconciler.FlushPendingState();
         }
 
+        /// <summary>
+        /// Runs the same work as the timed flush routine immediately. Call right after
+        /// <c>HighLogic.CurrentGame.Start()</c> on join: deferred domains (notably <see cref="ContractsPersistentSyncClientDomain"/>
+        /// when <see cref="ContractSystem.Instance"/> was null during snapshot handling) otherwise wait for the
+        /// 1000ms routine, leaving an empty <see cref="ContractSystem"/> while stock Mission Control / ContractsApp
+        /// already bind to that empty model.
+        /// </summary>
+        public void FlushLivePendingPersistentSyncState(string reason)
+        {
+            if (!Enabled)
+            {
+                return;
+            }
+
+            LunaLog.Log($"[PersistentSync] FlushLivePendingPersistentSyncState source={reason}");
+            FlushPendingState();
+        }
+
         private void OnSceneReady(GameScenes data)
         {
             NetworkSystem.BumpPersistentSyncJoinActivity();

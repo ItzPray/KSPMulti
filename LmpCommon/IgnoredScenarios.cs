@@ -12,6 +12,10 @@ namespace LmpCommon
             //overwrite mid-session with a stale blob. The client still needs the in-game proto to match
             //live R&D.Instance after PersistentSync applies — see ResearchAndDevelopmentProtoMirror on the client.
             "ResearchAndDevelopment",
+            //Owned by PersistentSync Contracts + ShareContracts (same pattern as R&D). The server scenario bundle
+            //can carry an empty or stale ContractSystem proto; applying it after PersistentSync.ReplaceContractsFromSnapshot
+            //wipes live offers and Mission Control stays empty on first join / reconnect.
+            "ContractSystem",
         };
 
         public static List<string> IgnoreSend { get; } = new List<string>

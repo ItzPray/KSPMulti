@@ -15,7 +15,6 @@ namespace LmpClient.Windows.Mod
         private static Vector2 _forbiddenFilesScrollPos;
         private static Vector2 _nonListedFilesScrollPos;
         private static Vector2 _mandatoryPartsScrollPos;
-        private static Vector2 _forbiddenPartsScrollPos;
 
         private static bool _display;
         public override bool Display

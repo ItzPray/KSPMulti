@@ -13,6 +13,7 @@ using LmpClient.Systems.KerbalSys;
 using LmpClient.Systems.Mod;
 using LmpClient.Systems.ModApi;
 using LmpClient.Systems.Network;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.Scenario;
 using LmpClient.Systems.SettingsSys;
 using LmpClient.Systems.Toolbar;
@@ -387,6 +388,11 @@ namespace LmpClient
             //.Start() seems to stupidly .Load() somewhere - Let's overwrite it so it loads correctly.
             GamePersistence.SaveGame(HighLogic.CurrentGame, "persistent", HighLogic.SaveFolder, SaveMode.OVERWRITE);
             HighLogic.CurrentGame.Start();
+            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            {
+                PersistentSyncSystem.Singleton.FlushLivePendingPersistentSyncState("StartGameNow:AfterGameStart");
+            }
+
             LunaLog.Log("[LMP]: Started!");
         }
 

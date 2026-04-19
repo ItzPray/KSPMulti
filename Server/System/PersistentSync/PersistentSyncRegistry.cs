@@ -227,7 +227,25 @@ namespace Server.System.PersistentSync
 
             foreach (var snapshot in snapshots)
             {
-                LunaLog.Debug($"[PersistentSync] snapshot send target=singleClient client={clientName} domain={snapshot.DomainId} revision={snapshot.Revision}");
+                if (snapshot.DomainId == PersistentSyncDomainId.Contracts)
+                {
+                    try
+                    {
+                        var rows = ContractSnapshotPayloadSerializer.Deserialize(snapshot.Payload, snapshot.NumBytes)?.Count ?? 0;
+                        LunaLog.Normal(
+                            $"[PersistentSync] snapshot send target=singleClient client={clientName} domain={snapshot.DomainId} " +
+                            $"revision={snapshot.Revision} contractWireRows={rows} payloadBytes={snapshot.NumBytes}");
+                    }
+                    catch (Exception ex)
+                    {
+                        LunaLog.Error($"[PersistentSync] snapshot send contracts payload decode failed client={clientName}: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    LunaLog.Debug($"[PersistentSync] snapshot send target=singleClient client={clientName} domain={snapshot.DomainId} revision={snapshot.Revision}");
+                }
+
                 MessageQueuer.SendToClient<PersistentSyncSrvMsg>(client, CreateSnapshotMessage(snapshot));
             }
         }

@@ -60,6 +60,31 @@ namespace LmpClient.Systems.ShareContracts
 
         private string _lastControlledStockRefreshBlockReason;
 
+        private static string _mcDiagContractSystemRefreshThrottleSignature;
+
+        private static float _mcDiagContractSystemRefreshThrottleRealtime = -999f;
+
+        private const float McDiagContractSystemRefreshThrottleSeconds = 5f;
+
+        private static string _persistentSyncUiAdapterLogSignature;
+
+        private static float _persistentSyncUiAdapterLogRealtime = -999f;
+
+        private const float PersistentSyncUiAdapterLogThrottleSeconds = 2.5f;
+
+        /// <summary>
+        /// UI refresh sources that must not call stock <see cref="ContractSystem.RefreshContracts"/> / contract
+        /// reload GameEvents once PersistentSync has populated <see cref="ContractSystem"/> from the server snapshot.
+        /// Stock refresh rebuilds from local ProgressTracking and can clear synced rows (empty Mission Control).
+        /// </summary>
+        private const string PersistentSyncPostTransientStockRefreshSource = "PersistentSyncPostTransientStockRefresh";
+
+        /// <summary>
+        /// <see cref="Harmony.ContractSystem_RefreshContractsPersistentSyncGuard"/> uses this source so
+        /// <see cref="RefreshContractLists"/> does not call stock <see cref="ContractSystem.RefreshContracts"/> again.
+        /// </summary>
+        public const string ContractSystemRefreshPersistentSyncBypassSource = "ContractSystemRefreshPersistentSyncBypass";
+
         private const float ControlledStockRefreshSettleSeconds = 1.5f;
 
         private const float ControlledStockRefreshPollSeconds = 0.25f;
@@ -78,19 +103,6 @@ namespace LmpClient.Systems.ShareContracts
                 PersistentSyncDomainId.Contracts,
                 SettingsSystem.ServerSettings.GameMode,
                 in caps);
-        }
-
-        /// <summary>
-        /// When PersistentSync is active for career contracts, server snapshots are the contract truth. Stock
-        /// <see cref="ContractSystem.RefreshContracts"/> with a high <see cref="ContractSystem.generateContractIterations"/>
-        /// window re-seeds tutorial/progression offers and can clear the main list during subspace catch-up, producing
-        /// empty Mission Control until the next snapshot and duplicate active rows after Accept.
-        /// </summary>
-        private bool ShouldTreatPersistentSyncContractsAsAuthoritative()
-        {
-            return PersistentSyncSystem.Singleton != null &&
-                   PersistentSyncSystem.Singleton.Enabled &&
-                   IsShareSystemApplicableForSession();
         }
 
         protected override void OnEnabled()
@@ -432,12 +444,6 @@ namespace LmpClient.Systems.ShareContracts
 
         public void NoteSuppressedStockContractRefresh(string source)
         {
-            if (ShouldTreatPersistentSyncContractsAsAuthoritative())
-            {
-                LunaLog.Log($"[PersistentSync] suppressed stock contract refresh note skipped source={source} reason=persistent-sync-contracts-authoritative");
-                return;
-            }
-
             RequestControlledStockContractRefresh(source);
         }
 
@@ -446,12 +452,6 @@ namespace LmpClient.Systems.ShareContracts
             if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
             {
                 LunaLog.Log($"[PersistentSync] contract refresh request ignored source={source} reason=share-not-applicable-or-contract-missing state={DescribeControlledStockRefreshState()}");
-                return;
-            }
-
-            if (ShouldTreatPersistentSyncContractsAsAuthoritative())
-            {
-                LunaLog.Log($"[PersistentSync] contract refresh request ignored source={source} reason=persistent-sync-contracts-authoritative state={DescribeControlledStockRefreshState()}");
                 return;
             }
 
@@ -611,18 +611,57 @@ namespace LmpClient.Systems.ShareContracts
             return string.IsNullOrEmpty(GetControlledStockRefreshBlockReason()) && !IsStockContractMutationTransientState();
         }
 
+        private bool HasPersistentSyncAuthoritativeContractsSnapshot()
+        {
+            if (!IsShareSystemApplicableForSession())
+            {
+                return false;
+            }
+
+            var ps = PersistentSyncSystem.Singleton;
+            if (ps == null || !ps.Enabled)
+            {
+                return false;
+            }
+
+            return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.Contracts);
+        }
+
         private void TryRunPostTransientStockRefresh(string source)
         {
-            if (ShouldTreatPersistentSyncContractsAsAuthoritative())
+            _pendingStockContractRefreshAfterTransientState = false;
+
+            if (HasPersistentSyncAuthoritativeContractsSnapshot())
             {
-                _pendingStockContractRefreshAfterTransientState = false;
-                _awaitingAuthoritativeSnapshotAfterControlledRefresh = false;
-                ApplyStockContractMutationPolicy(source + ":SkipPersistentSyncOwner");
-                LunaLog.Log($"[PersistentSync] forced stock contract refresh skipped source={source} reason=persistent-sync-contracts-authoritative state={DescribeControlledStockRefreshState()}");
+                // After MarkApplied(Contracts), stock RefreshContracts() walks local progression / generation again.
+                // With a reduced iteration budget it can still end up with an empty main list (mainCount=0) while
+                // ContractSystem already holds server contracts — Mission Control then stays empty. Rebind UI only.
+                try
+                {
+                    // Snapshot may have been applied before we held the contract lock; replenish was skipped then.
+                    // After transient settle we often hold the lock — mint offers once before ps-safe UI rebind.
+                    ReplenishStockOffersAfterPersistentSnapshotApply(source + ":PostTransientPreUi");
+                    _awaitingAuthoritativeSnapshotAfterControlledRefresh = true;
+                    RestartAwaitingAuthoritativeSnapshotSettleTimer(source + ":SafeUiRefreshStarted");
+                    RefreshContractUiAdapters(PersistentSyncPostTransientStockRefreshSource);
+                    if (ContractSystem.Instance != null &&
+                        ShouldLogPersistentSyncUiAdapterRefresh(
+                            PersistentSyncPostTransientStockRefreshSource,
+                            $"forcedUiRefresh:{source}"))
+                    {
+                        LunaLog.Log(
+                            $"[PersistentSync] forced stock contract safe ui refresh source={source} offered={ContractSystem.Instance.Contracts.Count} finished={ContractSystem.Instance.ContractsFinished.Count}");
+                    }
+                }
+                catch (Exception e)
+                {
+                    _pendingStockContractRefreshAfterTransientState = true;
+                    LunaLog.LogError($"[PersistentSync] forced stock contract safe ui refresh failed source={source} error={e}");
+                }
+
                 return;
             }
 
-            _pendingStockContractRefreshAfterTransientState = false;
             try
             {
                 _allowStockContractRefreshWindow = true;
@@ -710,6 +749,49 @@ namespace LmpClient.Systems.ShareContracts
         }
 
         /// <summary>
+        /// After PersistentSync replaces <see cref="ContractSystem"/> from the server, the main list can be empty
+        /// while the archive still has completed rows (common when persistence dropped <c>Offered</c> entries). Stock
+        /// normally repopulates via <see cref="ContractSystem.RefreshContracts"/>, but mandatory generation is gated
+        /// by <see cref="ContractSystem_GenerateMandatoryContracts"/> unless <see cref="_allowStockContractRefreshWindow"/>
+        /// is set. Run one controlled refresh for the contract lock holder so progression can mint new offers.
+        /// </summary>
+        public void ReplenishStockOffersAfterPersistentSnapshotApply(string source)
+        {
+            if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
+            {
+                return;
+            }
+
+            if (!LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
+            {
+                return;
+            }
+
+            var main = ContractSystem.Instance.Contracts;
+            if (main == null || main.Count > 0)
+            {
+                return;
+            }
+
+            LunaLog.Log($"[PersistentSync] ReplenishStockOffers: empty main list after snapshot; controlled RefreshContracts source={source}");
+            try
+            {
+                _allowStockContractRefreshWindow = true;
+                ApplyStockContractMutationPolicy(source + ":ReplenishOpenWindow");
+                InvokeOptionalMethod(ContractSystem.Instance, "RefreshContracts");
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[PersistentSync] ReplenishStockOffers: RefreshContracts failed source={source}: {e.Message}");
+            }
+            finally
+            {
+                _allowStockContractRefreshWindow = false;
+                ApplyStockContractMutationPolicy(source + ":ReplenishCloseWindow");
+            }
+        }
+
+        /// <summary>
         /// Refreshes derived contract UI after local contract truth was already updated.
         /// Keep this separate from snapshot correctness so UI refreshes do not become the data model.
         /// </summary>
@@ -750,6 +832,27 @@ namespace LmpClient.Systems.ShareContracts
 
                 var main = ContractSystem.Instance.Contracts;
                 var fin = ContractSystem.Instance.ContractsFinished;
+
+                // Mission Control / ContractSystem call stock RefreshContracts very frequently; full inventory dumps
+                // spam the log unless we coalesce identical (main,finished) shapes for a short window.
+                var throttleMcDiag =
+                    tag.IndexOf("RefreshContracts:stock-postfix", StringComparison.Ordinal) >= 0 ||
+                    tag.IndexOf("RebuildContractList:stock-postfix", StringComparison.Ordinal) >= 0 ||
+                    tag.IndexOf(ContractSystemRefreshPersistentSyncBypassSource, StringComparison.Ordinal) >= 0;
+                if (throttleMcDiag)
+                {
+                    var sig = $"{main.Count}:{fin.Count}";
+                    var nowRt = Time.realtimeSinceStartup;
+                    if (string.Equals(sig, _mcDiagContractSystemRefreshThrottleSignature, StringComparison.Ordinal) &&
+                        nowRt - _mcDiagContractSystemRefreshThrottleRealtime < McDiagContractSystemRefreshThrottleSeconds)
+                    {
+                        return;
+                    }
+
+                    _mcDiagContractSystemRefreshThrottleSignature = sig;
+                    _mcDiagContractSystemRefreshThrottleRealtime = nowRt;
+                }
+
                 var warp = WarpSystem.Singleton;
                 var lockOwner = LockSystem.LockQuery.ContractLockOwner();
                 var lockSelf = LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName);
@@ -825,8 +928,58 @@ namespace LmpClient.Systems.ShareContracts
             }
         }
 
-        private static bool IsPersistentSyncSnapshotContractUiRefresh(string source) =>
-            string.Equals(source, "PersistentSyncSnapshotApply", StringComparison.Ordinal);
+        private static bool IsPersistentSyncSafeContractUiRefresh(string source) =>
+            string.Equals(source, "PersistentSyncSnapshotApply", StringComparison.Ordinal) ||
+            string.Equals(source, PersistentSyncPostTransientStockRefreshSource, StringComparison.Ordinal) ||
+            string.Equals(source, ContractSystemRefreshPersistentSyncBypassSource, StringComparison.Ordinal);
+
+        /// <summary>
+        /// Coalesces repeated "[PersistentSync] contract UI refresh" lines when the same adapter/source/counts
+        /// fire every frame during <see cref="ContractSystemRefreshPersistentSyncBypassSource"/> loops.
+        /// </summary>
+        private static bool ShouldLogPersistentSyncUiAdapterRefresh(string source, string adapterSuffix)
+        {
+            var cs = ContractSystem.Instance;
+            var offered = cs?.Contracts?.Count ?? -1;
+            var finished = cs?.ContractsFinished?.Count ?? -1;
+            var signature = $"{adapterSuffix}|{source}|{offered}:{finished}";
+            var now = Time.realtimeSinceStartup;
+            if (string.Equals(_persistentSyncUiAdapterLogSignature, signature, StringComparison.Ordinal) &&
+                now - _persistentSyncUiAdapterLogRealtime < PersistentSyncUiAdapterLogThrottleSeconds)
+            {
+                return false;
+            }
+
+            _persistentSyncUiAdapterLogSignature = signature;
+            _persistentSyncUiAdapterLogRealtime = now;
+            return true;
+        }
+
+        /// <summary>
+        /// When PersistentSync has applied the contracts snapshot, stock <see cref="ContractSystem.RefreshContracts"/>
+        /// is unsafe (it can wipe server-backed offers). Explicit replenish windows open
+        /// <see cref="_allowStockContractRefreshWindow"/> and must still run the original method.
+        /// </summary>
+        public bool ShouldBypassStockContractSystemRefreshForPersistentContracts()
+        {
+            if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
+            {
+                return false;
+            }
+
+            if (_allowStockContractRefreshWindow)
+            {
+                return false;
+            }
+
+            var ps = PersistentSyncSystem.Singleton;
+            if (ps == null || !ps.Enabled)
+            {
+                return false;
+            }
+
+            return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.Contracts);
+        }
 
         private static void RefreshContractLists(string source)
         {
@@ -837,25 +990,29 @@ namespace LmpClient.Systems.ShareContracts
 
             try
             {
-                var psApply = IsPersistentSyncSnapshotContractUiRefresh(source);
+                var psSafe = IsPersistentSyncSafeContractUiRefresh(source);
 
                 // RefreshContracts() asks stock to rebuild/regenerate the offer pool. After a PersistentSync snapshot
                 // we already replaced ContractSystem from server truth — calling RefreshContracts spawns duplicate
                 // ContractOffered events (same titles, new GUIDs) and thrashes Mission Control.
-                if (!psApply)
+                if (!psSafe)
                 {
                     InvokeOptionalMethod(ContractSystem.Instance, "RefreshContracts");
                 }
 
                 // Firing these after a snapshot makes stock think the contract DB was reloaded from disk and it will
                 // generate default progression offers on top of the synced list (tutorial-tier spam, duplicate titles).
-                if (!psApply)
+                if (!psSafe)
                 {
                     GameEvents.Contract.onContractsListChanged.Fire();
                     GameEvents.Contract.onContractsLoaded.Fire();
                 }
 
-                LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=contract-lists offered={ContractSystem.Instance.Contracts.Count} finished={ContractSystem.Instance.ContractsFinished.Count}");
+                if (ShouldLogPersistentSyncUiAdapterRefresh(source, "contract-lists"))
+                {
+                    LunaLog.Log(
+                        $"[PersistentSync] contract UI refresh source={source} adapter=contract-lists offered={ContractSystem.Instance.Contracts.Count} finished={ContractSystem.Instance.ContractsFinished.Count}");
+                }
             }
             catch (Exception e)
             {
@@ -872,7 +1029,7 @@ namespace LmpClient.Systems.ShareContracts
 
             try
             {
-                if (IsPersistentSyncSnapshotContractUiRefresh(source))
+                if (IsPersistentSyncSafeContractUiRefresh(source))
                 {
                     // OnContractsLoaded runs full stock reload logic; only rebuild the UI list from current ContractSystem.
                     InvokeOptionalMethod(ContractsApp.Instance, "CreateContractsList");
@@ -884,7 +1041,10 @@ namespace LmpClient.Systems.ShareContracts
                     InvokeOptionalMethod(ContractsApp.Instance, "OnContractsLoaded");
                 }
 
-                LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=contracts-app");
+                if (ShouldLogPersistentSyncUiAdapterRefresh(source, "contracts-app"))
+                {
+                    LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=contracts-app");
+                }
             }
             catch (Exception e)
             {
@@ -903,14 +1063,18 @@ namespace LmpClient.Systems.ShareContracts
             try
             {
                 LogMcUiContractInventory($"RefreshMissionControl:beforeInvoke source={source}");
-                if (!IsPersistentSyncSnapshotContractUiRefresh(source))
+                if (!IsPersistentSyncSafeContractUiRefresh(source))
                 {
                     InvokeOptionalMethod(MissionControl.Instance, "RefreshContracts");
                 }
 
                 InvokeOptionalMethod(MissionControl.Instance, "RebuildContractList");
                 InvokeOptionalMethod(MissionControl.Instance, "RefreshUIControls");
-                LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=mission-control");
+                if (ShouldLogPersistentSyncUiAdapterRefresh(source, "mission-control"))
+                {
+                    LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=mission-control");
+                }
+
                 LogMcUiContractInventory($"RefreshMissionControl:afterInvoke source={source}");
             }
             catch (Exception e)

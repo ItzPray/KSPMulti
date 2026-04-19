@@ -1,4 +1,5 @@
 using HarmonyLib;
+using System;
 using System.Linq;
 
 namespace LmpClient.Systems.PersistentSync
@@ -34,7 +35,26 @@ namespace LmpClient.Systems.PersistentSync
                 var saved = new ConfigNode();
                 instance.Save(saved);
                 Traverse.Create(proto).Field<ConfigNode>("moduleValues").Value = saved;
-                LunaLog.Log($"[PersistentSync] scenario proto mirror ok module={moduleName} reason={reason}");
+                if (string.Equals(moduleName, "ContractSystem", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        var contractNodes = saved.GetNodes("CONTRACT");
+                        LunaLog.Log(
+                            $"[PersistentSync] scenario proto mirror ok module={moduleName} reason={reason} " +
+                            $"CONTRACT_nodes={contractNodes?.Length ?? 0}");
+                    }
+                    catch (System.Exception shapeEx)
+                    {
+                        LunaLog.LogWarning(
+                            $"[PersistentSync] scenario proto mirror ok module={moduleName} reason={reason} " +
+                            $"(CONTRACT_nodes log failed: {shapeEx.Message})");
+                    }
+                }
+                else
+                {
+                    LunaLog.Log($"[PersistentSync] scenario proto mirror ok module={moduleName} reason={reason}");
+                }
             }
             catch (System.Exception ex)
             {
