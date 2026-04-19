@@ -102,6 +102,11 @@ namespace Server.System.PersistentSync
                     nextOrder++;
                 }
 
+                if (ShouldRejectIncomingOfferedDuplicateOfActive(normalizedRecord))
+                {
+                    continue;
+                }
+
                 if (RemoveOlderOfferedDuplicatesOf(normalizedRecord))
                 {
                     changed = true;
@@ -278,7 +283,7 @@ namespace Server.System.PersistentSync
         /// </summary>
         private bool RemoveOlderOfferedDuplicatesOf(ContractSnapshotInfo incoming)
         {
-            if (!TryBuildOfferedDedupKey(incoming, out var key))
+            if (!TryBuildContractIdentityKey(incoming, out var key))
             {
                 return false;
             }
@@ -291,7 +296,22 @@ namespace Server.System.PersistentSync
                     continue;
                 }
 
-                if (!TryBuildOfferedDedupKey(kv.Value, out var existingKey) || existingKey != key)
+                if (!TryBuildContractIdentityKey(kv.Value, out var existingKey) || existingKey != key)
+                {
+                    continue;
+                }
+
+                if (incoming.Placement == ContractSnapshotPlacement.Active)
+                {
+                    if (TryBuildOfferedDedupKey(kv.Value, out _))
+                    {
+                        toRemove.Add(kv.Key);
+                    }
+
+                    continue;
+                }
+
+                if (!TryBuildOfferedDedupKey(incoming, out _) || !TryBuildOfferedDedupKey(kv.Value, out _))
                 {
                     continue;
                 }
@@ -312,16 +332,40 @@ namespace Server.System.PersistentSync
             return true;
         }
 
-        private static bool TryBuildOfferedDedupKey(ContractSnapshotInfo info, out string key)
+        private bool ShouldRejectIncomingOfferedDuplicateOfActive(ContractSnapshotInfo incoming)
         {
-            key = null;
-            if (info.Placement != ContractSnapshotPlacement.Current)
+            if (!TryBuildOfferedDedupKey(incoming, out var key))
             {
                 return false;
             }
 
-            var state = (info.ContractState ?? string.Empty).Trim();
-            if (!IsOfferLikeContractState(state))
+            foreach (var kv in _contractsByGuid)
+            {
+                if (kv.Key == incoming.ContractGuid)
+                {
+                    continue;
+                }
+
+                if (kv.Value.Placement != ContractSnapshotPlacement.Active)
+                {
+                    continue;
+                }
+
+                if (!TryBuildContractIdentityKey(kv.Value, out var existingKey) || existingKey != key)
+                {
+                    continue;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryBuildContractIdentityKey(ContractSnapshotInfo info, out string key)
+        {
+            key = null;
+            if (info == null)
             {
                 return false;
             }
@@ -357,6 +401,23 @@ namespace Server.System.PersistentSync
             {
                 return false;
             }
+        }
+
+        private static bool TryBuildOfferedDedupKey(ContractSnapshotInfo info, out string key)
+        {
+            key = null;
+            if (info.Placement != ContractSnapshotPlacement.Current)
+            {
+                return false;
+            }
+
+            var state = (info.ContractState ?? string.Empty).Trim();
+            if (!IsOfferLikeContractState(state))
+            {
+                return false;
+            }
+
+            return TryBuildContractIdentityKey(info, out key);
         }
 
         private static bool IsOfferLikeContractState(string state)

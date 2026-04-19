@@ -175,8 +175,8 @@ namespace LmpClient.Systems.ShareContracts
                 return false;
             }
 
-            var normalized = ShareContractsSystem.NormalizeOfferTitleForDedupe(contract.Title);
-            if (string.IsNullOrEmpty(normalized))
+            var incomingKey = ShareContractsSystem.BuildRuntimeContractIdentityKey(contract);
+            if (string.IsNullOrEmpty(incomingKey))
             {
                 return false;
             }
@@ -188,14 +188,18 @@ namespace LmpClient.Systems.ShareContracts
                     continue;
                 }
 
-                if (!ShareContractsSystem.IsMissionControlOfferPoolContract(other))
+                var blocksOfferedDuplicate =
+                    other.ContractState == Contract.State.Active ||
+                    ShareContractsSystem.IsMissionControlOfferPoolContract(other);
+
+                if (!blocksOfferedDuplicate)
                 {
                     continue;
                 }
 
                 if (!string.Equals(
-                        ShareContractsSystem.NormalizeOfferTitleForDedupe(other.Title),
-                        normalized,
+                        ShareContractsSystem.BuildRuntimeContractIdentityKey(other),
+                        incomingKey,
                         StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -203,7 +207,7 @@ namespace LmpClient.Systems.ShareContracts
 
                 contract.Withdraw();
                 contract.Kill();
-                LunaLog.Log($"[PersistentSync] suppressed duplicate contract offer (same title as {other.ContractGuid}): {contract.Title}");
+                LunaLog.Log($"[PersistentSync] suppressed duplicate contract offer (same identity as {other.ContractGuid}, state={other.ContractState}): {contract.Title}");
                 return true;
             }
 

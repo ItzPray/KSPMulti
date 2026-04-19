@@ -304,6 +304,27 @@ namespace LmpClient.Systems.ShareContracts
         }
 
         /// <summary>
+        /// Runtime-side contract identity used to suppress stock re-offers of the same visible mission while another
+        /// canonical row (active or offered) already exists locally.
+        /// </summary>
+        public static string BuildRuntimeContractIdentityKey(Contract contract)
+        {
+            if (contract == null)
+            {
+                return string.Empty;
+            }
+
+            var type = contract.GetType().FullName ?? contract.GetType().Name;
+            var title = NormalizeOfferTitleForDedupe(contract.Title);
+            if (string.IsNullOrEmpty(type) || string.IsNullOrEmpty(title))
+            {
+                return string.Empty;
+            }
+
+            return string.Concat(type, "\u001f", title);
+        }
+
+        /// <summary>
         /// Non-active, non-finished contracts in the main list are Mission Control offer pool entries (not only strict Offered).
         /// </summary>
         public static bool IsMissionControlOfferPoolContract(Contract c)
