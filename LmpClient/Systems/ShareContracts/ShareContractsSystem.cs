@@ -1,5 +1,7 @@
 ﻿using Contracts;
 using KSP.UI.Screens;
+using LmpClient;
+using LmpClient.Base;
 using LmpClient.Events;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.PersistentSync;
@@ -8,7 +10,11 @@ using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
+using System.Text.RegularExpressions;
+using UnityEngine;
 
 namespace LmpClient.Systems.ShareContracts
 {
@@ -18,7 +24,22 @@ namespace LmpClient.Systems.ShareContracts
 
         private ShareContractsEvents ShareContractsEvents { get; } = new ShareContractsEvents();
 
+        /// <summary>
+        /// Contract offers received while time is not at ~1x; flushed when warp ends so stock generation bursts
+        /// do not each become a unique server-side contract (duplicate titles in Mission Control).
+        /// </summary>
+        private readonly Dictionary<Guid, Contract> _deferredContractOffers = new Dictionary<Guid, Contract>();
+
         public int DefaultContractGenerateIterations;
+
+        /// <summary>
+        /// Large <see cref="Planetarium.SetUniversalTime"/> jumps (subspace sync) make stock ContractSystem run its
+        /// progression offer pass many times in one frame when <see cref="ContractSystem.generateContractIterations"/> is
+        /// non-zero for the contract lock holder. Briefly zero iterations across the jump, then restore.
+        /// </summary>
+        private Coroutine _restoreContractGenerateIterationsCoroutine;
+
+        private int _savedGenerateContractIterationsForTimeJump;
 
         //This queue system is not used because we use one big queue in ShareCareerSystem for this system.
         protected override bool ShareSystemReady => true;
@@ -58,10 +79,23 @@ namespace LmpClient.Systems.ShareContracts
             GameEvents.Contract.onParameterChange.Add(ShareContractsEvents.ContractParameterChanged);
             GameEvents.Contract.onRead.Add(ShareContractsEvents.ContractRead);
             GameEvents.Contract.onSeen.Add(ShareContractsEvents.ContractSeen);
+
+            if (IsShareSystemApplicableForSession())
+            {
+                SetupRoutine(new RoutineDefinition(400, RoutineExecution.Update, FlushDeferredContractOffersIfReady));
+            }
         }
 
         protected override void OnDisabled()
         {
+            _deferredContractOffers.Clear();
+
+            if (_restoreContractGenerateIterationsCoroutine != null && MainSystem.Singleton != null)
+            {
+                MainSystem.Singleton.StopCoroutine(_restoreContractGenerateIterationsCoroutine);
+                _restoreContractGenerateIterationsCoroutine = null;
+            }
+
             base.OnDisabled();
 
             ContractSystem.generateContractIterations = DefaultContractGenerateIterations;
@@ -86,6 +120,191 @@ namespace LmpClient.Systems.ShareContracts
         }
 
         /// <summary>
+        /// Call immediately before <see cref="Planetarium.SetUniversalTime"/> when the jump is large (e.g. subspace
+        /// catch-up). Suppresses stock contract offer generation bursts that duplicate PersistentSync contract state.
+        /// </summary>
+        public void GuardStockContractGenerationAroundLargeUniversalTimeJump(double targetTick)
+        {
+            try
+            {
+                if (!IsShareSystemApplicableForSession())
+                {
+                    return;
+                }
+
+                if (PersistentSyncSystem.Singleton == null || !PersistentSyncSystem.Singleton.Enabled)
+                {
+                    return;
+                }
+
+                if (ContractSystem.Instance == null || MainSystem.Singleton == null)
+                {
+                    return;
+                }
+
+                var now = Planetarium.GetUniversalTime();
+                // Ignore tiny clock corrections; subspace / catch-up jumps are much larger.
+                if (Math.Abs(targetTick - now) < 600d)
+                {
+                    return;
+                }
+
+                _savedGenerateContractIterationsForTimeJump = ContractSystem.generateContractIterations;
+                ContractSystem.generateContractIterations = 0;
+
+                if (_restoreContractGenerateIterationsCoroutine != null)
+                {
+                    MainSystem.Singleton.StopCoroutine(_restoreContractGenerateIterationsCoroutine);
+                }
+
+                _restoreContractGenerateIterationsCoroutine =
+                    MainSystem.Singleton.StartCoroutine(RestoreContractGenerateIterationsAfterUniversalTimeJumpCoroutine());
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[PersistentSync] Guard contract generation around UT jump failed: {e}");
+            }
+        }
+
+        private IEnumerator RestoreContractGenerateIterationsAfterUniversalTimeJumpCoroutine()
+        {
+            yield return null;
+            yield return null;
+            yield return null;
+            try
+            {
+                if (ContractSystem.Instance != null)
+                {
+                    ContractSystem.generateContractIterations = _savedGenerateContractIterationsForTimeJump;
+                }
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[PersistentSync] Restore contract generate iterations after UT jump failed: {e}");
+            }
+
+            _restoreContractGenerateIterationsCoroutine = null;
+        }
+
+        /// <summary>
+        /// When time is warped above 1x, defer syncing this offer until clock returns to ~1x (see <see cref="FlushDeferredContractOffersIfReady"/>).
+        /// </summary>
+        public bool TryDeferContractOfferIfTimeWarping(Contract contract)
+        {
+            if (contract == null || !IsShareSystemApplicableForSession())
+            {
+                return false;
+            }
+
+            if (IsGameClockApproximatelyOneX())
+            {
+                return false;
+            }
+
+            _deferredContractOffers[contract.ContractGuid] = contract;
+            return true;
+        }
+
+        private void FlushDeferredContractOffersIfReady()
+        {
+            if (!IsShareSystemApplicableForSession() || _deferredContractOffers.Count == 0)
+            {
+                return;
+            }
+
+            if (!IsGameClockApproximatelyOneX())
+            {
+                return;
+            }
+
+            // Warp can queue many offers; keep one per normalized title so we do not spam the server.
+            var byNormalizedTitle = new Dictionary<string, Contract>(StringComparer.OrdinalIgnoreCase);
+            foreach (var contract in _deferredContractOffers.Values)
+            {
+                if (contract == null || !IsMissionControlOfferPoolContract(contract))
+                {
+                    continue;
+                }
+
+                var key = NormalizeOfferTitleForDedupe(contract.Title);
+                if (string.IsNullOrEmpty(key))
+                {
+                    continue;
+                }
+
+                byNormalizedTitle[key] = contract;
+            }
+
+            foreach (var contract in byNormalizedTitle.Values)
+            {
+                MessageSender.SendContractMessage(contract);
+            }
+
+            _deferredContractOffers.Clear();
+        }
+
+        /// <summary>
+        /// Collapses whitespace so two stock titles that only differ in spacing still dedupe.
+        /// </summary>
+        public static string NormalizeOfferTitleForDedupe(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return string.Empty;
+            }
+
+            return Regex.Replace(title.Trim(), @"\s+", " ");
+        }
+
+        /// <summary>
+        /// Non-active, non-finished contracts in the main list are Mission Control offer pool entries (not only strict Offered).
+        /// </summary>
+        public static bool IsMissionControlOfferPoolContract(Contract c)
+        {
+            if (c == null || c.IsFinished())
+            {
+                return false;
+            }
+
+            switch (c.ContractState)
+            {
+                case Contract.State.Active:
+                case Contract.State.Completed:
+                case Contract.State.Cancelled:
+                case Contract.State.Failed:
+                case Contract.State.DeadlineExpired:
+                    return false;
+                default:
+                    return true;
+            }
+        }
+
+        /// <summary>
+        /// Mirrors WarpSystem's "warp stopped" heuristic: on-rails index 0 and rate ~1.
+        /// </summary>
+        private static bool IsGameClockApproximatelyOneX()
+        {
+            try
+            {
+                if (TimeWarp.fetch == null)
+                {
+                    return true;
+                }
+
+                if (TimeWarp.CurrentRateIndex > 0)
+                {
+                    return false;
+                }
+
+                return Math.Abs(TimeWarp.CurrentRate - 1f) < 0.11f;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
         /// Try to acquire the contract lock
         /// </summary>
         public void TryGetContractLock()
@@ -103,9 +322,21 @@ namespace LmpClient.Systems.ShareContracts
         public void RefreshContractUiAdapters(string source)
         {
             RefreshContractLists(source);
+            // PersistentSync: do not touch ContractsApp / MissionControl here. Stock's CreateContractsList,
+            // RebuildContractList, and RefreshUIControls can schedule or immediately run offer generation on the
+            // contract-lock client; that fires onOffered after this snapshot's IgnoreEvents window ends, producing
+            // duplicate tutorial offers and endless snapshot revision churn.
+            if (IsPersistentSyncSnapshotContractUiRefresh(source))
+            {
+                return;
+            }
+
             RefreshContractsApp(source);
             RefreshMissionControl(source);
         }
+
+        private static bool IsPersistentSyncSnapshotContractUiRefresh(string source) =>
+            string.Equals(source, "PersistentSyncSnapshotApply", StringComparison.Ordinal);
 
         private static void RefreshContractLists(string source)
         {
@@ -116,9 +347,24 @@ namespace LmpClient.Systems.ShareContracts
 
             try
             {
-                InvokeOptionalMethod(ContractSystem.Instance, "RefreshContracts");
-                GameEvents.Contract.onContractsListChanged.Fire();
-                GameEvents.Contract.onContractsLoaded.Fire();
+                var psApply = IsPersistentSyncSnapshotContractUiRefresh(source);
+
+                // RefreshContracts() asks stock to rebuild/regenerate the offer pool. After a PersistentSync snapshot
+                // we already replaced ContractSystem from server truth — calling RefreshContracts spawns duplicate
+                // ContractOffered events (same titles, new GUIDs) and thrashes Mission Control.
+                if (!psApply)
+                {
+                    InvokeOptionalMethod(ContractSystem.Instance, "RefreshContracts");
+                }
+
+                // Firing these after a snapshot makes stock think the contract DB was reloaded from disk and it will
+                // generate default progression offers on top of the synced list (tutorial-tier spam, duplicate titles).
+                if (!psApply)
+                {
+                    GameEvents.Contract.onContractsListChanged.Fire();
+                    GameEvents.Contract.onContractsLoaded.Fire();
+                }
+
                 LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=contract-lists offered={ContractSystem.Instance.Contracts.Count} finished={ContractSystem.Instance.ContractsFinished.Count}");
             }
             catch (Exception e)
@@ -136,9 +382,18 @@ namespace LmpClient.Systems.ShareContracts
 
             try
             {
-                // OnContractsLoaded already calls CreateContractsList internally; invoking CreateContractsList again
-                // can NRE when stock UI is only partially constructed during PersistentSync flush.
-                InvokeOptionalMethod(ContractsApp.Instance, "OnContractsLoaded");
+                if (IsPersistentSyncSnapshotContractUiRefresh(source))
+                {
+                    // OnContractsLoaded runs full stock reload logic; only rebuild the UI list from current ContractSystem.
+                    InvokeOptionalMethod(ContractsApp.Instance, "CreateContractsList");
+                }
+                else
+                {
+                    // OnContractsLoaded already calls CreateContractsList internally; invoking CreateContractsList again
+                    // can NRE when stock UI is only partially constructed during PersistentSync flush.
+                    InvokeOptionalMethod(ContractsApp.Instance, "OnContractsLoaded");
+                }
+
                 LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=contracts-app");
             }
             catch (Exception e)
@@ -156,7 +411,11 @@ namespace LmpClient.Systems.ShareContracts
 
             try
             {
-                InvokeOptionalMethod(MissionControl.Instance, "RefreshContracts");
+                if (!IsPersistentSyncSnapshotContractUiRefresh(source))
+                {
+                    InvokeOptionalMethod(MissionControl.Instance, "RefreshContracts");
+                }
+
                 InvokeOptionalMethod(MissionControl.Instance, "RebuildContractList");
                 InvokeOptionalMethod(MissionControl.Instance, "RefreshUIControls");
                 LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=mission-control");

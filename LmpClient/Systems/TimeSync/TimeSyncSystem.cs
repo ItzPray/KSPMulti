@@ -3,6 +3,7 @@ using LmpClient.Events;
 using LmpClient.Extensions;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Systems.ShareContracts;
 using LmpClient.Systems.Warp;
 using LmpCommon.Time;
 using System;
@@ -207,6 +208,8 @@ namespace LmpClient.Systems.TimeSync
         /// </summary>
         public void SetGameTime(double targetTick)
         {
+            ShareContractsSystem.Singleton?.GuardStockContractGenerationAroundLargeUniversalTimeJump(targetTick);
+
             if (HighLogic.LoadedSceneIsFlight)
             {
                 //As we are syncing to a new game time, we must advance all the ship positions and put them in the correct orbit "epoch"

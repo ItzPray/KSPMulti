@@ -5,6 +5,8 @@ using LmpClient.Base;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.SettingsSys;
 using LmpCommon.Locks;
+using System;
+using System.Linq;
 
 namespace LmpClient.Systems.ShareContracts
 {
@@ -124,9 +126,19 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
+            if (TrySuppressDuplicateOfferByTitle(contract))
+            {
+                return;
+            }
+
             LunaLog.Log($"Contract offered: {contract.ContractGuid} - {contract.Title}");
 
             //This should be only called on the client with the contract lock, because it has the generationCount != 0.
+            if (System.TryDeferContractOfferIfTimeWarping(contract))
+            {
+                return;
+            }
+
             System.MessageSender.SendContractMessage(contract);
         }
 
@@ -146,6 +158,52 @@ namespace LmpClient.Systems.ShareContracts
         public void ContractSeen(Contract contract)
         {
             LunaLog.Log($"Contract seen:{contract.ContractGuid}");
+        }
+
+        /// <summary>
+        /// Stock sometimes offers the same mission title again (new GUID). Keep the first offered row and drop the new one
+        /// so we never sync duplicate titles to the server.
+        /// </summary>
+        private static bool TrySuppressDuplicateOfferByTitle(Contract contract)
+        {
+            if (contract == null || ContractSystem.Instance == null || !ShareContractsSystem.IsMissionControlOfferPoolContract(contract))
+            {
+                return false;
+            }
+
+            var normalized = ShareContractsSystem.NormalizeOfferTitleForDedupe(contract.Title);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return false;
+            }
+
+            foreach (var other in ContractSystem.Instance.Contracts.ToArray())
+            {
+                if (other == null || ReferenceEquals(other, contract))
+                {
+                    continue;
+                }
+
+                if (!ShareContractsSystem.IsMissionControlOfferPoolContract(other))
+                {
+                    continue;
+                }
+
+                if (!string.Equals(
+                        ShareContractsSystem.NormalizeOfferTitleForDedupe(other.Title),
+                        normalized,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                contract.Withdraw();
+                contract.Kill();
+                LunaLog.Log($"[PersistentSync] suppressed duplicate contract offer (same title as {other.ContractGuid}): {contract.Title}");
+                return true;
+            }
+
+            return false;
         }
 
         #endregion

@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Server.System.PersistentSync
 {
@@ -17,6 +18,8 @@ namespace Server.System.PersistentSync
         private const string ContractNodeName = "CONTRACT";
         private const string GuidFieldName = "guid";
         private const string StateFieldName = "state";
+        private const string TypeFieldName = "type";
+        private const string TitleFieldName = "title";
 
         private readonly Dictionary<Guid, ContractSnapshotInfo> _contractsByGuid = new Dictionary<Guid, ContractSnapshotInfo>();
 
@@ -96,6 +99,11 @@ namespace Server.System.PersistentSync
                 if (normalizedRecord.Order == nextOrder)
                 {
                     nextOrder++;
+                }
+
+                if (RemoveOlderOfferedDuplicatesOf(normalizedRecord))
+                {
+                    changed = true;
                 }
 
                 if (_contractsByGuid.TryGetValue(normalizedRecord.ContractGuid, out var existingRecord))
@@ -261,6 +269,127 @@ namespace Server.System.PersistentSync
                 NumBytes = source.NumBytes,
                 Data = data
             };
+        }
+
+        /// <summary>
+        /// Stock can offer the same career template many times during time warp (new GUID each tick). Collapse to one
+        /// offered row per contract type + title so Mission Control stays sane across clients.
+        /// </summary>
+        private bool RemoveOlderOfferedDuplicatesOf(ContractSnapshotInfo incoming)
+        {
+            if (!TryBuildOfferedDedupKey(incoming, out var key))
+            {
+                return false;
+            }
+
+            var toRemove = new List<Guid>();
+            foreach (var kv in _contractsByGuid)
+            {
+                if (kv.Key == incoming.ContractGuid)
+                {
+                    continue;
+                }
+
+                if (!TryBuildOfferedDedupKey(kv.Value, out var existingKey) || existingKey != key)
+                {
+                    continue;
+                }
+
+                toRemove.Add(kv.Key);
+            }
+
+            if (toRemove.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var g in toRemove)
+            {
+                _contractsByGuid.Remove(g);
+            }
+
+            return true;
+        }
+
+        private static bool TryBuildOfferedDedupKey(ContractSnapshotInfo info, out string key)
+        {
+            key = null;
+            if (info.Placement != ContractSnapshotPlacement.Current)
+            {
+                return false;
+            }
+
+            var state = (info.ContractState ?? string.Empty).Trim();
+            if (!IsOfferLikeContractState(state))
+            {
+                return false;
+            }
+
+            try
+            {
+                var text = Encoding.UTF8.GetString(info.Data, 0, info.NumBytes);
+                var contractNode = new ConfigNode(text);
+                var type = contractNode.GetValue(TypeFieldName)?.Value?.Trim()
+                           ?? TryReadContractLineValue(text, TypeFieldName);
+                // Serialized CONTRACT nodes sometimes omit `title` at the root; fall back to fields stock still writes.
+                var rawTitle = contractNode.GetValue(TitleFieldName)?.Value
+                               ?? TryReadContractLineValue(text, TitleFieldName)
+                               ?? TryReadContractLineValue(text, "Title")
+                               ?? contractNode.GetValue("synopsis")?.Value
+                               ?? TryReadContractLineValue(text, "synopsis")
+                               ?? contractNode.GetValue("notes")?.Value
+                               ?? TryReadContractLineValue(text, "notes")
+                               ?? contractNode.GetValue("description")?.Value
+                               ?? TryReadContractLineValue(text, "description");
+                var title = NormalizeOfferTitleForDedupe(rawTitle);
+                if (string.IsNullOrEmpty(type) || string.IsNullOrEmpty(title))
+                {
+                    return false;
+                }
+
+                key = string.Concat(type, "\u001f", title);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool IsOfferLikeContractState(string state)
+        {
+            return string.Equals(state, "Offered", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(state, "Available", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string TryReadContractLineValue(string configText, string key)
+        {
+            if (string.IsNullOrEmpty(configText) || string.IsNullOrEmpty(key))
+            {
+                return null;
+            }
+
+            var prefix = key + " = ";
+            foreach (var line in configText.Replace("\r\n", "\n").Split('\n'))
+            {
+                var trimmed = line.TrimStart();
+                if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return trimmed.Length > prefix.Length ? trimmed.Substring(prefix.Length).Trim() : string.Empty;
+                }
+            }
+
+            return null;
+        }
+
+        private static string NormalizeOfferTitleForDedupe(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return string.Empty;
+            }
+
+            return Regex.Replace(title.Trim(), @"\s+", " ");
         }
     }
 }

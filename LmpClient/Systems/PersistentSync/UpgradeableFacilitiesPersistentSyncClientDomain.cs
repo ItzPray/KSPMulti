@@ -356,7 +356,8 @@ namespace LmpClient.Systems.PersistentSync
         private static void RefreshFacilityAdapters()
         {
             KscSceneSystem.Singleton.RefreshTrackingStationVessels();
-            GameEvents.Contract.onContractsListChanged.Fire();
+            // Do not fire GameEvents.Contract.onContractsListChanged: stock interprets it as a contract reload and
+            // spawns fresh default offers (duplicate tutorial contracts) while PersistentSync already owns contract truth.
         }
     }
 }

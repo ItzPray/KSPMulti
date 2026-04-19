@@ -11,6 +11,7 @@ using LmpCommon.PersistentSync;
 using Strategies;
 using System;
 using System.Globalization;
+using System.Reflection;
 using UnityEngine;
 
 namespace LmpClient.Systems.ShareStrategy
@@ -59,8 +60,38 @@ namespace LmpClient.Systems.ShareStrategy
 
         public void RefreshStrategyUiAdapters(string source)
         {
-            if (Administration.Instance) Administration.Instance.RedrawPanels();
-            GameEvents.Contract.onContractsListChanged.Fire();
+            if (Administration.Instance)
+            {
+                Administration.Instance.RedrawPanels();
+            }
+
+            // Do not fire GameEvents.Contract.onContractsListChanged: stock treats it as "contract DB changed"
+            // and rebuilds default progression offers (tutorial-tier spam, new GUIDs) on top of synced MP state.
+            TryRefreshMissionControlContractListUiOnly();
+        }
+
+        /// <summary>
+        /// Refresh Mission Control list rows only — no global contract events (those re-trigger stock generation).
+        /// </summary>
+        private static void TryRefreshMissionControlContractListUiOnly()
+        {
+            if (MissionControl.Instance == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var t = MissionControl.Instance.GetType();
+                t.GetMethod("RebuildContractList", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    ?.Invoke(MissionControl.Instance, null);
+                t.GetMethod("RefreshUIControls", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    ?.Invoke(MissionControl.Instance, null);
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[LMP]: Mission Control UI refresh after strategy change failed: {e}");
+            }
         }
 
         public bool ApplyStrategySnapshot(StrategySnapshotInfo strategyInfo, string source, bool refreshUi)

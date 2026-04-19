@@ -55,9 +55,9 @@ namespace LmpClient.Systems.PersistentSync
             try
             {
                 ReplaceContractsFromSnapshot(_pendingContracts);
-                // Keep ShareContractsSystem ignoring events through UI refresh: RefreshContracts / onContractsLoaded
-                // can spawn stock offers for the contract-lock holder; each ContractOffered would otherwise send
-                // duplicate intents and inflate the server's offered list.
+                // Keep ShareContractsSystem ignoring events through UI refresh. RefreshContractUiAdapters skips
+                // ContractsApp/MissionControl for this source (those stock paths can spawn offers). We also avoid
+                // onContractsLoaded / RefreshContracts here — they regenerate default offers on top of server truth.
                 ShareContractsSystem.Singleton.RefreshContractUiAdapters("PersistentSyncSnapshotApply");
             }
             catch (Exception)
