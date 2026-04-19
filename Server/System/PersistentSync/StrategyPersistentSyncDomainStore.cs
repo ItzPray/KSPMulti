@@ -28,23 +28,26 @@ namespace Server.System.PersistentSync
         {
             _strategiesByName.Clear();
 
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            var strategiesNode = scenario.GetNode(StrategiesNodeName)?.Value;
-            if (strategiesNode == null)
-            {
-                return;
-            }
-
-            foreach (var strategyNode in strategiesNode.GetNodes(StrategyNodeName).Select(node => node.Value).Where(node => node != null))
-            {
-                var info = CreateSnapshotInfo(strategyNode);
-                if (info != null)
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    _strategiesByName[info.Name] = info;
+                    return;
+                }
+
+                var strategiesNode = scenario.GetNode(StrategiesNodeName)?.Value;
+                if (strategiesNode == null)
+                {
+                    return;
+                }
+
+                foreach (var strategyNode in strategiesNode.GetNodes(StrategyNodeName).Select(node => node.Value).Where(node => node != null))
+                {
+                    var info = CreateSnapshotInfo(strategyNode);
+                    if (info != null)
+                    {
+                        _strategiesByName[info.Name] = info;
+                    }
                 }
             }
         }
@@ -109,26 +112,29 @@ namespace Server.System.PersistentSync
 
         private void PersistCurrentState()
         {
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+                {
+                    return;
+                }
 
-            var strategiesNode = scenario.GetNode(StrategiesNodeName)?.Value;
-            if (strategiesNode == null)
-            {
-                strategiesNode = new ConfigNode(StrategiesNodeName, scenario);
-                scenario.AddNode(strategiesNode);
-            }
+                var strategiesNode = scenario.GetNode(StrategiesNodeName)?.Value;
+                if (strategiesNode == null)
+                {
+                    strategiesNode = new ConfigNode(StrategiesNodeName, scenario);
+                    scenario.AddNode(strategiesNode);
+                }
 
-            foreach (var existingNode in strategiesNode.GetNodes(StrategyNodeName).Select(node => node.Value).Where(node => node != null).ToArray())
-            {
-                strategiesNode.RemoveNode(existingNode);
-            }
+                foreach (var existingNode in strategiesNode.GetNodes(StrategyNodeName).Select(node => node.Value).Where(node => node != null).ToArray())
+                {
+                    strategiesNode.RemoveNode(existingNode);
+                }
 
-            foreach (var strategy in _strategiesByName.Values.OrderBy(value => value.Name))
-            {
-                strategiesNode.AddNode(CreateScenarioStrategyNode(strategy));
+                foreach (var strategy in _strategiesByName.Values.OrderBy(value => value.Name))
+                {
+                    strategiesNode.AddNode(CreateScenarioStrategyNode(strategy));
+                }
             }
         }
 

@@ -16,13 +16,16 @@ namespace Server.System.Scenario
             {
                 lock (Semaphore.GetOrAdd("ResearchAndDevelopment", new object()))
                 {
-                    if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ResearchAndDevelopment", out var scenario)) return;
-
-                    var techNodes = scenario.GetNodes("Tech").Select(v => v.Value);
-                    var specificTechNode = techNodes.FirstOrDefault(n => n.GetValue("id").Value == partPurchaseMsg.TechId);
-                    if (specificTechNode != null)
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
                     {
-                        specificTechNode.CreateValue(new CfgNodeValue<string, string>("part", partPurchaseMsg.PartName));
+                        if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ResearchAndDevelopment", out var scenario)) return;
+
+                        var techNodes = scenario.GetNodes("Tech").Select(v => v.Value);
+                        var specificTechNode = techNodes.FirstOrDefault(n => n.GetValue("id").Value == partPurchaseMsg.TechId);
+                        if (specificTechNode != null)
+                        {
+                            specificTechNode.CreateValue(new CfgNodeValue<string, string>("part", partPurchaseMsg.PartName));
+                        }
                     }
                 }
             });

@@ -30,24 +30,27 @@ namespace Server.System.PersistentSync
         {
             _technologyById.Clear();
 
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                LunaLog.Normal($"[PersistentSync] Technology LoadFromPersistence: scenario '{ScenarioName}' not found; starting empty");
-                return;
-            }
-
-            var scenarioTechNodeCount = scenario.GetNodes(TechNodeName).Count(node => node?.Value != null);
-
-            foreach (var techNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null))
-            {
-                var info = CreateSnapshotInfo(techNode);
-                if (info != null)
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    _technologyById[info.TechId] = info;
+                    LunaLog.Normal($"[PersistentSync] Technology LoadFromPersistence: scenario '{ScenarioName}' not found; starting empty");
+                    return;
                 }
-            }
 
-            LunaLog.Normal($"[PersistentSync] Technology LoadFromPersistence: scenarioTechNodes={scenarioTechNodeCount} loaded={_technologyById.Count} techIds=[{string.Join(",", _technologyById.Keys.OrderBy(k => k))}]");
+                var scenarioTechNodeCount = scenario.GetNodes(TechNodeName).Count(node => node?.Value != null);
+
+                foreach (var techNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null))
+                {
+                    var info = CreateSnapshotInfo(techNode);
+                    if (info != null)
+                    {
+                        _technologyById[info.TechId] = info;
+                    }
+                }
+
+                LunaLog.Normal($"[PersistentSync] Technology LoadFromPersistence: scenarioTechNodes={scenarioTechNodeCount} loaded={_technologyById.Count} techIds=[{string.Join(",", _technologyById.Keys.OrderBy(k => k))}]");
+            }
         }
 
         public PersistentSyncDomainSnapshot GetCurrentSnapshot()
@@ -113,54 +116,57 @@ namespace Server.System.PersistentSync
 
         private void PersistCurrentState()
         {
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            // Never replace entire Tech nodes: stock (and PartPurchasesPersistentSyncDomainStore) persist
-            // purchased parts as repeated "part = ..." values on the same Tech node. Our snapshot only
-            // carries id/state/cost — nuking nodes would drop part lines and break persistence across
-            // server restarts. Update scalars in place and preserve all non-scalar values (parts).
-            var techNodes = scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null).ToList();
-
-            var firstNodeByTechId = new Dictionary<string, ConfigNode>(StringComparer.Ordinal);
-            foreach (var node in techNodes)
-            {
-                var techId = node.GetValue(TechIdFieldName)?.Value;
-                if (string.IsNullOrEmpty(techId))
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    scenario.RemoveNode(node);
-                    continue;
+                    return;
                 }
 
-                if (firstNodeByTechId.ContainsKey(techId))
+                // Never replace entire Tech nodes: stock (and PartPurchasesPersistentSyncDomainStore) persist
+                // purchased parts as repeated "part = ..." values on the same Tech node. Our snapshot only
+                // carries id/state/cost — nuking nodes would drop part lines and break persistence across
+                // server restarts. Update scalars in place and preserve all non-scalar values (parts).
+                var techNodes = scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null).ToList();
+
+                var firstNodeByTechId = new Dictionary<string, ConfigNode>(StringComparer.Ordinal);
+                foreach (var node in techNodes)
                 {
-                    scenario.RemoveNode(node);
-                    continue;
+                    var techId = node.GetValue(TechIdFieldName)?.Value;
+                    if (string.IsNullOrEmpty(techId))
+                    {
+                        scenario.RemoveNode(node);
+                        continue;
+                    }
+
+                    if (firstNodeByTechId.ContainsKey(techId))
+                    {
+                        scenario.RemoveNode(node);
+                        continue;
+                    }
+
+                    firstNodeByTechId[techId] = node;
                 }
 
-                firstNodeByTechId[techId] = node;
-            }
-
-            foreach (var kvp in firstNodeByTechId.ToArray())
-            {
-                if (!_technologyById.ContainsKey(kvp.Key))
+                foreach (var kvp in firstNodeByTechId.ToArray())
                 {
-                    scenario.RemoveNode(kvp.Value);
-                    firstNodeByTechId.Remove(kvp.Key);
+                    if (!_technologyById.ContainsKey(kvp.Key))
+                    {
+                        scenario.RemoveNode(kvp.Value);
+                        firstNodeByTechId.Remove(kvp.Key);
+                    }
                 }
-            }
 
-            foreach (var technology in _technologyById.Values.OrderBy(value => value.TechId))
-            {
-                if (firstNodeByTechId.TryGetValue(technology.TechId, out var techNode))
+                foreach (var technology in _technologyById.Values.OrderBy(value => value.TechId))
                 {
-                    ApplyTechnologyScalarsToScenarioNode(techNode, technology);
-                }
-                else
-                {
-                    scenario.AddNode(CreateScenarioTechNode(technology));
+                    if (firstNodeByTechId.TryGetValue(technology.TechId, out var techNode))
+                    {
+                        ApplyTechnologyScalarsToScenarioNode(techNode, technology);
+                    }
+                    else
+                    {
+                        scenario.AddNode(CreateScenarioTechNode(technology));
+                    }
                 }
             }
         }

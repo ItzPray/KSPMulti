@@ -26,23 +26,26 @@ namespace Server.System.PersistentSync
         {
             _achievementsById.Clear();
 
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            var progressNodeText = ExtractNamedNodeText(scenario.ToString(), ProgressNodeName);
-            if (string.IsNullOrEmpty(progressNodeText))
-            {
-                return;
-            }
-
-            foreach (var childNodeText in SplitTopLevelNodes(progressNodeText))
-            {
-                var info = CreateSnapshotInfo(new ConfigNode(childNodeText));
-                if (info != null)
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    _achievementsById[info.Id] = info;
+                    return;
+                }
+
+                var progressNodeText = ExtractNamedNodeText(scenario.ToString(), ProgressNodeName);
+                if (string.IsNullOrEmpty(progressNodeText))
+                {
+                    return;
+                }
+
+                foreach (var childNodeText in SplitTopLevelNodes(progressNodeText))
+                {
+                    var info = CreateSnapshotInfo(new ConfigNode(childNodeText));
+                    if (info != null)
+                    {
+                        _achievementsById[info.Id] = info;
+                    }
                 }
             }
         }
@@ -107,20 +110,23 @@ namespace Server.System.PersistentSync
 
         private void PersistCurrentState()
         {
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+                {
+                    return;
+                }
 
-            // Universe saves can accumulate multiple top-level nodes named "Progress". GetNode() requires a
-            // unique key and throws MixedCollection GetSingle — remove every Progress wrapper, then add one.
-            foreach (var existing in scenario.GetNodes(ProgressNodeName).Select(n => n.Value).Where(n => n != null).ToArray())
-            {
-                scenario.RemoveNode(existing);
-            }
+                // Universe saves can accumulate multiple top-level nodes named "Progress". GetNode() requires a
+                // unique key and throws MixedCollection GetSingle — remove every Progress wrapper, then add one.
+                foreach (var existing in scenario.GetNodes(ProgressNodeName).Select(n => n.Value).Where(n => n != null).ToArray())
+                {
+                    scenario.RemoveNode(existing);
+                }
 
-            var progressNode = new ConfigNode(BuildProgressNodeText(_achievementsById.Values.OrderBy(value => value.Id)));
-            scenario.AddNode(progressNode);
+                var progressNode = new ConfigNode(BuildProgressNodeText(_achievementsById.Values.OrderBy(value => value.Id)));
+                scenario.AddNode(progressNode);
+            }
         }
 
         private static AchievementSnapshotInfo CreateSnapshotInfo(ConfigNode node)

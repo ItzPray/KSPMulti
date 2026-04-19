@@ -17,15 +17,24 @@ namespace Server.System
     {
         public static ConcurrentDictionary<string, ConfigNode> CurrentScenarios = new ConcurrentDictionary<string, ConfigNode>();
 
-        private static readonly object BackupLock = new object();
+        /// <summary>
+        /// Guards enumeration/serialization (<see cref="ConfigNode.ToString"/>) and in-place edits of scenario
+        /// <see cref="ConfigNode"/> trees in <see cref="CurrentScenarios"/> (PersistentSync persist, legacy scenario
+        /// updaters, backups). Without this, a background backup can enumerate nodes while another thread mutates
+        /// child collections, causing <see cref="System.InvalidOperationException"/> during backup.
+        /// </summary>
+        internal static readonly object ConfigTreeAccessLock = new object();
 
         /// <summary>
         /// Returns a scenario in the standard KSP format
         /// </summary>
         public static string GetScenarioInConfigNodeFormat(string scenarioName)
         {
-            return CurrentScenarios.TryGetValue(scenarioName, out var scenario) ?
-                scenario.ToString() : null;
+            lock (ConfigTreeAccessLock)
+            {
+                return CurrentScenarios.TryGetValue(scenarioName, out var scenario) ?
+                    scenario.ToString() : null;
+            }
         }
 
         /// <summary>
@@ -34,7 +43,7 @@ namespace Server.System
         public static void LoadExistingScenarios(bool createdFromScratch)
         {
             ChangeExistingScenarioFormats();
-            lock (BackupLock)
+            lock (ConfigTreeAccessLock)
             {
                 foreach (var file in Directory.GetFiles(ScenarioSystem.ScenariosPath).Where(f => Path.GetExtension(f) == ScenarioSystem.ScenarioFileFormat))
                 {
@@ -49,7 +58,7 @@ namespace Server.System
         /// </summary>
         public static void ChangeExistingScenarioFormats()
         {
-            lock (BackupLock)
+            lock (ConfigTreeAccessLock)
             {
                 foreach (var file in Directory.GetFiles(ScenarioSystem.ScenariosPath).Where(f => Path.GetExtension(f) == ".xml"))
                 {
@@ -65,7 +74,7 @@ namespace Server.System
         /// </summary>
         public static void BackupScenarios()
         {
-            lock (BackupLock)
+            lock (ConfigTreeAccessLock)
             {
                 var scenariosInXml = CurrentScenarios.ToArray();
                 foreach (var scenario in scenariosInXml)

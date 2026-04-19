@@ -14,9 +14,12 @@ namespace Server.System.Scenario
             {
                 lock (Semaphore.GetOrAdd("Funding", new object()))
                 {
-                    if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("Funding", out var scenario)) return;
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+                    {
+                        if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("Funding", out var scenario)) return;
 
-                    scenario.UpdateValue("funds", funds.ToString(CultureInfo.InvariantCulture));
+                        scenario.UpdateValue("funds", funds.ToString(CultureInfo.InvariantCulture));
+                    }
                 }
             });
         }

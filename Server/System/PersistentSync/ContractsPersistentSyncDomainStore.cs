@@ -31,24 +31,27 @@ namespace Server.System.PersistentSync
         {
             _contractsByGuid.Clear();
 
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            var contractsNode = scenario.GetNode(ContractsNodeName)?.Value;
-            if (contractsNode == null)
-            {
-                return;
-            }
-
-            var order = 0;
-            foreach (var contractNode in contractsNode.GetNodes(ContractNodeName).Select(n => n.Value).Where(n => n != null))
-            {
-                var snapshotInfo = CreateSnapshotInfo(contractNode, order++);
-                if (snapshotInfo != null)
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    _contractsByGuid[snapshotInfo.ContractGuid] = snapshotInfo;
+                    return;
+                }
+
+                var contractsNode = scenario.GetNode(ContractsNodeName)?.Value;
+                if (contractsNode == null)
+                {
+                    return;
+                }
+
+                var order = 0;
+                foreach (var contractNode in contractsNode.GetNodes(ContractNodeName).Select(n => n.Value).Where(n => n != null))
+                {
+                    var snapshotInfo = CreateSnapshotInfo(contractNode, order++);
+                    if (snapshotInfo != null)
+                    {
+                        _contractsByGuid[snapshotInfo.ContractGuid] = snapshotInfo;
+                    }
                 }
             }
         }
@@ -128,26 +131,29 @@ namespace Server.System.PersistentSync
 
         private void PersistCurrentState()
         {
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+                {
+                    return;
+                }
 
-            var contractsNode = scenario.GetNode(ContractsNodeName)?.Value;
-            if (contractsNode == null)
-            {
-                contractsNode = new ConfigNode(ContractsNodeName, scenario);
-                scenario.AddNode(contractsNode);
-            }
+                var contractsNode = scenario.GetNode(ContractsNodeName)?.Value;
+                if (contractsNode == null)
+                {
+                    contractsNode = new ConfigNode(ContractsNodeName, scenario);
+                    scenario.AddNode(contractsNode);
+                }
 
-            foreach (var existingContract in contractsNode.GetNodes(ContractNodeName).Select(n => n.Value).Where(n => n != null).ToArray())
-            {
-                contractsNode.RemoveNode(existingContract);
-            }
+                foreach (var existingContract in contractsNode.GetNodes(ContractNodeName).Select(n => n.Value).Where(n => n != null).ToArray())
+                {
+                    contractsNode.RemoveNode(existingContract);
+                }
 
-            foreach (var contract in GetOrderedContracts())
-            {
-                contractsNode.AddNode(DeserializeContractNode(contract));
+                foreach (var contract in GetOrderedContracts())
+                {
+                    contractsNode.AddNode(DeserializeContractNode(contract));
+                }
             }
         }
 

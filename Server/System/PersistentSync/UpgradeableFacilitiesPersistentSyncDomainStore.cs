@@ -44,33 +44,36 @@ namespace Server.System.PersistentSync
                 _facilityLevels[facilityId] = 0;
             }
 
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            foreach (var facilityId in KnownFacilityIds)
-            {
-                if (!UpgradeableFacilitiesScenarioNodes.TryGetFacilityNode(scenario, facilityId, out var facilityNode))
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    continue;
+                    return;
                 }
 
-                var rawValue = facilityNode.GetValue(LevelFieldName)?.Value;
-                if (string.IsNullOrEmpty(rawValue))
+                foreach (var facilityId in KnownFacilityIds)
                 {
-                    continue;
+                    if (!UpgradeableFacilitiesScenarioNodes.TryGetFacilityNode(scenario, facilityId, out var facilityNode))
+                    {
+                        continue;
+                    }
+
+                    var rawValue = facilityNode.GetValue(LevelFieldName)?.Value;
+                    if (string.IsNullOrEmpty(rawValue))
+                    {
+                        continue;
+                    }
+
+                    if (float.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedLevel))
+                    {
+                        _facilityLevels[facilityId] = DeserializePersistentLevel(parsedLevel);
+                    }
                 }
 
-                if (float.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedLevel))
+                if (createdFromScratch)
                 {
-                    _facilityLevels[facilityId] = DeserializePersistentLevel(parsedLevel);
+                    PersistCurrentState();
                 }
-            }
-
-            if (createdFromScratch)
-            {
-                PersistCurrentState();
             }
 
             LogFacilityLevelsSnapshot("LoadFromPersistence");
@@ -179,15 +182,18 @@ namespace Server.System.PersistentSync
 
         private void PersistCurrentState()
         {
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+                {
+                    return;
+                }
 
-            foreach (var facility in _facilityLevels.OrderBy(kvp => kvp.Key))
-            {
-                var lvlText = SerializePersistentLevel(facility.Value).ToString(CultureInfo.InvariantCulture);
-                UpgradeableFacilitiesScenarioNodes.EnsureFacilityLevelValue(scenario, facility.Key, lvlText);
+                foreach (var facility in _facilityLevels.OrderBy(kvp => kvp.Key))
+                {
+                    var lvlText = SerializePersistentLevel(facility.Value).ToString(CultureInfo.InvariantCulture);
+                    UpgradeableFacilitiesScenarioNodes.EnsureFacilityLevelValue(scenario, facility.Key, lvlText);
+                }
             }
         }
 

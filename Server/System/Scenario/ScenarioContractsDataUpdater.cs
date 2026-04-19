@@ -17,24 +17,27 @@ namespace Server.System.Scenario
             {
                 lock (Semaphore.GetOrAdd("ContractSystem", new object()))
                 {
-                    if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ContractSystem", out var scenario)) return;
-
-                    var scenariosParentNode = scenario.GetNode("CONTRACTS")?.Value;
-                    if (scenariosParentNode == null) return;
-
-                    var existingContracts = scenariosParentNode.GetNodes("CONTRACT").Select(c => c.Value).ToArray();
-                    if (existingContracts.Any())
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
                     {
-                        foreach (var contract in contractsMsg.Contracts.Select(v => new ConfigNode(Encoding.UTF8.GetString(v.Data, 0, v.NumBytes)) { Name = "CONTRACT" }))
+                        if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ContractSystem", out var scenario)) return;
+
+                        var scenariosParentNode = scenario.GetNode("CONTRACTS")?.Value;
+                        if (scenariosParentNode == null) return;
+
+                        var existingContracts = scenariosParentNode.GetNodes("CONTRACT").Select(c => c.Value).ToArray();
+                        if (existingContracts.Any())
                         {
-                            var specificContractNode = existingContracts.FirstOrDefault(n => n.GetValue("guid").Value == contract.GetValue("guid").Value);
-                            if (specificContractNode != null)
+                            foreach (var contract in contractsMsg.Contracts.Select(v => new ConfigNode(Encoding.UTF8.GetString(v.Data, 0, v.NumBytes)) { Name = "CONTRACT" }))
                             {
-                                scenariosParentNode.ReplaceNode(specificContractNode, contract);
-                            }
-                            else
-                            {
-                                scenariosParentNode.AddNode(contract);
+                                var specificContractNode = existingContracts.FirstOrDefault(n => n.GetValue("guid").Value == contract.GetValue("guid").Value);
+                                if (specificContractNode != null)
+                                {
+                                    scenariosParentNode.ReplaceNode(specificContractNode, contract);
+                                }
+                                else
+                                {
+                                    scenariosParentNode.AddNode(contract);
+                                }
                             }
                         }
                     }

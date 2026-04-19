@@ -15,10 +15,12 @@ namespace LmpClient.Harmony
     [HarmonyPatch(typeof(ScrollRect), "OnBeginDrag")]
     public class ScrollRect_OnBeginDrag_BlockLmpImgui
     {
+        /// <summary>Parameter name must match UnityEngine.UI.ScrollRect (Harmony injects by name).</summary>
         [HarmonyPrefix]
         private static bool Prefix(PointerEventData eventData)
         {
-            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer(eventData);
+            _ = eventData;
+            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer();
         }
     }
 
@@ -28,7 +30,8 @@ namespace LmpClient.Harmony
         [HarmonyPrefix]
         private static bool Prefix(PointerEventData eventData)
         {
-            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer(eventData);
+            _ = eventData;
+            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer();
         }
     }
 
@@ -38,17 +41,20 @@ namespace LmpClient.Harmony
         [HarmonyPrefix]
         private static bool Prefix(PointerEventData eventData)
         {
-            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer(eventData);
+            _ = eventData;
+            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer();
         }
     }
 
     [HarmonyPatch(typeof(ScrollRect), "OnScroll")]
     public class ScrollRect_OnScroll_BlockLmpImgui
     {
+        /// <summary>ScrollRect.OnScroll uses <c>data</c>, not <c>eventData</c> — name must match for Harmony.</summary>
         [HarmonyPrefix]
-        private static bool Prefix(PointerEventData eventData)
+        private static bool Prefix(PointerEventData data)
         {
-            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer(eventData);
+            _ = data;
+            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer();
         }
     }
 
@@ -61,7 +67,8 @@ namespace LmpClient.Harmony
         [HarmonyPrefix]
         private static bool Prefix(PointerEventData eventData)
         {
-            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer(eventData);
+            _ = eventData;
+            return !LmpFacilityImguiPointerBlock.ShouldSuppressFacilityUguiPointer();
         }
     }
 }

@@ -3,7 +3,6 @@ using LmpClient.Systems.SettingsSys;
 using LmpClient.Windows;
 using LmpCommon.Enums;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace LmpClient.Utilities
 {
@@ -18,12 +17,11 @@ namespace LmpClient.Utilities
 
         /// <summary>
         /// When true, Harmony should skip the patched uGUI handler (prefix returns false).
+        /// Hit-testing uses <see cref="WindowsHandler.MousePositionImGui"/> (same convention as window locks), not EventSystem data,
+        /// so prefixes need not inject Unity's mixed parameter names (<c>eventData</c> vs <c>data</c>).
         /// </summary>
-        /// <param name="eventData">Unused for hit-testing; IMGUI overlap uses <see cref="Input.mousePosition"/> (same as window locks).</param>
-        public static bool ShouldSuppressFacilityUguiPointer(PointerEventData eventData = null)
+        public static bool ShouldSuppressFacilityUguiPointer()
         {
-            _ = eventData;
-
             if (!PassesSceneAndSessionGates())
             {
                 return false;

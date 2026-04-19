@@ -14,10 +14,13 @@ namespace Server.System.Scenario
             {
                 lock (Semaphore.GetOrAdd("ScenarioDestructibles", new object()))
                 {
-                    if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ScenarioDestructibles", out var scenario)) return;
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+                    {
+                        if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ScenarioDestructibles", out var scenario)) return;
 
-                    var facilityNode = scenario.GetNode(facilityId).Value;
-                    facilityNode?.UpdateValue("intact", intact.ToString(CultureInfo.InvariantCulture));
+                        var facilityNode = scenario.GetNode(facilityId).Value;
+                        facilityNode?.UpdateValue("intact", intact.ToString(CultureInfo.InvariantCulture));
+                    }
                 }
             });
         }

@@ -15,14 +15,17 @@ namespace Server.System.Scenario
             {
                 lock (Semaphore.GetOrAdd("ScenarioUpgradeableFacilities", new object()))
                 {
-                    if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ScenarioUpgradeableFacilities", out var scenario)) return;
-
-                    if (!UpgradeableFacilitiesScenarioNodes.TryGetFacilityNode(scenario, facilityId, out var facilityNode))
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
                     {
-                        return;
-                    }
+                        if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ScenarioUpgradeableFacilities", out var scenario)) return;
 
-                    facilityNode.UpdateValue(UpgradeableFacilitiesScenarioNodes.LevelValueName, level.ToString(CultureInfo.InvariantCulture));
+                        if (!UpgradeableFacilitiesScenarioNodes.TryGetFacilityNode(scenario, facilityId, out var facilityNode))
+                        {
+                            return;
+                        }
+
+                        facilityNode.UpdateValue(UpgradeableFacilitiesScenarioNodes.LevelValueName, level.ToString(CultureInfo.InvariantCulture));
+                    }
                 }
             });
         }

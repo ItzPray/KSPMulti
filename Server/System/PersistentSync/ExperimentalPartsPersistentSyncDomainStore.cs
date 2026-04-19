@@ -26,22 +26,25 @@ namespace Server.System.PersistentSync
         {
             _partCounts.Clear();
 
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
-            if (expPartsNode == null)
-            {
-                return;
-            }
-
-            foreach (var value in expPartsNode.GetAllValues())
-            {
-                if (int.TryParse(value.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) && count > 0)
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    _partCounts[value.Key] = count;
+                    return;
+                }
+
+                var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
+                if (expPartsNode == null)
+                {
+                    return;
+                }
+
+                foreach (var value in expPartsNode.GetAllValues())
+                {
+                    if (int.TryParse(value.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) && count > 0)
+                    {
+                        _partCounts[value.Key] = count;
+                    }
                 }
             }
         }
@@ -118,36 +121,39 @@ namespace Server.System.PersistentSync
 
         private void PersistCurrentState()
         {
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
-            if (!_partCounts.Any())
-            {
-                if (expPartsNode != null)
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    scenario.RemoveNode(expPartsNode);
+                    return;
                 }
 
-                return;
-            }
+                var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
+                if (!_partCounts.Any())
+                {
+                    if (expPartsNode != null)
+                    {
+                        scenario.RemoveNode(expPartsNode);
+                    }
 
-            if (expPartsNode == null)
-            {
-                expPartsNode = new ConfigNode(ExpPartsNodeName, scenario);
-                scenario.AddNode(expPartsNode);
-            }
+                    return;
+                }
 
-            foreach (var existingValue in expPartsNode.GetAllValues().ToArray())
-            {
-                expPartsNode.RemoveValue(existingValue.Key);
-            }
+                if (expPartsNode == null)
+                {
+                    expPartsNode = new ConfigNode(ExpPartsNodeName, scenario);
+                    scenario.AddNode(expPartsNode);
+                }
 
-            foreach (var value in _partCounts.OrderBy(pair => pair.Key))
-            {
-                expPartsNode.CreateValue(new CfgNodeValue<string, string>(value.Key, value.Value.ToString(CultureInfo.InvariantCulture)));
+                foreach (var existingValue in expPartsNode.GetAllValues().ToArray())
+                {
+                    expPartsNode.RemoveValue(existingValue.Key);
+                }
+
+                foreach (var value in _partCounts.OrderBy(pair => pair.Key))
+                {
+                    expPartsNode.CreateValue(new CfgNodeValue<string, string>(value.Key, value.Value.ToString(CultureInfo.InvariantCulture)));
+                }
             }
         }
     }

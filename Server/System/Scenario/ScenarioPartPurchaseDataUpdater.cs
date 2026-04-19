@@ -16,33 +16,36 @@ namespace Server.System.Scenario
             {
                 lock (Semaphore.GetOrAdd("ResearchAndDevelopment", new object()))
                 {
-                    if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ResearchAndDevelopment", out var scenario)) return;
-
-                    var expPartNode = scenario.GetNode("ExpParts");
-                    if (expPartNode == null && experimentalPartMsg.Count > 0)
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
                     {
-                        scenario.AddNode(new ConfigNode("ExpParts", scenario));
-                        expPartNode = scenario.GetNode("ExpParts");
-                    }
+                        if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ResearchAndDevelopment", out var scenario)) return;
 
-                    var specificExpPart = expPartNode?.Value.GetValue(experimentalPartMsg.PartName);
-                    if (specificExpPart == null)
-                    {
-                        var newVal = new CfgNodeValue<string, string>(experimentalPartMsg.PartName,
-                            experimentalPartMsg.Count.ToString(CultureInfo.InvariantCulture));
+                        var expPartNode = scenario.GetNode("ExpParts");
+                        if (expPartNode == null && experimentalPartMsg.Count > 0)
+                        {
+                            scenario.AddNode(new ConfigNode("ExpParts", scenario));
+                            expPartNode = scenario.GetNode("ExpParts");
+                        }
 
-                        expPartNode?.Value.CreateValue(newVal);
-                    }
-                    else
-                    {
-                        if (experimentalPartMsg.Count == 0)
-                            expPartNode.Value.RemoveValue(specificExpPart.Key);
+                        var specificExpPart = expPartNode?.Value.GetValue(experimentalPartMsg.PartName);
+                        if (specificExpPart == null)
+                        {
+                            var newVal = new CfgNodeValue<string, string>(experimentalPartMsg.PartName,
+                                experimentalPartMsg.Count.ToString(CultureInfo.InvariantCulture));
+
+                            expPartNode?.Value.CreateValue(newVal);
+                        }
                         else
-                            specificExpPart.Value = experimentalPartMsg.Count.ToString(CultureInfo.InvariantCulture);
-                    }
+                        {
+                            if (experimentalPartMsg.Count == 0)
+                                expPartNode.Value.RemoveValue(specificExpPart.Key);
+                            else
+                                specificExpPart.Value = experimentalPartMsg.Count.ToString(CultureInfo.InvariantCulture);
+                        }
 
-                    if (expPartNode?.Value.GetAllValues().Count == 0)
-                        scenario.RemoveNode(expPartNode.Value);
+                        if (expPartNode?.Value.GetAllValues().Count == 0)
+                            scenario.RemoveNode(expPartNode.Value);
+                    }
                 }
             });
         }

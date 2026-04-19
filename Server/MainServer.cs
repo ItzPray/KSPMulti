@@ -47,6 +47,34 @@ namespace Server
 
                 Console.OutputEncoding = Encoding.UTF8;
 
+                AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+                {
+                    try
+                    {
+                        var ex = args.ExceptionObject as Exception;
+                        LunaLog.Fatal(ex != null
+                            ? $"Unhandled domain exception: {ex}"
+                            : $"Unhandled domain exception: {args.ExceptionObject}");
+                    }
+                    catch
+                    {
+                        // Avoid throwing from the handler.
+                    }
+                };
+
+                TaskScheduler.UnobservedTaskException += (_, args) =>
+                {
+                    try
+                    {
+                        LunaLog.Fatal($"Unobserved task exception: {args.Exception}");
+                        args.SetObserved();
+                    }
+                    catch
+                    {
+                        // Avoid throwing from the handler.
+                    }
+                };
+
                 LunaLog.Info("Remember! Quit the server by using 'Control + C' so a backup is properly made before closing!");
 
                 if (Common.PlatformIsWindows())

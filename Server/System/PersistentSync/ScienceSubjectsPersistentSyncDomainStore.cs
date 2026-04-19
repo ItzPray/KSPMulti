@@ -27,17 +27,20 @@ namespace Server.System.PersistentSync
         {
             _scienceSubjectById.Clear();
 
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            foreach (var subjectNode in scenario.GetNodes(ScienceNodeName).Select(node => node.Value).Where(node => node != null))
-            {
-                var info = CreateSnapshotInfo(subjectNode);
-                if (info != null)
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    _scienceSubjectById[info.Id] = info;
+                    return;
+                }
+
+                foreach (var subjectNode in scenario.GetNodes(ScienceNodeName).Select(node => node.Value).Where(node => node != null))
+                {
+                    var info = CreateSnapshotInfo(subjectNode);
+                    if (info != null)
+                    {
+                        _scienceSubjectById[info.Id] = info;
+                    }
                 }
             }
         }
@@ -102,19 +105,22 @@ namespace Server.System.PersistentSync
 
         private void PersistCurrentState()
         {
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+                {
+                    return;
+                }
 
-            foreach (var existingNode in scenario.GetNodes(ScienceNodeName).Select(node => node.Value).Where(node => node != null).ToArray())
-            {
-                scenario.RemoveNode(existingNode);
-            }
+                foreach (var existingNode in scenario.GetNodes(ScienceNodeName).Select(node => node.Value).Where(node => node != null).ToArray())
+                {
+                    scenario.RemoveNode(existingNode);
+                }
 
-            foreach (var subject in _scienceSubjectById.Values.OrderBy(value => value.Id))
-            {
-                scenario.AddNode(new ConfigNode(Encoding.UTF8.GetString(subject.Data, 0, subject.NumBytes)) { Name = ScienceNodeName });
+                foreach (var subject in _scienceSubjectById.Values.OrderBy(value => value.Id))
+                {
+                    scenario.AddNode(new ConfigNode(Encoding.UTF8.GetString(subject.Data, 0, subject.NumBytes)) { Name = ScienceNodeName });
+                }
             }
         }
 

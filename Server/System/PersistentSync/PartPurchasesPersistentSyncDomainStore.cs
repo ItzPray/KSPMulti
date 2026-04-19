@@ -27,27 +27,30 @@ namespace Server.System.PersistentSync
         {
             _partNamesByTechId.Clear();
 
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            foreach (var techNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null))
-            {
-                var techId = techNode.GetValue(TechIdFieldName)?.Value;
-                if (string.IsNullOrEmpty(techId))
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    continue;
+                    return;
                 }
 
-                var parts = new HashSet<string>(
-                    techNode.GetValues(TechPartFieldName).Select(value => value.Value).Where(value => !string.IsNullOrEmpty(value)),
-                    StringComparer.Ordinal);
-                // Omit techs with no persisted purchases: including them produced all-empty PartNames entries in
-                // snapshots and the client overwrote every tech's partsPurchased with an empty list.
-                if (parts.Count > 0)
+                foreach (var techNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null))
                 {
-                    _partNamesByTechId[techId] = parts;
+                    var techId = techNode.GetValue(TechIdFieldName)?.Value;
+                    if (string.IsNullOrEmpty(techId))
+                    {
+                        continue;
+                    }
+
+                    var parts = new HashSet<string>(
+                        techNode.GetValues(TechPartFieldName).Select(value => value.Value).Where(value => !string.IsNullOrEmpty(value)),
+                        StringComparer.Ordinal);
+                    // Omit techs with no persisted purchases: including them produced all-empty PartNames entries in
+                    // snapshots and the client overwrote every tech's partsPurchased with an empty list.
+                    if (parts.Count > 0)
+                    {
+                        _partNamesByTechId[techId] = parts;
+                    }
                 }
             }
         }
@@ -120,28 +123,31 @@ namespace Server.System.PersistentSync
 
         private void PersistCurrentState()
         {
-            if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
-                return;
-            }
-
-            foreach (var techNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null))
-            {
-                var techId = techNode.GetValue(TechIdFieldName)?.Value;
-                if (string.IsNullOrEmpty(techId) || !_partNamesByTechId.TryGetValue(techId, out var parts))
+                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
-                    // Do not strip existing part= lines for techs we are not tracking (was wiping stock parts).
-                    continue;
+                    return;
                 }
 
-                while (techNode.GetValues(TechPartFieldName).Any())
+                foreach (var techNode in scenario.GetNodes(TechNodeName).Select(node => node.Value).Where(node => node != null))
                 {
-                    techNode.RemoveValue(TechPartFieldName);
-                }
+                    var techId = techNode.GetValue(TechIdFieldName)?.Value;
+                    if (string.IsNullOrEmpty(techId) || !_partNamesByTechId.TryGetValue(techId, out var parts))
+                    {
+                        // Do not strip existing part= lines for techs we are not tracking (was wiping stock parts).
+                        continue;
+                    }
 
-                foreach (var partName in parts.OrderBy(value => value))
-                {
-                    techNode.CreateValue(new CfgNodeValue<string, string>(TechPartFieldName, partName));
+                    while (techNode.GetValues(TechPartFieldName).Any())
+                    {
+                        techNode.RemoveValue(TechPartFieldName);
+                    }
+
+                    foreach (var partName in parts.OrderBy(value => value))
+                    {
+                        techNode.CreateValue(new CfgNodeValue<string, string>(TechPartFieldName, partName));
+                    }
                 }
             }
         }

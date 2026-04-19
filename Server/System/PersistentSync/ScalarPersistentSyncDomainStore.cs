@@ -3,15 +3,12 @@ using LmpCommon.PersistentSync;
 using LmpCommon.Message.Data.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.System;
-using System.Collections.Concurrent;
 using System.Globalization;
 
 namespace Server.System.PersistentSync
 {
     public abstract class ScalarPersistentSyncDomainStore<T> : IPersistentSyncServerDomain
     {
-        private static readonly ConcurrentDictionary<string, object> ScenarioLocks = new ConcurrentDictionary<string, object>();
-
         public abstract PersistentSyncDomainId DomainId { get; }
         public abstract PersistentAuthorityPolicy AuthorityPolicy { get; }
         protected abstract string ScenarioName { get; }
@@ -24,7 +21,7 @@ namespace Server.System.PersistentSync
         {
             CurrentValue = GetStartingValue();
 
-            lock (ScenarioLocks.GetOrAdd(ScenarioName, _ => new object()))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
                 if (ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {
@@ -117,7 +114,7 @@ namespace Server.System.PersistentSync
 
         private void PersistCurrentValue()
         {
-            lock (ScenarioLocks.GetOrAdd(ScenarioName, _ => new object()))
+            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
             {
                 if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
                 {

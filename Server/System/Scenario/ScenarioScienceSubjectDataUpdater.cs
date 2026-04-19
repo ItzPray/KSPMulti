@@ -17,20 +17,23 @@ namespace Server.System.Scenario
             {
                 lock (Semaphore.GetOrAdd("ResearchAndDevelopment", new object()))
                 {
-                    if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ResearchAndDevelopment", out var scenario)) return;
-
-                    var receivedNode = new ConfigNode(Encoding.UTF8.GetString(scienceSubject.Data, 0, scienceSubject.NumBytes)) { Parent = scenario, Name = "Science" };
-                    if (receivedNode.IsEmpty()) return;
-
-                    var techNodes = scenario.GetNodes("Science").Select(v => v.Value);
-                    var specificTechNode = techNodes.FirstOrDefault(n => n.GetValue("id").Value == receivedNode.GetValue("id").Value);
-                    if (specificTechNode != null)
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
                     {
-                        scenario.ReplaceNode(specificTechNode, receivedNode);
-                    }
-                    else
-                    {
-                        scenario.AddNode(receivedNode);
+                        if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ResearchAndDevelopment", out var scenario)) return;
+
+                        var receivedNode = new ConfigNode(Encoding.UTF8.GetString(scienceSubject.Data, 0, scienceSubject.NumBytes)) { Parent = scenario, Name = "Science" };
+                        if (receivedNode.IsEmpty()) return;
+
+                        var techNodes = scenario.GetNodes("Science").Select(v => v.Value);
+                        var specificTechNode = techNodes.FirstOrDefault(n => n.GetValue("id").Value == receivedNode.GetValue("id").Value);
+                        if (specificTechNode != null)
+                        {
+                            scenario.ReplaceNode(specificTechNode, receivedNode);
+                        }
+                        else
+                        {
+                            scenario.AddNode(receivedNode);
+                        }
                     }
                 }
             });

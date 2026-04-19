@@ -190,6 +190,54 @@ namespace LmpClient
             }
         }
 
+        /// <summary>
+        /// Last lines as plain text for an IMGUI <see cref="UnityEngine.GUI.TextArea"/>. Unity does not reliably
+        /// support click-drag selection when <see cref="GUIStyle.richText"/> is enabled on the text area style.
+        /// </summary>
+        public static string GetRecentLogPlainTextTailForDisplay(int maxLines)
+        {
+            if (maxLines <= 0)
+            {
+                return string.Empty;
+            }
+
+            lock (LogHistoryLock)
+            {
+                if (LogHistory.Count == 0)
+                {
+                    return string.Empty;
+                }
+
+                var start = LogHistory.Count <= maxLines ? 0 : LogHistory.Count - maxLines;
+                var sb = new StringBuilder(maxLines * 80);
+                for (var i = start; i < LogHistory.Count; i++)
+                {
+                    if (i > start)
+                    {
+                        sb.Append('\n');
+                    }
+
+                    var line = LogHistory[i];
+                    sb.Append(PlainSeverityPrefix(line.Type)).Append(line.Text);
+                }
+
+                return sb.ToString();
+            }
+        }
+
+        private static string PlainSeverityPrefix(LogType type)
+        {
+            switch (type)
+            {
+                case LogType.Error:
+                    return "[E] ";
+                case LogType.Warning:
+                    return "[W] ";
+                default:
+                    return "[I] ";
+            }
+        }
+
         private static void AppendLogHistory(LogType type, string line)
         {
             lock (LogHistoryLock)

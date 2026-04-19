@@ -14,9 +14,12 @@ namespace Server.System.Scenario
             {
                 lock (Semaphore.GetOrAdd("ResearchAndDevelopment", new object()))
                 {
-                    if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ResearchAndDevelopment", out var scenario)) return;
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+                    {
+                        if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("ResearchAndDevelopment", out var scenario)) return;
 
-                    scenario.UpdateValue("sci", sciencePoints.ToString(CultureInfo.InvariantCulture));
+                        scenario.UpdateValue("sci", sciencePoints.ToString(CultureInfo.InvariantCulture));
+                    }
                 }
             });
         }

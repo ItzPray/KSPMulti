@@ -15,6 +15,7 @@ using LmpClient.Systems.ModApi;
 using LmpClient.Systems.Network;
 using LmpClient.Systems.Scenario;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Systems.Toolbar;
 using LmpClient.Systems.Warp;
 using LmpClient.Utilities;
 using LmpClient.Windows;
@@ -197,6 +198,7 @@ namespace LmpClient
             LocalizationContainer.LoadLanguage(SettingsSystem.CurrentSettings.Language);
 
             SystemsHandler.FillUpSystemsList();
+            ToolbarEvents.TryRegisterImmediatelyIfLauncherReady();
             WindowsHandler.FillUpWindowsList();
 
             ModApiSystem.Singleton.Enabled = true;

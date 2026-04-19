@@ -1,6 +1,7 @@
 ﻿using Lidgren.Network;
 using LmpCommon.Message;
 using Server.Client;
+using Server.Log;
 using Server.Server;
 using Server.Settings.Structures;
 using System;
@@ -45,6 +46,7 @@ namespace Server.Context
 
         public static void Shutdown(string reason)
         {
+            LunaLog.Normal($"Shutdown: {reason}");
             MessageQueuer.SendConnectionEndToAll(reason);
             Thread.Sleep(250);
             ServerStarting = false;

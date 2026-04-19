@@ -14,9 +14,12 @@ namespace Server.System.Scenario
             {
                 lock (Semaphore.GetOrAdd("Reputation", new object()))
                 {
-                    if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("Reputation", out var scenario)) return;
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+                    {
+                        if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue("Reputation", out var scenario)) return;
 
-                    scenario.UpdateValue("rep", reputationPoints.ToString(CultureInfo.InvariantCulture));
+                        scenario.UpdateValue("rep", reputationPoints.ToString(CultureInfo.InvariantCulture));
+                    }
                 }
             });
         }

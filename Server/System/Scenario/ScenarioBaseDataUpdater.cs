@@ -25,7 +25,10 @@ namespace Server.System.Scenario
                 var scenario = new ConfigNode(scenarioAsConfigNode);
                 lock (Semaphore.GetOrAdd(scenarioModule, new object()))
                 {
-                    ScenarioStoreSystem.CurrentScenarios.AddOrUpdate(scenarioModule, scenario, (key, existingVal) => scenario);
+                    lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+                    {
+                        ScenarioStoreSystem.CurrentScenarios.AddOrUpdate(scenarioModule, scenario, (key, existingVal) => scenario);
+                    }
                 }
             });
         }
