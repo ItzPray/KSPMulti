@@ -80,5 +80,9 @@ namespace Server.Settings.Definition
 
         [XmlComment(Value = "Max number of parts that a vessel can have when spawning")]
         public int MaxVesselParts { get; set; } = 200;
+
+        [XmlComment(Value = "Max outbound messages queued per client before oldest are dropped. " +
+                            "Protects server RAM if sends fall behind (e.g. snapshot storms). 0 = unlimited (legacy). Default 65536.")]
+        public int MaxOutboundSendQueuePerClient { get; set; } = 65536;
     }
 }

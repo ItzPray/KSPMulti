@@ -1,6 +1,8 @@
 ﻿using LmpCommon.Message.Interface;
 using Server.Client;
 using Server.Context;
+using Server.Log;
+using Server.Settings.Structures;
 using System.Linq;
 
 namespace Server.Server
@@ -93,8 +95,32 @@ namespace Server.Server
         private static void SendToClient(ClientStructure client, IServerMessageBase msg)
         {
             if (msg?.Data == null) return;
+            if (client == null) return;
 
-            client?.SendMessageQueue.Enqueue(msg);
+            var max = GeneralSettings.SettingsStore.MaxOutboundSendQueuePerClient;
+            if (max > 0)
+            {
+                // ConcurrentQueue is unbounded; without a cap a slow client or send thread can grow RAM without limit.
+                const int maxDrainIterations = 262144;
+                var drops = 0;
+                while (client.SendMessageQueue.Count >= max && drops < maxDrainIterations && client.SendMessageQueue.TryDequeue(out _))
+                {
+                    drops++;
+                }
+
+                if (drops > 0)
+                {
+                    LunaLog.Warning($"[MessageQueuer] send queue cap={max} client={client.PlayerName}: dropped {drops} oldest message(s) to bound memory");
+                }
+
+                if (client.SendMessageQueue.Count >= max)
+                {
+                    LunaLog.Error($"[MessageQueuer] send queue still at or above cap={max} after drain budget for client={client.PlayerName}; dropping newest message to avoid unbounded growth");
+                    return;
+                }
+            }
+
+            client.SendMessageQueue.Enqueue(msg);
         }
 
         private static T GenerateMessage<T>(IMessageData data) where T : class, IServerMessageBase
