@@ -58,6 +58,83 @@ namespace LmpClient.Systems.ShareTechnology
             LunaLog.Log($"{RnDUiDiagPrefix} {message}");
         }
 
+        /// <summary>
+        /// <see cref="TechnologyPersistentSyncClientDomain.SyncRnDTechTreeFromResearchInstance"/> only updates
+        /// <see cref="RnDTechTree.GetTreeTechs"/> entries; the side panel often reads <see cref="RDTech"/> off
+        /// <see cref="RDNode"/> (a different instance). Copying <see cref="ResearchAndDevelopment.Instance"/> state for
+        /// <paramref name="techId"/> onto every matching <see cref="RDTech"/> avoids stale purchase affordances without
+        /// re-syncing the entire tree (which can wipe other nodes when Instance is sparse).
+        /// </summary>
+        private static void MirrorResearchInstanceOntoUiRdtForTech(string techId)
+        {
+            if (string.IsNullOrEmpty(techId) || ResearchAndDevelopment.Instance == null || AssetBase.RnDTechTree == null)
+            {
+                return;
+            }
+
+            var saved = ResearchAndDevelopment.Instance.GetTechState(techId);
+            if (saved == null)
+            {
+                return;
+            }
+
+            foreach (var candidate in AssetBase.RnDTechTree.GetTreeTechs())
+            {
+                if (candidate == null || !string.Equals(TryGetTreeNodeTechId(candidate), techId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if ((object)candidate is RDTech rd)
+                {
+                    MirrorSavedProtoOntoRdt(rd, saved);
+                }
+            }
+
+            try
+            {
+                foreach (var node in UnityEngine.Object.FindObjectsOfType<RDNode>())
+                {
+                    if (node == null || TryGetTechIdFromRdNode(node) != techId)
+                    {
+                        continue;
+                    }
+
+                    MirrorSavedProtoOntoRdt(TryGetRdtFromRdNode(node), saved);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static void MirrorSavedProtoOntoRdt(RDTech tech, ProtoTechNode saved)
+        {
+            if (tech == null || saved == null)
+            {
+                return;
+            }
+
+            tech.state = saved.state;
+            tech.scienceCost = saved.scienceCost;
+            if (tech.partsPurchased == null)
+            {
+                return;
+            }
+
+            tech.partsPurchased.Clear();
+            if (saved.partsPurchased != null)
+            {
+                foreach (var part in saved.partsPurchased)
+                {
+                    if (part != null)
+                    {
+                        tech.partsPurchased.Add(part);
+                    }
+                }
+            }
+        }
+
         protected override bool ShareSystemReady => ResearchAndDevelopment.Instance != null;
 
         protected override GameMode RelevantGameModes => GameMode.Career | GameMode.Science;
@@ -171,8 +248,8 @@ namespace LmpClient.Systems.ShareTechnology
         }
 
         /// <summary>
-        /// Harmony postfix on <see cref="ResearchAndDevelopment.RefreshTechTreeUI"/>: schedule a short delayed recovery
-        /// when the player just researched a tech locally (see <see cref="RegisterLocalResearchTechForSidePanelReselect"/>).
+        /// Harmony postfix on <see cref="ResearchAndDevelopment.RefreshTechTreeUI"/>: re-select and refresh immediately
+        /// so the researched node does not sit cleared for a visible delay.
         /// </summary>
         public static void NotifyStockRefreshTechTreeUiCompleted()
         {
@@ -195,11 +272,8 @@ namespace LmpClient.Systems.ShareTechnology
                 return;
             }
 
-            RnDUiDiag($"NotifyStockRefreshTechTreeUiCompleted: schedule RecoverRnDUiAfterStockTreeFlush in 0.12s techId={techId}");
-            CoroutineUtil.StartDelayedRoutine(
-                RnDRecoverAfterStockTreeRoutine,
-                () => RecoverRnDUiAfterStockTreeFlush(techId),
-                0.12f);
+            RnDUiDiag($"NotifyStockRefreshTechTreeUiCompleted: immediate RecoverRnDUiAfterStockTreeFlush techId={techId}");
+            RecoverRnDUiAfterStockTreeFlush(techId);
         }
 
         private static void RecoverRnDUiAfterStockTreeFlush(string techId)
@@ -217,6 +291,8 @@ namespace LmpClient.Systems.ShareTechnology
                 RnDUiDiag("RecoverRnDUiAfterStockTreeFlush: abort RDController.Instance=null");
                 return;
             }
+
+            MirrorResearchInstanceOntoUiRdtForTech(techId);
 
             var treeTech = TryResolveRdtForTechId(techId);
             if (treeTech == null)
@@ -783,6 +859,58 @@ namespace LmpClient.Systems.ShareTechnology
             }
         }
 
+        private static RDNode TryGetRdControllerRdNodeMember(RDController controller, params string[] memberNames)
+        {
+            if (!controller || memberNames == null || memberNames.Length == 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                var t = controller.GetType();
+                while (t != null)
+                {
+                    foreach (var name in memberNames)
+                    {
+                        var f = t.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                        if (f != null && typeof(RDNode).IsAssignableFrom(f.FieldType))
+                        {
+                            return f.GetValue(controller) as RDNode;
+                        }
+
+                        var p = t.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                        if (p != null && p.CanRead && p.GetIndexParameters().Length == 0 &&
+                            typeof(RDNode).IsAssignableFrom(p.PropertyType))
+                        {
+                            return p.GetValue(controller, null) as RDNode;
+                        }
+                    }
+
+                    t = t.BaseType;
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
+        private static bool TryGetSelectedTechIdFromRdController(RDController controller, out string selectedTechId)
+        {
+            selectedTechId = null;
+            var n = TryGetRdControllerRdNodeMember(
+                controller,
+                "node_selected",
+                "selectedNode",
+                "selected_node",
+                "m_nodeSelected",
+                "m_selectedNode");
+            selectedTechId = TryGetTechIdFromRdNode(n);
+            return !string.IsNullOrEmpty(selectedTechId);
+        }
+
         /// <summary>
         /// Re-run stock selection for <paramref name="techId"/> without consuming the pending id (used after snapshots).
         /// </summary>
@@ -818,6 +946,8 @@ namespace LmpClient.Systems.ShareTechnology
                 return;
             }
 
+            MirrorResearchInstanceOntoUiRdtForTech(techId);
+
             var treeTech = TryResolveRdtForTechId(techId);
             if (treeTech != null)
             {
@@ -848,13 +978,25 @@ namespace LmpClient.Systems.ShareTechnology
                 return;
             }
 
-            if (TryInvokeRdNodeUiActivate(rdNode))
+            // Stock wires the tree node click to *toggle* selection. Calling onClick again when this tech is already
+            // selected clears the node and empties the side panel (empty → one good frame → empty).
+            var alreadySelectedThisTech = TryGetSelectedTechIdFromRdController(controller, out var selectedTechId) &&
+                                          string.Equals(selectedTechId, techId, StringComparison.Ordinal);
+
+            if (!alreadySelectedThisTech && TryInvokeRdNodeUiActivate(rdNode))
             {
                 RnDUiDiag($"{tag}: RDNode Button.onClick.Invoke returned true");
                 return;
             }
 
-            RnDUiDiag($"{tag}: RDNode button invoke path missed");
+            if (alreadySelectedThisTech)
+            {
+                RnDUiDiag($"{tag}: skip RDNode Button.onClick (already selected; avoids stock toggle-off)");
+            }
+            else
+            {
+                RnDUiDiag($"{tag}: RDNode button invoke path missed");
+            }
 
             if (TryInvokeRdControllerSingleArg(controller, rdNode, out var viaNode))
             {
