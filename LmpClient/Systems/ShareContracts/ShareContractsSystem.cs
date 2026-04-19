@@ -136,8 +136,9 @@ namespace LmpClient.Systems.ShareContracts
 
             try
             {
+                // OnContractsLoaded already calls CreateContractsList internally; invoking CreateContractsList again
+                // can NRE when stock UI is only partially constructed during PersistentSync flush.
                 InvokeOptionalMethod(ContractsApp.Instance, "OnContractsLoaded");
-                InvokeOptionalMethod(ContractsApp.Instance, "CreateContractsList");
                 LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=contracts-app");
             }
             catch (Exception e)

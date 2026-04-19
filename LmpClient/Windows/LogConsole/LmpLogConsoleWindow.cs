@@ -24,8 +24,8 @@ namespace LmpClient.Windows.LogConsole
         private static int _lastRenderedLineCount;
 
         /// <summary>
-        /// Cached rich log body; refreshed when <see cref="LunaLog.GetHistoryRevision"/> changes so drag-select
-        /// works without rebuilding the string every IMGUI frame.
+        /// Cached IMGUI log body (Unity rich text with per-line severity colors); refreshed when
+        /// <see cref="LunaLog.GetHistoryRevision"/> changes so drag-select works without rebuilding every frame.
         /// </summary>
         private static string _logRichDisplayBuffer = string.Empty;
 
@@ -33,11 +33,6 @@ namespace LmpClient.Windows.LogConsole
 
         /// <summary>Mutable backing string for <see cref="GUI.TextArea"/> so IMGUI can keep cursor/selection state.</summary>
         private static string _logTextAreaState = string.Empty;
-
-        /// <summary>Cached plain slice passed to IMGUI (see <see cref="GetPlainTextForImguiTextArea"/>).</summary>
-        private static string _logPlainForImguiCache;
-
-        private static int _logPlainForImguiCacheRevision = int.MinValue;
 
         private static GUIStyle _logBodyStyle;
         private static GUIStyle _toolbarLabelStyle;
@@ -62,8 +57,6 @@ namespace LmpClient.Windows.LogConsole
             _pendingLogAutoscroll = true;
             _logScroll = Vector2.zero;
             _logTextAreaState = string.Empty;
-            _logPlainForImguiCache = null;
-            _logPlainForImguiCacheRevision = int.MinValue;
         }
 
         protected override bool Resizable => true;
@@ -153,8 +146,8 @@ namespace LmpClient.Windows.LogConsole
             _logBodyStyle.hover.textColor = _logBodyStyle.normal.textColor;
             _logBodyStyle.active.textColor = _logBodyStyle.normal.textColor;
             _logBodyStyle.focused.textColor = _logBodyStyle.normal.textColor;
-            // Rich text on TextArea prevents reliable drag-to-select; body uses LunaLog.GetRecentLogPlainTextTailForDisplay.
-            _logBodyStyle.richText = false;
+            // Rich text: per-line color tags from LunaLog (errors red). Tail is capped under ImguiTextAreaMaxUtf16CodeUnits.
+            _logBodyStyle.richText = true;
 
             if (_logConsoleFieldBackground == null)
             {

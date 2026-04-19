@@ -9,43 +9,9 @@ namespace LmpClient.Windows.LogConsole
         private static bool _pendingLogAutoscroll;
 
         /// <summary>
-        /// Unity IMGUI text uses 16-bit mesh indices (~16383 UTF-16 code units). Longer strings break caret, hit
-        /// tests, and selection painting. We show a tail slice in the TextArea; use Copy all for the full history.
-        /// </summary>
-        private const int ImguiTextAreaCharacterSafetyLimit = 15800;
-
-        private static string BuildImguiSafePlainText(string full)
-        {
-            if (string.IsNullOrEmpty(full) || full.Length <= ImguiTextAreaCharacterSafetyLimit)
-            {
-                return full;
-            }
-
-            const string banner = "[... older log omitted (Unity ~16k char limit); use Copy all ...]\n";
-            var budget = ImguiTextAreaCharacterSafetyLimit - banner.Length;
-            if (budget < 512)
-            {
-                budget = 512;
-            }
-
-            return banner + full.Substring(full.Length - budget);
-        }
-
-        private static string GetPlainTextForImguiCached(string fullTailPlain, int historyRevision)
-        {
-            if (historyRevision == _logPlainForImguiCacheRevision && _logPlainForImguiCache != null)
-            {
-                return _logPlainForImguiCache;
-            }
-
-            _logPlainForImguiCacheRevision = historyRevision;
-            _logPlainForImguiCache = BuildImguiSafePlainText(fullTailPlain);
-            return _logPlainForImguiCache;
-        }
-
-        /// <summary>
         /// Log body must stay read-only. IMGUI TextArea still accepts typing unless we consume mutation events
-        /// (including Paste/Cut from ExecuteCommand).
+        /// (including Paste/Cut from ExecuteCommand). Unity IMGUI has a ~16k UTF-16 limit per TextArea; LunaLog caps
+        /// the rich tail by whole lines—use Copy all for the full history.
         /// </summary>
         private static void BlockLogConsoleBodyTextInput()
         {
@@ -154,19 +120,18 @@ namespace LmpClient.Windows.LogConsole
             var historyRev = LunaLog.GetHistoryRevision();
             if (historyRev != _logRichDisplayRevision)
             {
-                _logRichDisplayBuffer = LunaLog.GetRecentLogPlainTextTailForDisplay(2500);
+                _logRichDisplayBuffer = LunaLog.GetRecentLogRichTextTailForDisplay(2500, LunaLog.ImguiTextAreaMaxUtf16CodeUnits);
                 if (string.IsNullOrEmpty(_logRichDisplayBuffer))
                 {
-                    _logRichDisplayBuffer = "(no LMP log lines yet)";
+                    _logRichDisplayBuffer = "<color=#DCE6F0>(no LMP log lines yet)</color>";
                 }
 
                 _logRichDisplayRevision = historyRev;
                 // New buffer length vs. old scroll max would clamp scroll.y past real content → blank view.
                 _logScroll = Vector2.zero;
-                _logPlainForImguiCacheRevision = int.MinValue;
             }
 
-            var textForImgui = GetPlainTextForImguiCached(_logRichDisplayBuffer, historyRev);
+            var textForImgui = _logRichDisplayBuffer;
 
             var lineCount = LunaLog.GetLogHistoryLineCount();
             if (_autoScrollToEnd && Event.current.type == EventType.Layout && lineCount != _lastRenderedLineCount)

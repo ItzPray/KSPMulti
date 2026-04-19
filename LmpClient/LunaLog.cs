@@ -50,6 +50,11 @@ namespace LmpClient
 
         private static readonly List<HistoryLine> LogHistory = new List<HistoryLine>(512);
 
+        /// <summary>
+        /// Unity IMGUI text mesh index limit (~16383 UTF-16 code units). Keep TextArea buffers at or below this.
+        /// </summary>
+        public const int ImguiTextAreaMaxUtf16CodeUnits = 15800;
+
         #endregion
 
         #region Logging methods
@@ -158,7 +163,17 @@ namespace LmpClient
         /// </summary>
         public static string GetRecentLogRichTextTailForDisplay(int maxLines)
         {
-            if (maxLines <= 0)
+            return GetRecentLogRichTextTailForDisplay(maxLines, int.MaxValue);
+        }
+
+        /// <summary>
+        /// Last lines as Unity IMGUI rich text (per-line color by severity), newest-first within the UTF-16 budget
+        /// so tags are never split. When <paramref name="maxUtf16CodeUnits"/> is reached, older lines are dropped
+        /// from the head of the tail window.
+        /// </summary>
+        public static string GetRecentLogRichTextTailForDisplay(int maxLines, int maxUtf16CodeUnits)
+        {
+            if (maxLines <= 0 || maxUtf16CodeUnits <= 0)
             {
                 return string.Empty;
             }
@@ -170,24 +185,95 @@ namespace LmpClient
                     return string.Empty;
                 }
 
-                var start = LogHistory.Count <= maxLines ? 0 : LogHistory.Count - maxLines;
-                var sb = new StringBuilder(maxLines * 80);
-                for (var i = start; i < LogHistory.Count; i++)
+                var earliestIndex = LogHistory.Count <= maxLines ? 0 : LogHistory.Count - maxLines;
+
+                if (maxUtf16CodeUnits == int.MaxValue)
                 {
-                    if (i > start)
+                    var sb = new StringBuilder((LogHistory.Count - earliestIndex) * 80);
+                    for (var i = earliestIndex; i < LogHistory.Count; i++)
                     {
-                        sb.Append('\n');
+                        if (i > earliestIndex)
+                        {
+                            sb.Append('\n');
+                        }
+
+                        AppendRichHistoryLine(sb, LogHistory[i]);
                     }
 
-                    var line = LogHistory[i];
-                    var hex = ColorHexForHistory(line.Type);
-                    sb.Append("<color=").Append(hex).Append('>')
-                        .Append(EscapeForUnityRichText(line.Text))
-                        .Append("</color>");
+                    return sb.ToString();
                 }
 
-                return sb.ToString();
+                var segments = new List<string>(64);
+                var total = 0;
+                for (var i = LogHistory.Count - 1; i >= earliestIndex; i--)
+                {
+                    var line = LogHistory[i];
+                    var seg = BuildFullRichHistoryLine(line);
+                    var addLen = seg.Length + (segments.Count > 0 ? 1 : 0);
+                    if (addLen > maxUtf16CodeUnits)
+                    {
+                        if (segments.Count > 0)
+                        {
+                            break;
+                        }
+
+                        seg = BuildTruncatedRichHistoryLine(line, maxUtf16CodeUnits);
+                        addLen = seg.Length;
+                    }
+
+                    if (total + addLen > maxUtf16CodeUnits)
+                    {
+                        break;
+                    }
+
+                    segments.Add(seg);
+                    total += addLen;
+                }
+
+                if (segments.Count == 0)
+                {
+                    return string.Empty;
+                }
+
+                segments.Reverse();
+                return string.Join("\n", segments.ToArray());
             }
+        }
+
+        private static void AppendRichHistoryLine(StringBuilder sb, HistoryLine line)
+        {
+            var hex = ColorHexForHistory(line.Type);
+            sb.Append("<color=").Append(hex).Append('>')
+                .Append(EscapeForUnityRichText(line.Text))
+                .Append("</color>");
+        }
+
+        private static string BuildFullRichHistoryLine(HistoryLine line)
+        {
+            var sb = new StringBuilder(line.Text.Length + 48);
+            AppendRichHistoryLine(sb, line);
+            return sb.ToString();
+        }
+
+        private static string BuildTruncatedRichHistoryLine(HistoryLine line, int maxUtf16)
+        {
+            var hex = ColorHexForHistory(line.Type);
+            var open = "<color=" + hex + ">";
+            var close = "</color>";
+            var innerBudget = maxUtf16 - open.Length - close.Length;
+            if (innerBudget < 4)
+            {
+                return "<color=#DCE6F0>…</color>";
+            }
+
+            var inner = EscapeForUnityRichText(line.Text);
+            if (inner.Length <= innerBudget)
+            {
+                return open + inner + close;
+            }
+
+            inner = inner.Substring(0, innerBudget - 1) + "…";
+            return open + inner + close;
         }
 
         /// <summary>

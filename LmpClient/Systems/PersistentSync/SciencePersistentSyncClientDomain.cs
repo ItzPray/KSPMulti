@@ -365,7 +365,8 @@ namespace LmpClient.Systems.PersistentSync
                     ResearchAndDevelopment.Instance.SetTechState(tech.techID, techState);
                 }
 
-                SharePurchasePartsSystem.Singleton.RefreshPurchaseUiAdapters("PersistentSyncSnapshotApply");
+                // R&D UI refresh is coalesced with Technology flush (same reconciler pass) — see ShareTechnologySystem.SchedulePersistentSyncRnDUiCoalescedRefresh.
+                ShareTechnologySystem.Singleton.SchedulePersistentSyncRnDUiCoalescedRefresh(false);
 
                 TechnologyPersistentSyncClientDomain.SyncRnDTechTreeFromResearchInstance();
                 TechnologyPersistentSyncClientDomain.EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded("PartPurchasesFlush");
@@ -499,7 +500,7 @@ namespace LmpClient.Systems.PersistentSync
 
             if (RDController.Instance != null)
             {
-                ShareTechnologySystem.Singleton.RefreshResearchAndDevelopmentUiAdapters("PersistentSyncSnapshotApply");
+                ShareTechnologySystem.Singleton.SchedulePersistentSyncRnDUiCoalescedRefresh(true);
             }
             else
             {

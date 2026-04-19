@@ -2,6 +2,7 @@
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Utilities;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using System;
@@ -11,6 +12,25 @@ namespace LmpClient.Systems.ShareTechnology
     public class ShareTechnologySystem : ShareProgressBaseSystem<ShareTechnologySystem, ShareTechnologyMessageSender, ShareTechnologyMessageHandler>
     {
         public override string SystemName { get; } = nameof(ShareTechnologySystem);
+
+        private const string RdControllerUpdatePanelRetryRoutine = nameof(ShareTechnologySystem) + ".RdControllerUpdatePanelRetry";
+
+        private const string PsRnDCoalescedRefreshRoutine = nameof(ShareTechnologySystem) + ".PsRnDCoalescedRefresh";
+
+        /// <summary>
+        /// Stock <see cref="RDController.UpdatePanel"/> can NRE for many frames after RnDComplex spawn; two frames was not enough in practice.
+        /// </summary>
+        private const int RdControllerUpdatePanelMaxAttempts = 24;
+
+        /// <summary>
+        /// After this many frames, run one coalesced PersistentSync R&amp;D UI refresh so stock can finish wiring
+        /// <see cref="RDController"/> after <see cref="ResearchAndDevelopment.RefreshTechTreeUI"/>.
+        /// </summary>
+        private const int PersistentSyncRnDUiCoalescedFramesDelay = 8;
+
+        private static bool _persistentSyncRnDUiRefreshScheduled;
+
+        private static bool _persistentSyncRnDUiRefreshWantsTechTreeReload;
 
         private ShareTechnologyEvents ShareTechnologyEvents { get; } = new ShareTechnologyEvents();
 
@@ -40,8 +60,65 @@ namespace LmpClient.Systems.ShareTechnology
         {
             base.OnDisabled();
 
+            _persistentSyncRnDUiRefreshScheduled = false;
+            _persistentSyncRnDUiRefreshWantsTechTreeReload = false;
+
             //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
             GameEvents.OnTechnologyResearched.Remove(ShareTechnologyEvents.TechnologyResearched);
+        }
+
+        /// <summary>
+        /// PersistentSync often applies <see cref="PersistentSyncDomainId.Technology"/> and <see cref="PersistentSyncDomainId.PartPurchases"/>
+        /// in the same <see cref="PersistentSync.PersistentSyncReconciler.FlushPendingState"/> pass. Each domain used to call
+        /// into <see cref="RDController"/> immediately while the R&amp;D complex UI is still being built, which doubled
+        /// <see cref="RDController.UpdatePanel"/> traffic and could NRE for the entire retry window. Merge into one deferred refresh.
+        /// </summary>
+        public void SchedulePersistentSyncRnDUiCoalescedRefresh(bool wantsTechTreeReload)
+        {
+            if (!Enabled)
+            {
+                return;
+            }
+
+            _persistentSyncRnDUiRefreshWantsTechTreeReload |= wantsTechTreeReload;
+            if (_persistentSyncRnDUiRefreshScheduled)
+            {
+                return;
+            }
+
+            _persistentSyncRnDUiRefreshScheduled = true;
+            CoroutineUtil.StartFrameDelayedRoutine(PsRnDCoalescedRefreshRoutine, RunPersistentSyncRnDUiCoalescedRefresh, PersistentSyncRnDUiCoalescedFramesDelay);
+        }
+
+        private static void RunPersistentSyncRnDUiCoalescedRefresh()
+        {
+            // Allow Schedule(...) to queue another pass while this run executes (same-thread re-entrancy safe).
+            _persistentSyncRnDUiRefreshScheduled = false;
+
+            var wantsTree = _persistentSyncRnDUiRefreshWantsTechTreeReload;
+            _persistentSyncRnDUiRefreshWantsTechTreeReload = false;
+
+            var sys = Singleton;
+            if (sys == null || !sys.Enabled)
+            {
+                return;
+            }
+
+            if (RDController.Instance != null)
+            {
+                if (wantsTree)
+                {
+                    sys.RefreshResearchAndDevelopmentUiAdapters("PersistentSyncSnapshotApply");
+                }
+                else
+                {
+                    sys.RefreshResearchAndDevelopmentPurchasesOnly("PersistentSyncSnapshotApply");
+                }
+            }
+            else
+            {
+                sys.RefreshEditorAfterTechSnapshot("PersistentSyncSnapshotApply");
+            }
         }
 
         /// <summary>
@@ -108,18 +185,56 @@ namespace LmpClient.Systems.ShareTechnology
                 return;
             }
 
+            TryRefreshResearchAndDevelopmentControllerPartUiCore(source, controller, updatePanelAttempt: 0);
+        }
+
+        private static void TryRefreshResearchAndDevelopmentControllerPartUiCore(string source, RDController controller, int updatePanelAttempt)
+        {
             try
             {
-                try
+                // Re-running Refresh every frame can interact badly with half-built stock UI; retry passes only nudge UpdatePanel.
+                if (updatePanelAttempt == 0)
                 {
-                    controller.partList.Refresh();
-                }
-                catch
-                {
-                    // Stock RDPartList.SetupParts can throw when no RDNode is selected yet; skip noisy failures.
+                    try
+                    {
+                        controller.partList.Refresh();
+                    }
+                    catch
+                    {
+                        // Stock RDPartList.SetupParts can throw when no RDNode is selected yet; skip noisy failures.
+                    }
                 }
 
-                controller.UpdatePanel();
+                try
+                {
+                    controller.UpdatePanel();
+                }
+                catch (NullReferenceException)
+                {
+                    if (updatePanelAttempt + 1 >= RdControllerUpdatePanelMaxAttempts)
+                    {
+                        // Stock can keep NRE-ing here while the tree + RnD tech state are already correct (RefreshTechTreeUI /
+                        // proto mirror). UpdatePanel is best-effort for the side panel; do not log as a hard failure.
+                        LunaLog.Log(
+                            $"[PersistentSync] technology UI refresh: skipped RDController.UpdatePanel after {RdControllerUpdatePanelMaxAttempts} null-ref attempts " +
+                            $"(side panel is optional; tech-tree + R&D state sync already ran) source={source}");
+                        return;
+                    }
+
+                    var nextAttempt = updatePanelAttempt + 1;
+                    CoroutineUtil.StartFrameDelayedRoutine($"{RdControllerUpdatePanelRetryRoutine}_{nextAttempt}", () =>
+                    {
+                        var c = RDController.Instance;
+                        if (!c || !c.partList)
+                        {
+                            return;
+                        }
+
+                        TryRefreshResearchAndDevelopmentControllerPartUiCore(source, c, nextAttempt);
+                    }, 1);
+                    return;
+                }
+
                 LunaLog.Log($"[PersistentSync] technology UI refresh source={source} adapter=rd-controller");
             }
             catch (Exception e)
