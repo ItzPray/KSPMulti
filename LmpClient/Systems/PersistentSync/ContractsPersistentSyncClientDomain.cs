@@ -56,11 +56,18 @@ namespace LmpClient.Systems.PersistentSync
 
             try
             {
+                // LevelLoaded / lock / warp queue a deferred stock RefreshContracts pass. If it runs after we apply
+                // the server snapshot it regenerates starter missions from local ProgressTracking and stacks them on
+                // top of synced offers (duplicate "completed" starters in Available + truncated list until Accept).
+                ShareContractsSystem.Singleton.CancelPendingControlledStockContractRefresh("PersistentSyncSnapshotApply:PreReplace");
+
                 ReplaceContractsFromSnapshot(_pendingContracts);
-                // Keep ShareContractsSystem ignoring events through UI refresh. RefreshContractUiAdapters skips
-                // ContractsApp/MissionControl for this source (those stock paths can spawn offers). We also avoid
-                // onContractsLoaded / RefreshContracts here — they regenerate default offers on top of server truth.
+                ShareContractsSystem.LogMcUiContractInventory("PersistentSyncSnapshotApply:afterReplaceContractsFromSnapshot");
+                // Keep ShareContractsSystem ignoring events through UI refresh. RefreshContractUiAdapters uses
+                // psApply-safe paths (no RefreshContracts / contract GameEvents) while rebuilding ContractsApp and
+                // Mission Control lists from the already-replaced ContractSystem model.
                 ShareContractsSystem.Singleton.RefreshContractUiAdapters("PersistentSyncSnapshotApply");
+                ShareContractsSystem.Singleton.CancelPendingControlledStockContractRefresh("PersistentSyncSnapshotApply:PostUi");
                 ShareContractsSystem.Singleton.NotifyAuthoritativeContractsSnapshotApplied("PersistentSyncSnapshotApply");
             }
             catch (Exception)
@@ -105,20 +112,103 @@ namespace LmpClient.Systems.PersistentSync
                     continue;
                 }
 
-                switch (contractInfo.Placement)
+                // Finished: runtime terminal states (and snapshot-safe archive semantics).
+                if (ShouldPlaceInContractsFinished(contract))
                 {
-                    case ContractSnapshotPlacement.Finished:
-                        contract.Unregister();
-                        ContractSystem.Instance.ContractsFinished.Add(contract);
-                        break;
-                    case ContractSnapshotPlacement.Active:
-                        ContractSystem.Instance.Contracts.Add(contract);
-                        contract.Register();
-                        break;
-                    default:
-                        ContractSystem.Instance.Contracts.Add(contract);
-                        break;
+                    contract.Unregister();
+                    ContractSystem.Instance.ContractsFinished.Add(contract);
                 }
+                // Active: trust snapshot metadata when Contract.Load still leaves Offered/Available — otherwise MC
+                // lists active contracts under "available" until some unrelated Accept forces a full refresh.
+                else if (IsSnapshotOrRuntimeActive(contract, contractInfo))
+                {
+                    ContractSystem.Instance.Contracts.Add(contract);
+                    if (NeedsAcceptToRestoreActiveFromSnapshot(contract, contractInfo))
+                    {
+                        try
+                        {
+                            contract.Accept();
+                        }
+                        catch (Exception e)
+                        {
+                            LunaLog.LogError($"[PersistentSync] contract snapshot Accept() restore failed guid={contract.ContractGuid}: {e}");
+                        }
+                    }
+
+                    contract.Register();
+                }
+                else
+                {
+                    ContractSystem.Instance.Contracts.Add(contract);
+                }
+            }
+        }
+
+        private static bool IsSnapshotMarkedActive(ContractSnapshotInfo info)
+        {
+            if (info == null)
+            {
+                return false;
+            }
+
+            if (info.Placement == ContractSnapshotPlacement.Active)
+            {
+                return true;
+            }
+
+            return !string.IsNullOrWhiteSpace(info.ContractState) &&
+                   string.Equals(info.ContractState.Trim(), nameof(Contract.State.Active), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSnapshotOrRuntimeActive(Contract contract, ContractSnapshotInfo info)
+        {
+            return contract != null && (contract.ContractState == Contract.State.Active || IsSnapshotMarkedActive(info));
+        }
+
+        private static bool NeedsAcceptToRestoreActiveFromSnapshot(Contract contract, ContractSnapshotInfo info)
+        {
+            if (contract == null || !IsSnapshotMarkedActive(info))
+            {
+                return false;
+            }
+
+            if (contract.IsFinished() || contract.ContractState == Contract.State.Active)
+            {
+                return false;
+            }
+
+            // Stock commonly deserializes an active-on-server contract as Offered until Accept() runs.
+            return contract.ContractState == Contract.State.Offered;
+        }
+
+        /// <summary>
+        /// Mirrors stock archive semantics: finished contracts live in <see cref="ContractSystem.ContractsFinished"/>.
+        /// </summary>
+        private static bool ShouldPlaceInContractsFinished(Contract contract)
+        {
+            if (contract == null)
+            {
+                return false;
+            }
+
+            if (contract.IsFinished())
+            {
+                return true;
+            }
+
+            // Declined / Withdrawn are not always reported as IsFinished depending on stock version, but they belong
+            // in the archive list rather than the active offer pool.
+            switch (contract.ContractState)
+            {
+                case Contract.State.Completed:
+                case Contract.State.Failed:
+                case Contract.State.Cancelled:
+                case Contract.State.DeadlineExpired:
+                case Contract.State.Declined:
+                case Contract.State.Withdrawn:
+                    return true;
+                default:
+                    return false;
             }
         }
 

@@ -125,7 +125,17 @@ namespace LmpClient.Systems.ShareContracts
 
         private static ContractSnapshotPlacement DeterminePlacement(Contract contract)
         {
-            switch (contract?.ContractState)
+            if (contract == null)
+            {
+                return ContractSnapshotPlacement.Current;
+            }
+
+            if (contract.IsFinished())
+            {
+                return ContractSnapshotPlacement.Finished;
+            }
+
+            switch (contract.ContractState)
             {
                 case Contract.State.Active:
                     return ContractSnapshotPlacement.Active;
@@ -133,6 +143,8 @@ namespace LmpClient.Systems.ShareContracts
                 case Contract.State.DeadlineExpired:
                 case Contract.State.Failed:
                 case Contract.State.Cancelled:
+                case Contract.State.Declined:
+                case Contract.State.Withdrawn:
                     return ContractSnapshotPlacement.Finished;
                 default:
                     return ContractSnapshotPlacement.Current;

@@ -52,8 +52,10 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (System.IgnoreEvents) return;
 
+            ShareContractsSystem.LogMcUiContractInventory($"Contract.onAccepted:beforeSend guid={contract?.ContractGuid}");
             System.MessageSender.SendContractMessage(contract);
             LunaLog.Log($"Contract accepted: {contract.ContractGuid}");
+            ShareContractsSystem.LogMcUiContractInventory($"Contract.onAccepted:afterSend guid={contract.ContractGuid}");
         }
 
         public void ContractCancelled(Contract contract)
@@ -75,6 +77,7 @@ namespace LmpClient.Systems.ShareContracts
         public void ContractsListChanged()
         {
             LunaLog.Log("Contract list changed.");
+            ShareContractsSystem.LogMcUiContractInventory("GameEvents.Contract.onContractsListChanged");
         }
 
         public void ContractsLoaded()
@@ -166,7 +169,8 @@ namespace LmpClient.Systems.ShareContracts
 
         /// <summary>
         /// Stock sometimes offers the same mission title again (new GUID). Keep the first offered row and drop the new one
-        /// so we never sync duplicate titles to the server.
+        /// so we never sync duplicate titles to the server. Also matches the archive list so completed tutorials are not
+        /// re-offered after reconnect when ProgressTracking has not caught up yet.
         /// </summary>
         private static bool TrySuppressDuplicateOfferByTitle(Contract contract)
         {
@@ -179,6 +183,27 @@ namespace LmpClient.Systems.ShareContracts
             if (string.IsNullOrEmpty(incomingKey))
             {
                 return false;
+            }
+
+            foreach (var other in ContractSystem.Instance.ContractsFinished.ToArray())
+            {
+                if (other == null || ReferenceEquals(other, contract))
+                {
+                    continue;
+                }
+
+                if (!string.Equals(
+                        ShareContractsSystem.BuildRuntimeContractIdentityKey(other),
+                        incomingKey,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                contract.Withdraw();
+                contract.Kill();
+                LunaLog.Log($"[PersistentSync] suppressed duplicate offer (matches finished archive contract {other.ContractGuid}): {contract.Title}");
+                return true;
             }
 
             foreach (var other in ContractSystem.Instance.Contracts.ToArray())

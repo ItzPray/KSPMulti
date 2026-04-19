@@ -206,14 +206,21 @@ namespace Server.System.PersistentSync
 
         private static ContractSnapshotPlacement DeterminePlacement(string contractState)
         {
-            switch (contractState)
+            if (string.IsNullOrWhiteSpace(contractState))
             {
-                case "Active":
+                return ContractSnapshotPlacement.Current;
+            }
+
+            switch (contractState.Trim().ToLowerInvariant())
+            {
+                case "active":
                     return ContractSnapshotPlacement.Active;
-                case "Completed":
-                case "DeadlineExpired":
-                case "Failed":
-                case "Cancelled":
+                case "completed":
+                case "deadlineexpired":
+                case "failed":
+                case "cancelled":
+                case "declined":
+                case "withdrawn":
                     return ContractSnapshotPlacement.Finished;
                 default:
                     return ContractSnapshotPlacement.Current;
