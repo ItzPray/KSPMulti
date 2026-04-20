@@ -46,7 +46,7 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(1200.5d, FundsSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, sizeof(double)));
 
             var payload = FundsIntentPayloadSerializer.Serialize(1800.25d, "Contract");
-            var result = store.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.Funds, payload, "Contract"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "Contract"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
@@ -70,10 +70,10 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(9.5f, ReputationSnapshotPayloadSerializer.Deserialize(reputationStore.GetCurrentSnapshot().Payload, sizeof(float)));
 
             var sciencePayload = ScienceIntentPayloadSerializer.Serialize(77.25f, "Science lab");
-            var scienceResult = scienceStore.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.Science, sciencePayload, "Science lab"));
+            var scienceResult = scienceStore.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Science, sciencePayload, "Science lab"));
 
             var reputationPayload = ReputationIntentPayloadSerializer.Serialize(12.75f, "Contract");
-            var reputationResult = reputationStore.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.Reputation, reputationPayload, "Contract"));
+            var reputationResult = reputationStore.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Reputation, reputationPayload, "Contract"));
 
             Assert.AreEqual(77.25f, float.Parse(ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].GetValue("sci").Value, CultureInfo.InvariantCulture));
             Assert.AreEqual(12.75f, float.Parse(ScenarioStoreSystem.CurrentScenarios["Reputation"].GetValue("rep").Value, CultureInfo.InvariantCulture));
@@ -89,7 +89,7 @@ namespace ServerPersistentSyncTest
             store.LoadFromPersistence(false);
 
             var payload = FundsIntentPayloadSerializer.Serialize(2500d, "No-op");
-            var result = store.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.Funds, payload, "No-op"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "No-op"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(result.Changed);
@@ -149,7 +149,7 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(0, initialSnapshot["SpaceCenter/TrackingStation"]);
 
             var payload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 2);
-            var result = store.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "Mission Control upgrade"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "Mission Control upgrade"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
@@ -206,7 +206,7 @@ namespace ServerPersistentSyncTest
             store.LoadFromPersistence(false);
 
             var payload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 1);
-            var result = store.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "No-op"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "No-op"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(result.Changed);
@@ -230,7 +230,7 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(2, before["SpaceCenter/MissionControl"]);
 
             var downgradePayload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 0);
-            var result = store.ApplyClientIntent(CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, downgradePayload, "Spurious KSC init"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, downgradePayload, "Spurious KSC init"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(result.Changed);
@@ -328,6 +328,93 @@ CONTRACTS
             {
                 GeneralSettings.SettingsStore.GameMode = previousMode;
             }
+        }
+
+        [TestMethod]
+        public void ContractsDomainLoadFromPersistenceCanonicalizesDuplicateOfferedContracts()
+        {
+            var firstDuplicate = CreateContractSnapshotInfoWithTitle(
+                Guid.Parse("66666666-6666-6666-6666-666666666661"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                0,
+                "SurveyContract",
+                "Conduct a focused observational survey of Kerbin.");
+            var secondDuplicate = CreateContractSnapshotInfoWithTitle(
+                Guid.Parse("66666666-6666-6666-6666-666666666662"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                1,
+                "SurveyContract",
+                "Conduct a focused observational survey of Kerbin.");
+            var uniqueOffer = CreateContractSnapshotInfoWithTitle(
+                Guid.Parse("66666666-6666-6666-6666-666666666663"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                2,
+                "PartTest",
+                "Test TD-12 Decoupler at the Launch Site.");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(firstDuplicate, secondDuplicate, uniqueOffer);
+            var store = new ContractsPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var snapshot = ContractSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+            Assert.AreEqual(2, snapshot.Count, "Duplicate offered rows should be collapsed during startup load.");
+            Assert.IsTrue(snapshot.Any(c => c.ContractGuid == secondDuplicate.ContractGuid), "The latest duplicate should be retained.");
+            Assert.IsFalse(snapshot.Any(c => c.ContractGuid == firstDuplicate.ContractGuid), "Older duplicate rows should be removed from the canonical snapshot.");
+            Assert.IsTrue(snapshot.Any(c => c.ContractGuid == uniqueOffer.ContractGuid));
+
+            var persistedScenarioText = ScenarioStoreSystem.CurrentScenarios["ContractSystem"].ToString();
+            StringAssert.Contains(persistedScenarioText, secondDuplicate.ContractGuid.ToString());
+            StringAssert.Contains(persistedScenarioText, uniqueOffer.ContractGuid.ToString());
+            Assert.IsFalse(persistedScenarioText.Contains(firstDuplicate.ContractGuid.ToString()), "Persistence should be rewritten without the removed duplicate row.");
+            Assert.AreEqual(0L, store.GetCurrentSnapshot().Revision, "Startup cleanup should not create a live revision bump.");
+        }
+
+        [TestMethod]
+        public void ContractsDomainFullReplacePrunesStaleOfferedContracts()
+        {
+            var staleOffer = CreateContractSnapshotInfoWithTitle(
+                Guid.Parse("77777777-7777-7777-7777-777777777771"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                0,
+                "SurveyContract",
+                "Conduct a focused observational survey of Kerbin.");
+            var currentActive = CreateContractSnapshotInfoWithTitle(
+                Guid.Parse("77777777-7777-7777-7777-777777777772"),
+                "Active",
+                ContractSnapshotPlacement.Active,
+                1,
+                "ExplorationContract",
+                "Launch our first vessel!");
+            var currentFinished = CreateContractSnapshotInfoWithTitle(
+                Guid.Parse("77777777-7777-7777-7777-777777777773"),
+                "Completed",
+                ContractSnapshotPlacement.Finished,
+                2,
+                "ExplorationContract",
+                "Orbit Kerbin!");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(staleOffer, currentActive, currentFinished);
+            var store = new ContractsPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var fullReplacePayload = ContractSnapshotPayloadSerializer.Serialize(
+                ContractSnapshotPayloadMode.FullReplace,
+                new[] { currentActive, currentFinished });
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
+            var result = store.ApplyClientIntent(CreateClient("ContractOwner"), CreateIntent(PersistentSyncDomainId.Contracts, fullReplacePayload, "ContractInventoryFull:Test"));
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+
+            var snapshot = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            Assert.AreEqual(2, snapshot.Count);
+            Assert.IsFalse(snapshot.Any(c => c.ContractGuid == staleOffer.ContractGuid), "Full replace should prune missing stale offers.");
+            Assert.IsTrue(snapshot.Any(c => c.ContractGuid == currentActive.ContractGuid));
+            Assert.IsTrue(snapshot.Any(c => c.ContractGuid == currentFinished.ContractGuid));
         }
 
         [TestMethod]
@@ -630,19 +717,19 @@ Tech
         }
 
         [TestMethod]
-        public void ApplyClientIntentWithAuthority_ContractsLockOwner_AcceptsAndMutatesCanonicalState()
+        public void ApplyClientIntentWithAuthority_ContractsProducerProposalOwner_AcceptsAndMutatesCanonicalState()
         {
             var existingContract = CreateContractSnapshotInfo(
                 Guid.Parse("44444444-4444-4444-4444-444444444444"),
-                "Offered",
-                ContractSnapshotPlacement.Current,
+                "Active",
+                ContractSnapshotPlacement.Active,
                 0,
                 "Incomplete",
                 "1,0,0,0,0");
             var changedContract = CreateContractSnapshotInfo(
                 existingContract.ContractGuid,
-                "Offered",
-                ContractSnapshotPlacement.Current,
+                "Active",
+                ContractSnapshotPlacement.Active,
                 -1,
                 "Complete",
                 "1,1,0,0,0");
@@ -657,7 +744,7 @@ Tech
             var ownerClient = CreateClient("ContractOwner");
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, ownerClient.PlayerName), false, out _);
 
-            var payload = ContractSnapshotPayloadSerializer.Serialize(new[] { changedContract });
+            var payload = ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ParameterProgressObserved, changedContract);
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(ownerClient, CreateIntent(PersistentSyncDomainId.Contracts, payload, "Parameter progress"));
 
             Assert.IsTrue(result.Accepted);
@@ -671,7 +758,45 @@ Tech
         }
 
         [TestMethod]
-        public void ApplyClientIntentWithAuthority_ContractsNonOwner_RejectsWithoutMutation()
+        public void ApplyClientIntentWithAuthority_ContractsAcceptCommandNonOwner_AcceptsAndTransitionsCanonicalState()
+        {
+            var existingContract = CreateContractSnapshotInfo(
+                Guid.Parse("45454545-4545-4545-4545-454545454545"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                0,
+                "Incomplete",
+                "3,0,0,0,0");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(existingContract);
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateScenario("sci", "1");
+            ScenarioStoreSystem.CurrentScenarios["Reputation"] = CreateScenario("rep", "1");
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
+            PersistentSyncRegistry.Initialize(false);
+
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
+
+            var payload = ContractIntentPayloadSerializer.SerializeCommand(
+                ContractIntentPayloadKind.AcceptContract,
+                existingContract.ContractGuid);
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
+                CreateClient("OtherClient"),
+                CreateIntent(PersistentSyncDomainId.Contracts, payload, "Accept command"));
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+
+            var updatedContracts = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var updatedContract = updatedContracts.Single(c => c.ContractGuid == existingContract.ContractGuid);
+            Assert.AreEqual("Active", updatedContract.ContractState);
+            Assert.AreEqual(ContractSnapshotPlacement.Active, updatedContract.Placement);
+            var contractText = Encoding.UTF8.GetString(updatedContract.Data, 0, updatedContract.NumBytes);
+            StringAssert.Contains(contractText, "state = Active");
+        }
+
+        [TestMethod]
+        public void ApplyClientIntentWithAuthority_ContractsProducerProposalNonOwner_RejectsWithoutMutation()
         {
             var existingContract = CreateContractSnapshotInfo(
                 Guid.Parse("55555555-5555-5555-5555-555555555555"),
@@ -698,7 +823,7 @@ Tech
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
             var domainSnapshotBefore = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
 
-            var payload = ContractSnapshotPayloadSerializer.Serialize(new[] { changedContract });
+            var payload = ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ParameterProgressObserved, changedContract);
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(CreateClient("OtherClient"), CreateIntent(PersistentSyncDomainId.Contracts, payload, "Denied progress"));
 
             Assert.IsFalse(result.Accepted);
@@ -737,10 +862,10 @@ Tech
                 return _inner.GetCurrentSnapshot();
             }
 
-            public PersistentSyncDomainApplyResult ApplyClientIntent(PersistentSyncIntentMsgData data)
+            public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
             {
                 ClientApplyInvoked = true;
-                return _inner.ApplyClientIntent(data);
+                return _inner.ApplyClientIntent(client, data);
             }
 
             public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
@@ -852,6 +977,27 @@ PARAM
     targetBody = 1
     targetType = FIRSTLAUNCH
 }}
+";
+
+            var data = Encoding.UTF8.GetBytes(serializedContract);
+            return new ContractSnapshotInfo
+            {
+                ContractGuid = contractGuid,
+                ContractState = state,
+                Placement = placement,
+                Order = order,
+                NumBytes = data.Length,
+                Data = data
+            };
+        }
+
+        private static ContractSnapshotInfo CreateContractSnapshotInfoWithTitle(Guid contractGuid, string state, ContractSnapshotPlacement placement, int order, string type, string title)
+        {
+            var serializedContract = $@"guid = {contractGuid}
+type = {type}
+state = {state}
+title = {title}
+lmpOfferTitle = {title}
 ";
 
             var data = Encoding.UTF8.GetBytes(serializedContract);

@@ -1,6 +1,7 @@
 using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
+using Server.Client;
 using Server.Log;
 using Server.System;
 using System;
@@ -113,7 +114,7 @@ namespace Server.System.PersistentSync
             };
         }
 
-        public PersistentSyncDomainApplyResult ApplyClientIntent(PersistentSyncIntentMsgData data)
+        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
         {
             UpgradeableFacilitiesIntentPayloadSerializer.Deserialize(data.Payload, data.NumBytes, out var facilityId, out var level);
             return ApplyFacilityMutation(facilityId, level, data.ClientKnownRevision);

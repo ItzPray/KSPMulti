@@ -5,6 +5,7 @@ using LmpClient.Base;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.SettingsSys;
 using LmpCommon.Locks;
+using LmpCommon.PersistentSync;
 using System;
 using System.Linq;
 
@@ -54,7 +55,10 @@ namespace LmpClient.Systems.ShareContracts
             if (System.IgnoreEvents) return;
 
             ShareContractsSystem.LogMcUiContractInventory($"Contract.onAccepted:beforeSend guid={contract?.ContractGuid}");
-            System.MessageSender.SendContractMessage(contract);
+            System.MessageSender.SendContractCommand(
+                ContractIntentPayloadKind.AcceptContract,
+                contract,
+                $"ContractCommand:Accept:{contract?.ContractGuid:N}");
             LunaLog.Log($"Contract accepted: {contract.ContractGuid}");
             ShareContractsSystem.LogMcUiContractInventory($"Contract.onAccepted:afterSend guid={contract.ContractGuid}");
         }
@@ -63,7 +67,10 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (System.IgnoreEvents) return;
 
-            System.MessageSender.SendContractMessage(contract);
+            System.MessageSender.SendContractCommand(
+                ContractIntentPayloadKind.CancelContract,
+                contract,
+                $"ContractCommand:Cancel:{contract?.ContractGuid:N}");
             LunaLog.Log($"Contract cancelled: {contract.ContractGuid}");
         }
 
@@ -71,14 +78,22 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (System.IgnoreEvents) return;
 
-            System.MessageSender.SendContractMessage(contract);
+            if (LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
+            {
+                System.MessageSender.SendProducerProposal(
+                    ContractIntentPayloadKind.ContractCompletedObserved,
+                    contract,
+                    $"ContractProposal:Completed:{contract?.ContractGuid:N}");
+            }
+
             LunaLog.Log($"Contract completed: {contract.ContractGuid}");
         }
 
         public void ContractsListChanged()
         {
+            if (System.IgnoreEvents) return;
+
             LunaLog.Log("Contract list changed.");
-            ShareContractsSystem.LogMcUiContractInventory("GameEvents.Contract.onContractsListChanged");
         }
 
         public void ContractsLoaded()
@@ -90,7 +105,10 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (System.IgnoreEvents) return;
 
-            System.MessageSender.SendContractMessage(contract);
+            System.MessageSender.SendContractCommand(
+                ContractIntentPayloadKind.DeclineContract,
+                contract,
+                $"ContractCommand:Decline:{contract?.ContractGuid:N}");
             LunaLog.Log($"Contract declined: {contract.ContractGuid}");
         }
 
@@ -98,7 +116,14 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (System.IgnoreEvents) return;
 
-            System.MessageSender.SendContractMessage(contract);
+            if (LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
+            {
+                System.MessageSender.SendProducerProposal(
+                    ContractIntentPayloadKind.ContractFailedObserved,
+                    contract,
+                    $"ContractProposal:Failed:{contract?.ContractGuid:N}");
+            }
+
             LunaLog.Log($"Contract failed: {contract.ContractGuid}");
         }
 
@@ -147,25 +172,38 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            System.MessageSender.SendContractMessage(contract);
+            System.MessageSender.SendProducerProposal(
+                ContractIntentPayloadKind.OfferObserved,
+                contract,
+                $"ContractProposal:Offer:{contract?.ContractGuid:N}");
         }
 
         public void ContractParameterChanged(Contract contract, ContractParameter contractParameter)
         {
             if (System.IgnoreEvents) return;
 
-            System.MessageSender.SendContractMessage(contract);
-            LunaLog.Log($"[PersistentSync] contract parameter snapshot sent contract={contract.ContractGuid} parameterType={(contractParameter != null ? contractParameter.GetType().Name : "null")}");
+            if (contract == null || ShareContractsSystem.IsMissionControlOfferPoolContract(contract))
+            {
+                return;
+            }
+
+            if (LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
+            {
+                System.MessageSender.SendProducerProposal(
+                    ContractIntentPayloadKind.ParameterProgressObserved,
+                    contract,
+                    $"ContractProposal:Parameter:{contract.ContractGuid:N}");
+            }
+
+            System.InvalidatePersistentSyncBypassUiRefreshCoalesce();
         }
 
         public void ContractRead(Contract contract)
         {
-            LunaLog.Log($"Contract read:{contract.ContractGuid}");
         }
 
         public void ContractSeen(Contract contract)
         {
-            LunaLog.Log($"Contract seen:{contract.ContractGuid}");
         }
 
         /// <summary>

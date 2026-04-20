@@ -41,7 +41,7 @@ namespace ServerPersistentSyncTest
                 };
             }
 
-            public PersistentSyncDomainApplyResult ApplyClientIntent(PersistentSyncIntentMsgData data)
+            public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
             {
                 throw new InvalidOperationException("ApplyClientIntent must not run when authority rejects.");
             }

@@ -6,6 +6,12 @@ using System.Text;
 
 namespace LmpCommon.PersistentSync
 {
+    public enum ContractSnapshotPayloadMode : byte
+    {
+        Delta = 0,
+        FullReplace = 1
+    }
+
     public enum ContractSnapshotPlacement : byte
     {
         Current = 0,
@@ -23,15 +29,144 @@ namespace LmpCommon.PersistentSync
         public byte[] Data = new byte[0];
     }
 
+    public static class ContractSnapshotInfoComparer
+    {
+        public static bool AreEquivalent(ContractSnapshotInfo left, ContractSnapshotInfo right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            if (left == null || right == null)
+            {
+                return false;
+            }
+
+            return left.ContractGuid == right.ContractGuid &&
+                   string.Equals(left.ContractState ?? string.Empty, right.ContractState ?? string.Empty, StringComparison.Ordinal) &&
+                   left.Placement == right.Placement &&
+                   string.Equals(NormalizeContractText(left), NormalizeContractText(right), StringComparison.Ordinal);
+        }
+
+        public static ContractSnapshotInfo Clone(ContractSnapshotInfo source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var safeNumBytes = GetSafeNumBytes(source);
+            var data = new byte[safeNumBytes];
+            if (safeNumBytes > 0)
+            {
+                Buffer.BlockCopy(source.Data, 0, data, 0, safeNumBytes);
+            }
+
+            return new ContractSnapshotInfo
+            {
+                ContractGuid = source.ContractGuid,
+                ContractState = source.ContractState ?? string.Empty,
+                Placement = source.Placement,
+                Order = source.Order,
+                NumBytes = safeNumBytes,
+                Data = data
+            };
+        }
+
+        private static string NormalizeContractText(ContractSnapshotInfo info)
+        {
+            return new string(Encoding.UTF8.GetString(info.Data ?? new byte[0], 0, GetSafeNumBytes(info))
+                .Where(c => !char.IsWhiteSpace(c))
+                .ToArray());
+        }
+
+        private static int GetSafeNumBytes(ContractSnapshotInfo info)
+        {
+            if (info == null || info.Data == null || info.NumBytes <= 0)
+            {
+                return 0;
+            }
+
+            return Math.Min(info.NumBytes, info.Data.Length);
+        }
+    }
+
+    public sealed class ContractSnapshotChangeTracker
+    {
+        private readonly Dictionary<Guid, ContractSnapshotInfo> _knownByGuid = new Dictionary<Guid, ContractSnapshotInfo>();
+
+        public void Clear()
+        {
+            _knownByGuid.Clear();
+        }
+
+        public void Reset(IEnumerable<ContractSnapshotInfo> contracts)
+        {
+            _knownByGuid.Clear();
+
+            foreach (var contract in contracts ?? Enumerable.Empty<ContractSnapshotInfo>())
+            {
+                if (contract == null || contract.ContractGuid == Guid.Empty)
+                {
+                    continue;
+                }
+
+                _knownByGuid[contract.ContractGuid] = ContractSnapshotInfoComparer.Clone(contract);
+            }
+        }
+
+        public ContractSnapshotInfo[] FilterChanged(IEnumerable<ContractSnapshotInfo> contracts)
+        {
+            var changedContracts = new List<ContractSnapshotInfo>();
+
+            foreach (var contract in contracts ?? Enumerable.Empty<ContractSnapshotInfo>())
+            {
+                if (contract == null || contract.ContractGuid == Guid.Empty)
+                {
+                    continue;
+                }
+
+                var snapshot = ContractSnapshotInfoComparer.Clone(contract);
+                if (_knownByGuid.TryGetValue(snapshot.ContractGuid, out var knownSnapshot) &&
+                    ContractSnapshotInfoComparer.AreEquivalent(knownSnapshot, snapshot))
+                {
+                    continue;
+                }
+
+                _knownByGuid[snapshot.ContractGuid] = ContractSnapshotInfoComparer.Clone(snapshot);
+                changedContracts.Add(snapshot);
+            }
+
+            return changedContracts.ToArray();
+        }
+    }
+
     public static class ContractSnapshotPayloadSerializer
     {
         public static byte[] Serialize(IEnumerable<ContractSnapshotInfo> contracts)
+        {
+            return Serialize(ContractSnapshotPayloadMode.Delta, contracts);
+        }
+
+        public static byte[] Serialize(ContractSnapshotPayloadMode mode, IEnumerable<ContractSnapshotInfo> contracts)
         {
             using (var stream = new MemoryStream())
             using (var writer = new BinaryWriter(stream, Encoding.UTF8))
             {
                 var orderedContracts = (contracts ?? Enumerable.Empty<ContractSnapshotInfo>()).ToArray();
-                writer.Write(orderedContracts.Length);
+                if (mode == ContractSnapshotPayloadMode.Delta)
+                {
+                    writer.Write(orderedContracts.Length);
+                }
+                else
+                {
+                    // Negative sentinel keeps older delta payloads readable while allowing new envelope metadata.
+                    writer.Write(-1);
+                    writer.Write((byte)mode);
+                    writer.Write(orderedContracts.Length);
+                }
+
                 foreach (var contract in orderedContracts)
                 {
                     writer.Write(contract.ContractGuid.ToByteArray());
@@ -49,10 +184,23 @@ namespace LmpCommon.PersistentSync
 
         public static List<ContractSnapshotInfo> Deserialize(byte[] payload, int numBytes)
         {
+            return DeserializeEnvelope(payload, numBytes).Contracts;
+        }
+
+        public static ContractSnapshotPayload DeserializeEnvelope(byte[] payload, int numBytes)
+        {
             using (var stream = new MemoryStream(payload, 0, numBytes))
             using (var reader = new BinaryReader(stream, Encoding.UTF8))
             {
-                var contractCount = reader.ReadInt32();
+                var firstInt = reader.ReadInt32();
+                var mode = ContractSnapshotPayloadMode.Delta;
+                var contractCount = firstInt;
+                if (firstInt < 0)
+                {
+                    mode = (ContractSnapshotPayloadMode)reader.ReadByte();
+                    contractCount = reader.ReadInt32();
+                }
+
                 var contracts = new List<ContractSnapshotInfo>(contractCount);
                 for (var i = 0; i < contractCount; i++)
                 {
@@ -71,8 +219,18 @@ namespace LmpCommon.PersistentSync
                     contracts.Add(info);
                 }
 
-                return contracts;
+                return new ContractSnapshotPayload
+                {
+                    Mode = mode,
+                    Contracts = contracts
+                };
             }
         }
+    }
+
+    public sealed class ContractSnapshotPayload
+    {
+        public ContractSnapshotPayloadMode Mode = ContractSnapshotPayloadMode.Delta;
+        public List<ContractSnapshotInfo> Contracts = new List<ContractSnapshotInfo>();
     }
 }

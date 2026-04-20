@@ -15,6 +15,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using UnityEngine;
 
@@ -56,6 +57,10 @@ namespace LmpClient.Systems.ShareContracts
 
         private bool _awaitingAuthoritativeSnapshotAfterControlledRefresh;
 
+        private bool _pendingStableFullContractInventoryPublish;
+
+        private string _pendingStableFullContractInventoryPublishReason;
+
         private int _lastAppliedGenerateContractIterations = int.MinValue;
 
         private string _lastControlledStockRefreshBlockReason;
@@ -71,6 +76,20 @@ namespace LmpClient.Systems.ShareContracts
         private static float _persistentSyncUiAdapterLogRealtime = -999f;
 
         private const float PersistentSyncUiAdapterLogThrottleSeconds = 2.5f;
+
+        private static string _mcDiagMissionControlNullSkipSignature;
+
+        private static float _mcDiagMissionControlNullSkipRealtime = -999f;
+
+        private const float McDiagMissionControlNullSkipThrottleSeconds = 5f;
+
+        /// <summary>
+        /// When stock calls <see cref="ContractSystem.RefreshContracts"/> every frame, the PersistentSync bypass path
+        /// would rebuild Mission Control / Contracts App lists each time and clear selection. Coalesce identical
+        /// contract inventory snapshots; call <see cref="InvalidatePersistentSyncBypassUiRefreshCoalesce"/> when
+        /// progress can change without list membership/state changes (e.g. parameter completion).
+        /// </summary>
+        private string _persistentSyncBypassUiRefreshCoalesceSignature;
 
         /// <summary>
         /// UI refresh sources that must not call stock <see cref="ContractSystem.RefreshContracts"/> / contract
@@ -143,7 +162,11 @@ namespace LmpClient.Systems.ShareContracts
             _suppressStockContractRefreshForTimeJump = false;
             _allowStockContractRefreshWindow = false;
             _awaitingAuthoritativeSnapshotAfterControlledRefresh = false;
+            _pendingStableFullContractInventoryPublish = false;
+            _pendingStableFullContractInventoryPublishReason = null;
             _lastAppliedGenerateContractIterations = int.MinValue;
+            _persistentSyncBypassUiRefreshCoalesceSignature = null;
+            MessageSender.ClearKnownContractSnapshots();
 
             if (_resumeStockContractPolicyCoroutine != null && MainSystem.Singleton != null)
             {
@@ -311,7 +334,10 @@ namespace LmpClient.Systems.ShareContracts
 
             foreach (var contract in byNormalizedTitle.Values)
             {
-                MessageSender.SendContractMessage(contract);
+                MessageSender.SendProducerProposal(
+                    ContractIntentPayloadKind.OfferObserved,
+                    contract,
+                    $"ContractProposal:DeferredOffer:{contract.ContractGuid:N}");
             }
 
             _deferredContractOffers.Clear();
@@ -595,6 +621,76 @@ namespace LmpClient.Systems.ShareContracts
             return $"pending={_pendingStockContractRefreshAfterTransientState} awaiting={_awaitingAuthoritativeSnapshotAfterControlledRefresh} allowWindow={_allowStockContractRefreshWindow} suppressForJump={_suppressStockContractRefreshForTimeJump} contractLockOwner={(string.IsNullOrEmpty(owner) ? "none" : owner)} currentSubspace={(warp != null ? warp.CurrentSubspace.ToString() : "null")} waitingSubspace={(warp != null && warp.WaitingSubspaceIdFromServer)} timeWarpRateIndex={TimeWarp.CurrentRateIndex} timeWarpRate={TimeWarp.CurrentRate:0.00}";
         }
 
+        private string GetStableFullContractInventoryPublishBlockReason()
+        {
+            if (!IsShareSystemApplicableForSession())
+            {
+                return "share-not-applicable";
+            }
+
+            if (ContractSystem.Instance == null)
+            {
+                return "contract-system-missing";
+            }
+
+            if (!LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
+            {
+                var owner = LockSystem.LockQuery.ContractLockOwner();
+                return $"contract-lock-owned-by:{(string.IsNullOrEmpty(owner) ? "none" : owner)}";
+            }
+
+            if (_allowStockContractRefreshWindow)
+            {
+                return "refresh-window-open";
+            }
+
+            if (_pendingStockContractRefreshAfterTransientState)
+            {
+                return "pending-controlled-refresh";
+            }
+
+            if (_awaitingAuthoritativeSnapshotAfterControlledRefresh)
+            {
+                return "awaiting-authoritative-snapshot";
+            }
+
+            if (IsStockContractMutationTransientState())
+            {
+                return "stock-mutation-transient-state";
+            }
+
+            return string.Empty;
+        }
+
+        public void QueueOrPublishStableFullContractSystemSnapshot(string source)
+        {
+            var blockReason = GetStableFullContractInventoryPublishBlockReason();
+            if (!string.IsNullOrEmpty(blockReason))
+            {
+                _pendingStableFullContractInventoryPublish = true;
+                _pendingStableFullContractInventoryPublishReason = source;
+                LunaLog.Log(
+                    $"[PersistentSync] deferred full contract inventory publish source={source} " +
+                    $"reason={blockReason} state={DescribeControlledStockRefreshState()}");
+                return;
+            }
+
+            _pendingStableFullContractInventoryPublish = false;
+            _pendingStableFullContractInventoryPublishReason = null;
+            MessageSender.SendFullContractSystemSnapshot(source);
+        }
+
+        private void PublishPendingStableFullContractInventorySnapshotIfReady(string source)
+        {
+            if (!_pendingStableFullContractInventoryPublish)
+            {
+                return;
+            }
+
+            var publishReason = _pendingStableFullContractInventoryPublishReason ?? source;
+            QueueOrPublishStableFullContractSystemSnapshot(publishReason);
+        }
+
         private bool IsStockContractMutationTransientState()
         {
             if (_suppressStockContractRefreshForTimeJump)
@@ -644,14 +740,6 @@ namespace LmpClient.Systems.ShareContracts
                     _awaitingAuthoritativeSnapshotAfterControlledRefresh = true;
                     RestartAwaitingAuthoritativeSnapshotSettleTimer(source + ":SafeUiRefreshStarted");
                     RefreshContractUiAdapters(PersistentSyncPostTransientStockRefreshSource);
-                    if (ContractSystem.Instance != null &&
-                        ShouldLogPersistentSyncUiAdapterRefresh(
-                            PersistentSyncPostTransientStockRefreshSource,
-                            $"forcedUiRefresh:{source}"))
-                    {
-                        LunaLog.Log(
-                            $"[PersistentSync] forced stock contract safe ui refresh source={source} offered={ContractSystem.Instance.Contracts.Count} finished={ContractSystem.Instance.ContractsFinished.Count}");
-                    }
                 }
                 catch (Exception e)
                 {
@@ -690,6 +778,7 @@ namespace LmpClient.Systems.ShareContracts
             LunaLog.Log($"[PersistentSync] contract refresh settle complete source={source} state={DescribeControlledStockRefreshState()}");
             _clearAwaitingAuthoritativeSnapshotCoroutine = null;
             ApplyStockContractMutationPolicy(source + ":SnapshotSettled");
+            PublishPendingStableFullContractInventorySnapshotIfReady(source + ":SnapshotSettled");
         }
 
         private IEnumerator WaitForSafeControlledStockRefreshCoroutine(string source)
@@ -749,11 +838,11 @@ namespace LmpClient.Systems.ShareContracts
         }
 
         /// <summary>
-        /// After PersistentSync replaces <see cref="ContractSystem"/> from the server, the main list can be empty
-        /// while the archive still has completed rows (common when persistence dropped <c>Offered</c> entries). Stock
-        /// normally repopulates via <see cref="ContractSystem.RefreshContracts"/>, but mandatory generation is gated
-        /// by <see cref="ContractSystem_GenerateMandatoryContracts"/> unless <see cref="_allowStockContractRefreshWindow"/>
-        /// is set. Run one controlled refresh for the contract lock holder so progression can mint new offers.
+        /// After PersistentSync replaces <see cref="ContractSystem"/> from the server, the main list can contain only
+        /// active contracts with no available offer-pool entries. Stock normally repopulates via
+        /// <see cref="ContractSystem.RefreshContracts"/>, but mandatory generation is gated by
+        /// <see cref="ContractSystem_GenerateMandatoryContracts"/> unless <see cref="_allowStockContractRefreshWindow"/>
+        /// is set. Run one controlled refresh for the contract lock holder so progression can mint missing offers.
         /// </summary>
         public void ReplenishStockOffersAfterPersistentSnapshotApply(string source)
         {
@@ -768,12 +857,20 @@ namespace LmpClient.Systems.ShareContracts
             }
 
             var main = ContractSystem.Instance.Contracts;
-            if (main == null || main.Count > 0)
+            if (main == null)
             {
                 return;
             }
 
-            LunaLog.Log($"[PersistentSync] ReplenishStockOffers: empty main list after snapshot; controlled RefreshContracts source={source}");
+            var offeredLikeCount = main.Count(IsMissionControlOfferPoolContract);
+            if (offeredLikeCount > 0)
+            {
+                return;
+            }
+
+            LunaLog.Log(
+                $"[PersistentSync] ReplenishStockOffers: no offer-pool contracts after snapshot; controlled RefreshContracts " +
+                $"source={source} mainCount={main.Count} activeCount={main.Count(c => c != null && c.ContractState == Contract.State.Active)}");
             try
             {
                 _allowStockContractRefreshWindow = true;
@@ -797,6 +894,18 @@ namespace LmpClient.Systems.ShareContracts
         /// </summary>
         public void RefreshContractUiAdapters(string source)
         {
+            if (string.Equals(source, ContractSystemRefreshPersistentSyncBypassSource, StringComparison.Ordinal))
+            {
+                var coalesceSig = TryBuildPersistentSyncBypassUiRefreshCoalesceSignature();
+                if (_persistentSyncBypassUiRefreshCoalesceSignature != null &&
+                    string.Equals(coalesceSig, _persistentSyncBypassUiRefreshCoalesceSignature, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _persistentSyncBypassUiRefreshCoalesceSignature = coalesceSig;
+            }
+
             LogMcUiContractInventory($"RefreshContractUiAdapters:before source={source}");
             RefreshContractLists(source);
             // After a PersistentSync snapshot, rebuild UI from the already-replaced ContractSystem using the
@@ -805,6 +914,58 @@ namespace LmpClient.Systems.ShareContracts
             RefreshContractsApp(source);
             RefreshMissionControl(source);
             LogMcUiContractInventory($"RefreshContractUiAdapters:after source={source}");
+            if (IsPersistentSyncSafeContractUiRefresh(source) && ContractSystem.Instance != null &&
+                ShouldLogPersistentSyncUiAdapterRefresh(source))
+            {
+                LunaLog.Log(
+                    $"[PersistentSync] contract UI refresh source={source} adapters=contract-lists,contracts-app,mission-control " +
+                    $"offered={ContractSystem.Instance.Contracts.Count} finished={ContractSystem.Instance.ContractsFinished.Count}");
+            }
+        }
+
+        /// <summary>
+        /// Clears bypass-path UI coalescing so the next <see cref="RefreshContractUiAdapters"/> run rebinds lists
+        /// (e.g. contract parameter progress without state transitions).
+        /// </summary>
+        public void InvalidatePersistentSyncBypassUiRefreshCoalesce()
+        {
+            _persistentSyncBypassUiRefreshCoalesceSignature = null;
+        }
+
+        private static string TryBuildPersistentSyncBypassUiRefreshCoalesceSignature()
+        {
+            var cs = ContractSystem.Instance;
+            if (cs == null)
+            {
+                return "ContractSystem=null";
+            }
+
+            var main = cs.Contracts;
+            var fin = cs.ContractsFinished;
+            var sb = new StringBuilder(256);
+            sb.Append(main?.Count ?? 0).Append('|').Append(fin?.Count ?? 0).Append(':');
+            if (main != null)
+            {
+                foreach (var c in main.Where(x => x != null).OrderBy(x => x.ContractGuid.ToString("N")))
+                {
+                    sb.Append(c.ContractGuid.ToString("N")).Append('=').Append((int)c.ContractState).Append(';');
+                }
+            }
+
+            sb.Append('|');
+            if (fin != null)
+            {
+                foreach (var c in fin.Where(x => x != null).OrderBy(x => x.ContractGuid.ToString("N")))
+                {
+                    sb.Append(c.ContractGuid.ToString("N")).Append('=').Append((int)c.ContractState).Append(';');
+                }
+            }
+
+            // Mission Control / Contracts App instances appear after the player opens UI; rebind once when they do.
+            sb.Append("|MC=").Append(MissionControl.Instance != null ? "1" : "0");
+            sb.Append("|CA=").Append(ContractsApp.Instance != null ? "1" : "0");
+
+            return sb.ToString();
         }
 
         /// <summary>
@@ -867,60 +1028,6 @@ namespace LmpClient.Systems.ShareContracts
                 var activeInMain = main.Count(c => c != null && c.ContractState == Contract.State.Active);
                 var offerPoolLike = main.Count(c => c != null && IsMissionControlOfferPoolContract(c));
                 LunaLog.Log($"[MC-Diag] {tag} mainBreakdown activeInMain={activeInMain} offerPoolLikeInMain={offerPoolLike}");
-
-                foreach (var grp in main.Where(c => c != null).GroupBy(c => c.ContractState.ToString()).OrderBy(g => g.Key))
-                {
-                    LunaLog.Log($"[MC-Diag] {tag} mainByState state={grp.Key} count={grp.Count()}");
-                }
-
-                const int maxRows = 60;
-                var idx = 0;
-                foreach (var c in main)
-                {
-                    if (c == null)
-                    {
-                        continue;
-                    }
-
-                    if (idx++ >= maxRows)
-                    {
-                        LunaLog.Log($"[MC-Diag] {tag} mainList ... truncated (total main={main.Count})");
-                        break;
-                    }
-
-                    var title = c.Title ?? string.Empty;
-                    if (title.Length > 80)
-                    {
-                        title = title.Substring(0, 80) + "…";
-                    }
-
-                    var tname = c.GetType().Name;
-                    LunaLog.Log(
-                        $"[MC-Diag] {tag} main[{idx - 1}] guid={c.ContractGuid} state={c.ContractState} isFinished={c.IsFinished()} type={tname} title={title}");
-                }
-
-                idx = 0;
-                foreach (var c in fin)
-                {
-                    if (c == null)
-                    {
-                        continue;
-                    }
-
-                    if (idx++ >= 25)
-                    {
-                        LunaLog.Log($"[MC-Diag] {tag} finishedList ... truncated (total finished={fin.Count})");
-                        break;
-                    }
-
-                    var title = c.Title ?? string.Empty;
-                    if (title.Length > 80)
-                    {
-                        title = title.Substring(0, 80) + "…";
-                    }
-
-                    LunaLog.Log($"[MC-Diag] {tag} finished[{idx - 1}] guid={c.ContractGuid} state={c.ContractState} isFinished={c.IsFinished()} title={title}");
-                }
             }
             catch (Exception e)
             {
@@ -934,15 +1041,14 @@ namespace LmpClient.Systems.ShareContracts
             string.Equals(source, ContractSystemRefreshPersistentSyncBypassSource, StringComparison.Ordinal);
 
         /// <summary>
-        /// Coalesces repeated "[PersistentSync] contract UI refresh" lines when the same adapter/source/counts
-        /// fire every frame during <see cref="ContractSystemRefreshPersistentSyncBypassSource"/> loops.
+        /// Coalesces repeated "[PersistentSync] contract UI refresh" lines when the same source/counts fire often.
         /// </summary>
-        private static bool ShouldLogPersistentSyncUiAdapterRefresh(string source, string adapterSuffix)
+        private static bool ShouldLogPersistentSyncUiAdapterRefresh(string source)
         {
             var cs = ContractSystem.Instance;
             var offered = cs?.Contracts?.Count ?? -1;
             var finished = cs?.ContractsFinished?.Count ?? -1;
-            var signature = $"{adapterSuffix}|{source}|{offered}:{finished}";
+            var signature = $"{source}|{offered}:{finished}";
             var now = Time.realtimeSinceStartup;
             if (string.Equals(_persistentSyncUiAdapterLogSignature, signature, StringComparison.Ordinal) &&
                 now - _persistentSyncUiAdapterLogRealtime < PersistentSyncUiAdapterLogThrottleSeconds)
@@ -1007,12 +1113,6 @@ namespace LmpClient.Systems.ShareContracts
                     GameEvents.Contract.onContractsListChanged.Fire();
                     GameEvents.Contract.onContractsLoaded.Fire();
                 }
-
-                if (ShouldLogPersistentSyncUiAdapterRefresh(source, "contract-lists"))
-                {
-                    LunaLog.Log(
-                        $"[PersistentSync] contract UI refresh source={source} adapter=contract-lists offered={ContractSystem.Instance.Contracts.Count} finished={ContractSystem.Instance.ContractsFinished.Count}");
-                }
             }
             catch (Exception e)
             {
@@ -1023,6 +1123,11 @@ namespace LmpClient.Systems.ShareContracts
         private static void RefreshContractsApp(string source)
         {
             if (ContractsApp.Instance == null)
+            {
+                return;
+            }
+
+            if (IsPersistentSyncSafeContractUiRefresh(source) && !IsContractsAppReadyForPersistentSyncRefresh())
             {
                 return;
             }
@@ -1040,11 +1145,6 @@ namespace LmpClient.Systems.ShareContracts
                     // can NRE when stock UI is only partially constructed during PersistentSync flush.
                     InvokeOptionalMethod(ContractsApp.Instance, "OnContractsLoaded");
                 }
-
-                if (ShouldLogPersistentSyncUiAdapterRefresh(source, "contracts-app"))
-                {
-                    LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=contracts-app");
-                }
             }
             catch (Exception e)
             {
@@ -1052,11 +1152,44 @@ namespace LmpClient.Systems.ShareContracts
             }
         }
 
+        private static bool IsContractsAppReadyForPersistentSyncRefresh()
+        {
+            var app = ContractsApp.Instance;
+            if (app == null || !app.isActiveAndEnabled || app.gameObject == null || !app.gameObject.activeInHierarchy)
+            {
+                return false;
+            }
+
+            return HasNonNullInstanceField(app, "appFrame") &&
+                   HasNonNullInstanceField(app, "cascadingList") &&
+                   HasNonNullInstanceField(app, "contractList");
+        }
+
+        private static bool HasNonNullInstanceField(object target, string fieldName)
+        {
+            if (target == null || string.IsNullOrEmpty(fieldName))
+            {
+                return false;
+            }
+
+            var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            return field != null && field.GetValue(target) != null;
+        }
+
         private static void RefreshMissionControl(string source)
         {
             if (MissionControl.Instance == null)
             {
-                LunaLog.Log($"[MC-Diag] RefreshMissionControl skip MissionControl.Instance=null source={source}");
+                var skipSig = $"MissionControlNull|{source}";
+                var skipNow = Time.realtimeSinceStartup;
+                if (!string.Equals(skipSig, _mcDiagMissionControlNullSkipSignature, StringComparison.Ordinal) ||
+                    skipNow - _mcDiagMissionControlNullSkipRealtime >= McDiagMissionControlNullSkipThrottleSeconds)
+                {
+                    _mcDiagMissionControlNullSkipSignature = skipSig;
+                    _mcDiagMissionControlNullSkipRealtime = skipNow;
+                    LunaLog.Log($"[MC-Diag] RefreshMissionControl skip MissionControl.Instance=null source={source}");
+                }
+
                 return;
             }
 
@@ -1070,10 +1203,6 @@ namespace LmpClient.Systems.ShareContracts
 
                 InvokeOptionalMethod(MissionControl.Instance, "RebuildContractList");
                 InvokeOptionalMethod(MissionControl.Instance, "RefreshUIControls");
-                if (ShouldLogPersistentSyncUiAdapterRefresh(source, "mission-control"))
-                {
-                    LunaLog.Log($"[PersistentSync] contract UI refresh source={source} adapter=mission-control");
-                }
 
                 LogMcUiContractInventory($"RefreshMissionControl:afterInvoke source={source}");
             }

@@ -2,6 +2,7 @@ using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
+using Server.Client;
 using Server.Log;
 using Server.System;
 using System;
@@ -67,7 +68,7 @@ namespace Server.System.PersistentSync
             };
         }
 
-        public PersistentSyncDomainApplyResult ApplyClientIntent(PersistentSyncIntentMsgData data)
+        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
         {
             var technologies = TechnologySnapshotPayloadSerializer.Deserialize(data.Payload, data.NumBytes);
             return ApplyTechnologyRecords(technologies, data.ClientKnownRevision);

@@ -242,12 +242,17 @@ namespace Server.System
         /// Thread safe file deleting method, checks for existence before removing the file
         /// </summary>
         /// <param name="path">Path of the file to remove</param>
-        public static void FileDelete(string path)
+        public static bool FileDelete(string path)
         {
             lock (GetLockSemaphore(path))
             {
                 if (File.Exists(path))
+                {
                     File.Delete(path);
+                    return true;
+                }
+
+                return false;
             }
         }
 

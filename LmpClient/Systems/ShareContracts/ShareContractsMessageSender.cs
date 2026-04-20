@@ -17,31 +17,109 @@ namespace LmpClient.Systems.ShareContracts
     public class ShareContractsMessageSender : SubSystem<ShareContractsSystem>, IMessageSender
     {
         private const string LmpOfferTitleFieldName = "lmpOfferTitle";
+        private readonly ContractSnapshotChangeTracker _snapshotChangeTracker = new ContractSnapshotChangeTracker();
 
         public void SendMessage(IMessageData msg)
         {
             TaskFactory.StartNew(() => NetworkSender.QueueOutgoingMessage(MessageFactory.CreateNew<ShareProgressCliMsg>(msg)));
         }
 
-        public void SendContractMessage(Contract[] contracts)
+        public void SendContractCommand(ContractIntentPayloadKind kind, Contract contract, string reason)
         {
-            var contractSnapshots = CreateCanonicalContractSnapshots(contracts);
-            if (contractSnapshots.Count == 0)
+            if (contract == null)
             {
                 return;
             }
 
             if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
             {
-                var reason = $"ContractProducer:{string.Join(",", contractSnapshots.Select(c => c.ContractGuid.ToString("N")))}";
-                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntent(contractSnapshots.ToArray(), reason);
+                var payload = ContractIntentPayloadSerializer.SerializeCommand(kind, contract.ContractGuid);
+                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(payload, reason);
+                return;
+            }
+
+            LunaLog.LogWarning("[PersistentSync] ShareContractsMessageSender using legacy ShareProgress fallback because PersistentSync is not enabled yet.");
+            SendLegacyContractMessage(new[] { contract });
+        }
+
+        public void SendRequestOfferGeneration(string reason)
+        {
+            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            {
+                var payload = ContractIntentPayloadSerializer.SerializeRequestOfferGeneration();
+                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(payload, reason);
+            }
+        }
+
+        public void SendProducerProposal(ContractIntentPayloadKind kind, Contract contract, string reason)
+        {
+            var contractSnapshots = CreateCanonicalContractSnapshots(new[] { contract });
+            var changedSnapshots = _snapshotChangeTracker.FilterChanged(contractSnapshots);
+            if (changedSnapshots.Length == 0)
+            {
+                return;
+            }
+
+            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            {
+                var payload = ContractIntentPayloadSerializer.SerializeProposal(kind, changedSnapshots[0]);
+                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(payload, reason);
+                return;
+            }
+
+            LunaLog.LogWarning("[PersistentSync] ShareContractsMessageSender using legacy ShareProgress fallback because PersistentSync is not enabled yet.");
+            SendLegacyContractMessage(new[] { contract });
+        }
+
+        public void SendFullContractReconcile(string reason)
+        {
+            if (ContractSystem.Instance == null)
+            {
+                return;
+            }
+
+            var canonicalContracts = CreateCanonicalContractSnapshots(
+                ContractSystem.Instance.Contracts.Concat(ContractSystem.Instance.ContractsFinished));
+
+            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            {
+                var knownContracts = canonicalContracts.ToArray();
+                _snapshotChangeTracker.Reset(knownContracts);
+                var payload = ContractIntentPayloadSerializer.SerializeFullReconcile(knownContracts);
+                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(payload, reason);
+                return;
+            }
+
+            SendLegacyContractMessage(ContractSystem.Instance.Contracts
+                .Concat(ContractSystem.Instance.ContractsFinished)
+                .ToArray());
+        }
+
+        public void SendFullContractSystemSnapshot(string reason)
+        {
+            SendFullContractReconcile(reason);
+        }
+
+        private void SendLegacyContractMessage(Contract[] contracts)
+        {
+            var contractSnapshots = CreateCanonicalContractSnapshots(contracts);
+            var changedSnapshots = _snapshotChangeTracker.FilterChanged(contractSnapshots);
+            if (changedSnapshots.Length == 0)
+            {
+                return;
+            }
+
+            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            {
+                var reason = $"ContractProducer:{string.Join(",", changedSnapshots.Select(c => c.ContractGuid.ToString("N")))}";
+                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntent(changedSnapshots, reason);
                 return;
             }
 
             LunaLog.LogWarning("[PersistentSync] ShareContractsMessageSender using legacy ShareProgress fallback because PersistentSync is not enabled yet.");
 
             // Build the legacy packet only as a transport fallback before PersistentSync is ready.
-            var contractInfos = contractSnapshots.Select(contract => new ContractInfo
+            var contractInfos = changedSnapshots.Select(contract => new ContractInfo
             {
                 ContractGuid = contract.ContractGuid,
                 Data = contract.Data,
@@ -53,9 +131,14 @@ namespace LmpClient.Systems.ShareContracts
             System.MessageSender.SendMessage(msgData);
         }
 
-        public void SendContractMessage(Contract contract)
+        public void ResetKnownContractSnapshots(IEnumerable<ContractSnapshotInfo> contracts)
         {
-            SendContractMessage(new[] { contract });
+            _snapshotChangeTracker.Reset(contracts);
+        }
+
+        public void ClearKnownContractSnapshots()
+        {
+            _snapshotChangeTracker.Clear();
         }
 
         private static ConfigNode ConvertContractToConfigNode(Contract contract)

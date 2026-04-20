@@ -65,6 +65,7 @@ namespace LmpClient.Systems.PersistentSync
                 ShareContractsSystem.Singleton.CancelPendingControlledStockContractRefresh("PersistentSyncSnapshotApply:PreReplace");
 
                 ReplaceContractsFromSnapshot(_pendingContracts);
+                ShareContractsSystem.Singleton.MessageSender.ResetKnownContractSnapshots(_pendingContracts);
                 // Stock RefreshContracts reloads from HighLogic.CurrentGame.scenarios ContractSystem proto. We mutate
                 // ContractSystem.Instance lists only — without mirroring here, a later RefreshContracts (subspace lock,
                 // Mission Control, etc.) rebuilds from stale proto and wipes offers while keeping ContractsFinished.

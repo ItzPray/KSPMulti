@@ -2,6 +2,7 @@ using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
+using Server.Client;
 using Server.Log;
 using Server.Properties;
 using Server.Settings.Structures;
@@ -29,8 +30,7 @@ namespace Server.System.PersistentSync
 
         public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
 
-        // The current contract lock owner is the only client allowed to produce canonical contract state for the server.
-        public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.LockOwnerIntent;
+        public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
         private long Revision { get; set; }
 
@@ -56,7 +56,10 @@ namespace Server.System.PersistentSync
                     needsPersist = true;
                 }
 
-                IngestContractsFromScenario(scenario);
+                if (IngestContractsFromScenario(scenario))
+                {
+                    needsPersist = true;
+                }
 
                 if (careerContracts && _contractsByGuid.Count == 0)
                 {
@@ -80,25 +83,30 @@ namespace Server.System.PersistentSync
             }
         }
 
-        private void IngestContractsFromScenario(ConfigNode scenario)
+        private bool IngestContractsFromScenario(ConfigNode scenario)
         {
             _contractsByGuid.Clear();
 
             var contractsNode = scenario.GetNode(ContractsNodeName)?.Value;
             if (contractsNode == null)
             {
-                return;
+                return false;
             }
 
-            var order = 0;
+            var nextOrder = 0;
+            var rawCount = 0;
+            var cleanedDuringLoad = false;
             foreach (var contractNode in contractsNode.GetNodes(ContractNodeName).Select(n => n.Value).Where(n => n != null))
             {
-                var snapshotInfo = CreateSnapshotInfo(contractNode, order++);
+                var snapshotInfo = CreateSnapshotInfo(contractNode, nextOrder);
                 if (snapshotInfo != null)
                 {
-                    _contractsByGuid[snapshotInfo.ContractGuid] = snapshotInfo;
+                    rawCount++;
+                    ApplyCanonicalRecord(snapshotInfo, ref nextOrder, ref cleanedDuringLoad);
                 }
             }
+
+            return cleanedDuringLoad || _contractsByGuid.Count != rawCount;
         }
 
         /// <summary>
@@ -126,7 +134,8 @@ namespace Server.System.PersistentSync
             }
 
             var addedAny = false;
-            var order = 0;
+            var nextOrder = _contractsByGuid.Any() ? _contractsByGuid.Values.Max(c => c.Order) + 1 : 0;
+            var cleanedSeededRows = false;
             foreach (var templateContractWrapper in templateContracts.GetNodes(ContractNodeName))
             {
                 var templateContract = templateContractWrapper.Value;
@@ -135,14 +144,16 @@ namespace Server.System.PersistentSync
                     continue;
                 }
 
-                var snapshotInfo = CreateSnapshotInfo(templateContract, order++);
+                var snapshotInfo = CreateSnapshotInfo(templateContract, nextOrder);
                 if (snapshotInfo == null)
                 {
                     continue;
                 }
 
-                _contractsByGuid[snapshotInfo.ContractGuid] = snapshotInfo;
-                addedAny = true;
+                if (ApplyCanonicalRecord(snapshotInfo, ref nextOrder, ref cleanedSeededRows))
+                {
+                    addedAny = true;
+                }
             }
 
             if (addedAny)
@@ -155,7 +166,7 @@ namespace Server.System.PersistentSync
 
         public PersistentSyncDomainSnapshot GetCurrentSnapshot()
         {
-            var orderedContracts = GetOrderedContracts().Select(CloneInfo).ToArray();
+            var orderedContracts = GetOrderedContracts().Select(ContractSnapshotInfoComparer.Clone).ToArray();
             var payload = ContractSnapshotPayloadSerializer.Serialize(orderedContracts);
             return new PersistentSyncDomainSnapshot
             {
@@ -167,14 +178,264 @@ namespace Server.System.PersistentSync
             };
         }
 
-        public PersistentSyncDomainApplyResult ApplyClientIntent(PersistentSyncIntentMsgData data)
+        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
         {
-            return ApplyRecords(ContractSnapshotPayloadSerializer.Deserialize(data.Payload, data.NumBytes), data.ClientKnownRevision);
+            if (TryDeserializeContractIntentPayload(data.Payload, data.NumBytes, out var intentPayload))
+            {
+                return ApplyTypedClientIntent(client, intentPayload, data.ClientKnownRevision);
+            }
+
+            if (!ClientOwnsProducerAuthority(client))
+            {
+                return RejectedApplyResult();
+            }
+
+            var payload = ContractSnapshotPayloadSerializer.DeserializeEnvelope(data.Payload, data.NumBytes);
+            return payload.Mode == ContractSnapshotPayloadMode.FullReplace
+                ? ApplyFullReplace(payload.Contracts, data.ClientKnownRevision)
+                : ApplyRecords(payload.Contracts, data.ClientKnownRevision);
         }
 
         public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
         {
-            return ApplyRecords(ContractSnapshotPayloadSerializer.Deserialize(payload, numBytes), null);
+            var deserialized = ContractSnapshotPayloadSerializer.DeserializeEnvelope(payload, numBytes);
+            return deserialized.Mode == ContractSnapshotPayloadMode.FullReplace
+                ? ApplyFullReplace(deserialized.Contracts, null)
+                : ApplyRecords(deserialized.Contracts, null);
+        }
+
+        private PersistentSyncDomainApplyResult ApplyTypedClientIntent(ClientStructure client, ContractIntentPayload intentPayload, long? clientKnownRevision)
+        {
+            switch (intentPayload.Kind)
+            {
+                case ContractIntentPayloadKind.AcceptContract:
+                    return ApplyAcceptContractCommand(intentPayload.ContractGuid, clientKnownRevision);
+                case ContractIntentPayloadKind.DeclineContract:
+                    return ApplyDeclineContractCommand(intentPayload.ContractGuid, clientKnownRevision);
+                case ContractIntentPayloadKind.CancelContract:
+                    return ApplyCancelContractCommand(intentPayload.ContractGuid, clientKnownRevision);
+                case ContractIntentPayloadKind.RequestOfferGeneration:
+                    return ApplyOfferGenerationRequest(clientKnownRevision);
+                case ContractIntentPayloadKind.OfferObserved:
+                    return ApplyProducerObservedOffer(client, intentPayload, clientKnownRevision);
+                case ContractIntentPayloadKind.ParameterProgressObserved:
+                    return ApplyProducerObservedActiveMutation(client, intentPayload, clientKnownRevision);
+                case ContractIntentPayloadKind.ContractCompletedObserved:
+                    return ApplyProducerObservedFinishedMutation(client, intentPayload, clientKnownRevision);
+                case ContractIntentPayloadKind.ContractFailedObserved:
+                    return ApplyProducerObservedFinishedMutation(client, intentPayload, clientKnownRevision);
+                case ContractIntentPayloadKind.FullReconcile:
+                    if (!ClientOwnsProducerAuthority(client))
+                    {
+                        return RejectedApplyResult();
+                    }
+
+                    return ApplyFullReplace(intentPayload.Contracts, clientKnownRevision);
+                default:
+                    return RejectedApplyResult();
+            }
+        }
+
+        private PersistentSyncDomainApplyResult ApplyAcceptContractCommand(Guid contractGuid, long? clientKnownRevision)
+        {
+            if (!_contractsByGuid.TryGetValue(contractGuid, out var existing) || !IsOfferPoolContract(existing))
+            {
+                return RejectedApplyResult();
+            }
+
+            return ApplySingleCanonicalMutation(RewriteContractState(existing, "Active", ContractSnapshotPlacement.Active), clientKnownRevision);
+        }
+
+        private PersistentSyncDomainApplyResult ApplyDeclineContractCommand(Guid contractGuid, long? clientKnownRevision)
+        {
+            if (!_contractsByGuid.TryGetValue(contractGuid, out var existing) || !IsOfferPoolContract(existing))
+            {
+                return RejectedApplyResult();
+            }
+
+            return ApplySingleCanonicalMutation(RewriteContractState(existing, "Declined", ContractSnapshotPlacement.Finished), clientKnownRevision);
+        }
+
+        private PersistentSyncDomainApplyResult ApplyCancelContractCommand(Guid contractGuid, long? clientKnownRevision)
+        {
+            if (!_contractsByGuid.TryGetValue(contractGuid, out var existing) || !IsActiveContract(existing))
+            {
+                return RejectedApplyResult();
+            }
+
+            return ApplySingleCanonicalMutation(RewriteContractState(existing, "Cancelled", ContractSnapshotPlacement.Finished), clientKnownRevision);
+        }
+
+        private PersistentSyncDomainApplyResult ApplyOfferGenerationRequest(long? clientKnownRevision)
+        {
+            return new PersistentSyncDomainApplyResult
+            {
+                Accepted = true,
+                Changed = false,
+                ReplyToOriginClient = !HasOfferPoolContracts() && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
+                Snapshot = GetCurrentSnapshot()
+            };
+        }
+
+        private PersistentSyncDomainApplyResult ApplyProducerObservedOffer(ClientStructure client, ContractIntentPayload intentPayload, long? clientKnownRevision)
+        {
+            if (!ClientOwnsProducerAuthority(client))
+            {
+                return RejectedApplyResult();
+            }
+
+            if (!TryGetSingleIntentContract(intentPayload, out var incomingContract) || !IsOfferPoolContract(incomingContract))
+            {
+                return RejectedApplyResult();
+            }
+
+            return ApplyRecords(new[] { incomingContract }, clientKnownRevision);
+        }
+
+        private PersistentSyncDomainApplyResult ApplyProducerObservedActiveMutation(ClientStructure client, ContractIntentPayload intentPayload, long? clientKnownRevision)
+        {
+            if (!ClientOwnsProducerAuthority(client))
+            {
+                return RejectedApplyResult();
+            }
+
+            if (!TryGetSingleIntentContract(intentPayload, out var incomingContract) ||
+                !_contractsByGuid.TryGetValue(incomingContract.ContractGuid, out var existing) ||
+                !IsActiveContract(existing))
+            {
+                return RejectedApplyResult();
+            }
+
+            return ApplyRecords(new[] { incomingContract }, clientKnownRevision);
+        }
+
+        private PersistentSyncDomainApplyResult ApplyProducerObservedFinishedMutation(ClientStructure client, ContractIntentPayload intentPayload, long? clientKnownRevision)
+        {
+            if (!ClientOwnsProducerAuthority(client))
+            {
+                return RejectedApplyResult();
+            }
+
+            if (!TryGetSingleIntentContract(intentPayload, out var incomingContract) ||
+                !_contractsByGuid.TryGetValue(incomingContract.ContractGuid, out var existing) ||
+                !IsActiveContract(existing))
+            {
+                return RejectedApplyResult();
+            }
+
+            return ApplyRecords(new[] { incomingContract }, clientKnownRevision);
+        }
+
+        private PersistentSyncDomainApplyResult ApplySingleCanonicalMutation(ContractSnapshotInfo mutatedContract, long? clientKnownRevision)
+        {
+            var changed = false;
+            var nextOrder = _contractsByGuid.Any() ? _contractsByGuid.Values.Max(c => c.Order) + 1 : 0;
+            ApplyCanonicalRecord(mutatedContract, ref nextOrder, ref changed);
+
+            if (changed)
+            {
+                Revision++;
+                PersistCurrentState();
+            }
+
+            return new PersistentSyncDomainApplyResult
+            {
+                Accepted = true,
+                Changed = changed,
+                ReplyToOriginClient = !changed && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
+                Snapshot = GetCurrentSnapshot()
+            };
+        }
+
+        private static bool TryDeserializeContractIntentPayload(byte[] payload, int numBytes, out ContractIntentPayload intentPayload)
+        {
+            intentPayload = null;
+            try
+            {
+                intentPayload = ContractIntentPayloadSerializer.Deserialize(payload, numBytes);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool TryGetSingleIntentContract(ContractIntentPayload intentPayload, out ContractSnapshotInfo contract)
+        {
+            contract = intentPayload?.Contract != null
+                ? ContractSnapshotInfoComparer.Clone(intentPayload.Contract)
+                : null;
+
+            if (contract == null || contract.ContractGuid == Guid.Empty)
+            {
+                return false;
+            }
+
+            if (intentPayload.ContractGuid != Guid.Empty && intentPayload.ContractGuid != contract.ContractGuid)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static PersistentSyncDomainApplyResult RejectedApplyResult()
+        {
+            return new PersistentSyncDomainApplyResult
+            {
+                Accepted = false,
+                Changed = false,
+                ReplyToOriginClient = false,
+                Snapshot = null
+            };
+        }
+
+        private static bool ClientOwnsProducerAuthority(ClientStructure client)
+        {
+            return client != null && LockSystem.LockQuery.ContractLockBelongsToPlayer(client.PlayerName);
+        }
+
+        private bool HasOfferPoolContracts()
+        {
+            return _contractsByGuid.Values.Any(IsOfferPoolContract);
+        }
+
+        private static bool IsOfferPoolContract(ContractSnapshotInfo contract)
+        {
+            return contract != null &&
+                   contract.Placement == ContractSnapshotPlacement.Current &&
+                   IsOfferLikeContractState(contract.ContractState);
+        }
+
+        private static bool IsActiveContract(ContractSnapshotInfo contract)
+        {
+            return contract != null &&
+                   (contract.Placement == ContractSnapshotPlacement.Active ||
+                    string.Equals(contract.ContractState?.Trim(), "Active", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static ContractSnapshotInfo RewriteContractState(ContractSnapshotInfo source, string targetState, ContractSnapshotPlacement placement)
+        {
+            var rewritten = ContractSnapshotInfoComparer.Clone(source);
+            if (rewritten == null)
+            {
+                return null;
+            }
+
+            var contractNode = new ConfigNode(Encoding.UTF8.GetString(rewritten.Data, 0, rewritten.NumBytes));
+            while (contractNode.GetValues(StateFieldName).Any())
+            {
+                contractNode.RemoveValue(StateFieldName);
+            }
+
+            contractNode.CreateValue(new CfgNodeValue<string, string>(StateFieldName, targetState ?? string.Empty));
+
+            rewritten.ContractState = targetState ?? string.Empty;
+            rewritten.Placement = placement;
+            rewritten.Data = Encoding.UTF8.GetBytes(contractNode.ToString());
+            rewritten.NumBytes = rewritten.Data.Length;
+            return CanonicalizeRecordData(rewritten);
         }
 
         private PersistentSyncDomainApplyResult ApplyRecords(IEnumerable<ContractSnapshotInfo> incomingRecords, long? clientKnownRevision)
@@ -184,43 +445,38 @@ namespace Server.System.PersistentSync
 
             foreach (var incomingRecord in incomingRecords ?? Enumerable.Empty<ContractSnapshotInfo>())
             {
-                if (incomingRecord == null || incomingRecord.ContractGuid == Guid.Empty)
-                {
-                    continue;
-                }
-
-                var normalizedRecord = NormalizeRecord(incomingRecord, nextOrder);
-                if (normalizedRecord.Order == nextOrder)
-                {
-                    nextOrder++;
-                }
-
-                if (ShouldRejectIncomingOfferedDuplicateOfActive(normalizedRecord))
-                {
-                    continue;
-                }
-
-                if (RemoveOlderOfferedDuplicatesOf(normalizedRecord))
-                {
-                    changed = true;
-                }
-
-                if (_contractsByGuid.TryGetValue(normalizedRecord.ContractGuid, out var existingRecord))
-                {
-                    normalizedRecord.Order = existingRecord.Order;
-                    if (!RecordsAreEqual(existingRecord, normalizedRecord))
-                    {
-                        _contractsByGuid[normalizedRecord.ContractGuid] = normalizedRecord;
-                        changed = true;
-                    }
-                }
-                else
-                {
-                    _contractsByGuid[normalizedRecord.ContractGuid] = normalizedRecord;
-                    changed = true;
-                }
+                ApplyCanonicalRecord(incomingRecord, ref nextOrder, ref changed);
             }
 
+            if (changed)
+            {
+                Revision++;
+                PersistCurrentState();
+            }
+
+            return new PersistentSyncDomainApplyResult
+            {
+                Accepted = true,
+                Changed = changed,
+                ReplyToOriginClient = !changed && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
+                Snapshot = GetCurrentSnapshot()
+            };
+        }
+
+        private PersistentSyncDomainApplyResult ApplyFullReplace(IEnumerable<ContractSnapshotInfo> incomingRecords, long? clientKnownRevision)
+        {
+            var previous = _contractsByGuid.ToDictionary(kv => kv.Key, kv => ContractSnapshotInfoComparer.Clone(kv.Value));
+
+            _contractsByGuid.Clear();
+            var nextOrder = 0;
+            var ignoredChanged = false;
+            var ignoredCleanup = false;
+            foreach (var incomingRecord in incomingRecords ?? Enumerable.Empty<ContractSnapshotInfo>())
+            {
+                ApplyCanonicalRecord(incomingRecord, ref nextOrder, ref ignoredChanged, ref ignoredCleanup);
+            }
+
+            var changed = !AreCanonicalSetsEquivalent(previous, _contractsByGuid);
             if (changed)
             {
                 Revision++;
@@ -245,23 +501,104 @@ namespace Server.System.PersistentSync
                     return;
                 }
 
-                var contractsNode = scenario.GetNode(ContractsNodeName)?.Value;
-                if (contractsNode == null)
+                // LunaConfigNode graph edits for CONTRACTS have proven easy to get wrong (wrong layer removed,
+                // leaving stale CONTRACT rows in the serialized scenario). Rewrite the CONTRACTS { ... } region in
+                // the full scenario text so persistence always matches the canonical in-memory contract set while
+                // preserving sibling blocks (WEIGHTS, etc.).
+                var scenarioText = scenario.ToString();
+                if (!TryReplaceContractsSectionInScenarioText(scenarioText, GetOrderedContracts(), out var rewritten))
                 {
-                    contractsNode = new ConfigNode(ContractsNodeName, scenario);
-                    scenario.AddNode(contractsNode);
+                    return;
                 }
 
-                foreach (var existingContract in contractsNode.GetNodes(ContractNodeName).Select(n => n.Value).Where(n => n != null).ToArray())
+                ScenarioStoreSystem.CurrentScenarios[ScenarioName] = new ConfigNode(rewritten);
+            }
+        }
+
+        private static bool TryReplaceContractsSectionInScenarioText(
+            string scenarioText,
+            IEnumerable<ContractSnapshotInfo> orderedContracts,
+            out string rewritten)
+        {
+            rewritten = null;
+            if (string.IsNullOrEmpty(scenarioText))
+            {
+                return false;
+            }
+
+            var patterns = new[] { "CONTRACTS\r\n{", "CONTRACTS\n{" };
+            var blockStart = -1;
+            var openBrace = -1;
+            foreach (var p in patterns)
+            {
+                var idx = scenarioText.IndexOf(p, StringComparison.Ordinal);
+                if (idx < 0)
                 {
-                    contractsNode.RemoveNode(existingContract);
+                    continue;
                 }
 
-                foreach (var contract in GetOrderedContracts())
+                blockStart = idx;
+                openBrace = idx + p.Length - 1;
+                break;
+            }
+
+            if (blockStart < 0 || openBrace < 0 || openBrace >= scenarioText.Length || scenarioText[openBrace] != '{')
+            {
+                return false;
+            }
+
+            var depth = 0;
+            var closeBrace = -1;
+            for (var i = openBrace; i < scenarioText.Length; i++)
+            {
+                var c = scenarioText[i];
+                if (c == '{')
                 {
-                    contractsNode.AddNode(DeserializeContractNode(contract));
+                    depth++;
+                }
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        closeBrace = i;
+                        break;
+                    }
                 }
             }
+
+            if (closeBrace < 0)
+            {
+                return false;
+            }
+
+            var tailStart = closeBrace + 1;
+            while (tailStart < scenarioText.Length &&
+                   (scenarioText[tailStart] == '\r' || scenarioText[tailStart] == '\n'))
+            {
+                tailStart++;
+            }
+
+            var sb = new StringBuilder(scenarioText.Length + 64);
+            sb.Append(scenarioText, 0, blockStart);
+            sb.AppendLine("CONTRACTS");
+            sb.AppendLine("{");
+            foreach (var contract in orderedContracts ?? Enumerable.Empty<ContractSnapshotInfo>())
+            {
+                sb.AppendLine("CONTRACT");
+                sb.AppendLine("{");
+                sb.Append(IndentContractData(Encoding.UTF8.GetString(contract.Data, 0, contract.NumBytes)));
+                sb.AppendLine("}");
+            }
+
+            sb.AppendLine("}");
+            if (tailStart < scenarioText.Length)
+            {
+                sb.Append(scenarioText, tailStart, scenarioText.Length - tailStart);
+            }
+
+            rewritten = sb.ToString();
+            return true;
         }
 
         private IEnumerable<ContractSnapshotInfo> GetOrderedContracts()
@@ -269,13 +606,92 @@ namespace Server.System.PersistentSync
             return _contractsByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid);
         }
 
+        private static bool AreCanonicalSetsEquivalent(
+            IReadOnlyDictionary<Guid, ContractSnapshotInfo> left,
+            IReadOnlyDictionary<Guid, ContractSnapshotInfo> right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            if (left == null || right == null || left.Count != right.Count)
+            {
+                return false;
+            }
+
+            foreach (var kv in left)
+            {
+                if (!right.TryGetValue(kv.Key, out var other))
+                {
+                    return false;
+                }
+
+                if (kv.Value.Order != other.Order || !ContractSnapshotInfoComparer.AreEquivalent(kv.Value, other))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static ContractSnapshotInfo NormalizeRecord(ContractSnapshotInfo incomingRecord, int nextOrder)
         {
-            var normalized = CloneInfo(incomingRecord);
+            var normalized = ContractSnapshotInfoComparer.Clone(incomingRecord);
             normalized = CanonicalizeRecordData(normalized);
             normalized.Order = normalized.Order >= 0 ? normalized.Order : nextOrder;
             normalized.Placement = DeterminePlacement(normalized.ContractState);
             return normalized;
+        }
+
+        private bool ApplyCanonicalRecord(ContractSnapshotInfo incomingRecord, ref int nextOrder, ref bool changed)
+        {
+            var ignoredCleanup = false;
+            return ApplyCanonicalRecord(incomingRecord, ref nextOrder, ref changed, ref ignoredCleanup);
+        }
+
+        private bool ApplyCanonicalRecord(ContractSnapshotInfo incomingRecord, ref int nextOrder, ref bool changed, ref bool cleanedDuringLoad)
+        {
+            if (incomingRecord == null || incomingRecord.ContractGuid == Guid.Empty)
+            {
+                return false;
+            }
+
+            var normalizedRecord = NormalizeRecord(incomingRecord, nextOrder);
+            if (normalizedRecord.Order == nextOrder)
+            {
+                nextOrder++;
+            }
+
+            if (ShouldRejectIncomingOfferedDuplicateOfActive(normalizedRecord))
+            {
+                cleanedDuringLoad = true;
+                return false;
+            }
+
+            if (RemoveOlderOfferedDuplicatesOf(normalizedRecord))
+            {
+                changed = true;
+                cleanedDuringLoad = true;
+            }
+
+            if (_contractsByGuid.TryGetValue(normalizedRecord.ContractGuid, out var existingRecord))
+            {
+                normalizedRecord.Order = existingRecord.Order;
+                if (!ContractSnapshotInfoComparer.AreEquivalent(existingRecord, normalizedRecord))
+                {
+                    _contractsByGuid[normalizedRecord.ContractGuid] = normalizedRecord;
+                    changed = true;
+                    cleanedDuringLoad = true;
+                }
+
+                return false;
+            }
+
+            _contractsByGuid[normalizedRecord.ContractGuid] = normalizedRecord;
+            changed = true;
+            return true;
         }
 
         private static ContractSnapshotInfo CreateSnapshotInfo(ConfigNode contractNode, int order)
@@ -320,11 +736,6 @@ namespace Server.System.PersistentSync
             }
         }
 
-        private static ConfigNode DeserializeContractNode(ContractSnapshotInfo info)
-        {
-            return ParseBareContractData(Encoding.UTF8.GetString(info.Data, 0, info.NumBytes));
-        }
-
         private static ContractSnapshotInfo CanonicalizeRecordData(ContractSnapshotInfo info)
         {
             var contractNode = new ConfigNode(Encoding.UTF8.GetString(info.Data, 0, info.NumBytes));
@@ -339,42 +750,6 @@ namespace Server.System.PersistentSync
         {
             var lines = data.Replace("\r\n", "\n").Split('\n');
             return string.Join("\n", lines.Where(line => line.Length > 0).Select(line => "    " + line));
-        }
-
-        private static ConfigNode ParseBareContractData(string data)
-        {
-            var wrappedNode = $"CONTRACT\n{{\n{IndentContractData(data)}\n}}";
-            return new ConfigNode(wrappedNode);
-        }
-
-        private static bool RecordsAreEqual(ContractSnapshotInfo left, ContractSnapshotInfo right)
-        {
-            return left.ContractGuid == right.ContractGuid &&
-                   left.ContractState == right.ContractState &&
-                   left.Placement == right.Placement &&
-                   NormalizeContractText(left) == NormalizeContractText(right);
-        }
-
-        private static string NormalizeContractText(ContractSnapshotInfo info)
-        {
-            return new string(Encoding.UTF8.GetString(info.Data, 0, info.NumBytes)
-                .Where(c => !char.IsWhiteSpace(c))
-                .ToArray());
-        }
-
-        private static ContractSnapshotInfo CloneInfo(ContractSnapshotInfo source)
-        {
-            var data = new byte[source.NumBytes];
-            Buffer.BlockCopy(source.Data, 0, data, 0, source.NumBytes);
-            return new ContractSnapshotInfo
-            {
-                ContractGuid = source.ContractGuid,
-                ContractState = source.ContractState,
-                Placement = source.Placement,
-                Order = source.Order,
-                NumBytes = source.NumBytes,
-                Data = data
-            };
         }
 
         /// <summary>

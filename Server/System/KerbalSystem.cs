@@ -57,11 +57,25 @@ namespace Server.System
         public static void HandleKerbalRemove(ClientStructure client, KerbalRemoveMsgData message)
         {
             var kerbalToRemove = message.KerbalName;
+            if (!TryRemoveKerbalRecord(kerbalToRemove))
+            {
+                return;
+            }
 
             LunaLog.Debug($"Removing kerbal {kerbalToRemove} from {client.PlayerName}");
-            FileHandler.FileDelete(Path.Combine(KerbalsPath, $"{kerbalToRemove}.txt"));
 
             MessageQueuer.RelayMessage<KerbalSrvMsg>(client, message);
+        }
+
+        internal static bool TryRemoveKerbalRecord(string kerbalName)
+        {
+            if (string.IsNullOrEmpty(kerbalName))
+            {
+                return false;
+            }
+
+            var kerbalPath = Path.Combine(KerbalsPath, $"{kerbalName}.txt");
+            return FileHandler.FileDelete(kerbalPath);
         }
     }
 }

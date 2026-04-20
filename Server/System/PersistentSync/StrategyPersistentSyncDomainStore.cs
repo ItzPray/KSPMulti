@@ -2,6 +2,7 @@ using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
+using Server.Client;
 using Server.System;
 using System;
 using System.Collections.Generic;
@@ -65,7 +66,7 @@ namespace Server.System.PersistentSync
             };
         }
 
-        public PersistentSyncDomainApplyResult ApplyClientIntent(PersistentSyncIntentMsgData data)
+        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
         {
             return ApplyRecords(StrategySnapshotPayloadSerializer.Deserialize(data.Payload), data.ClientKnownRevision);
         }

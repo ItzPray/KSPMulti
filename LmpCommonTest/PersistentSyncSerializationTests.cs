@@ -179,6 +179,136 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
+        public void TestContractSnapshotPayloadSerializerFullReplaceRoundTrip()
+        {
+            var contractPayload = new[]
+            {
+                new ContractSnapshotInfo
+                {
+                    ContractGuid = Guid.Parse("aaaaaaaa-1111-1111-1111-111111111111"),
+                    ContractState = "Active",
+                    Placement = ContractSnapshotPlacement.Active,
+                    Order = 3,
+                    Data = System.Text.Encoding.UTF8.GetBytes("guid = aaaaaaaa-1111-1111-1111-111111111111\nstate = Active\n"),
+                    NumBytes = System.Text.Encoding.UTF8.GetByteCount("guid = aaaaaaaa-1111-1111-1111-111111111111\nstate = Active\n")
+                }
+            };
+
+            var snapshotPayload = ContractSnapshotPayloadSerializer.Serialize(ContractSnapshotPayloadMode.FullReplace, contractPayload);
+            var envelope = ContractSnapshotPayloadSerializer.DeserializeEnvelope(snapshotPayload, snapshotPayload.Length);
+
+            Assert.AreEqual(ContractSnapshotPayloadMode.FullReplace, envelope.Mode);
+            Assert.AreEqual(1, envelope.Contracts.Count);
+            Assert.AreEqual(contractPayload[0].ContractGuid, envelope.Contracts[0].ContractGuid);
+            Assert.AreEqual("Active", envelope.Contracts[0].ContractState);
+            Assert.AreEqual(ContractSnapshotPlacement.Active, envelope.Contracts[0].Placement);
+            Assert.AreEqual(3, envelope.Contracts[0].Order);
+        }
+
+        [TestMethod]
+        public void TestContractIntentPayloadSerializerRoundTrip()
+        {
+            var contract = new ContractSnapshotInfo
+            {
+                ContractGuid = Guid.Parse("bbbbbbbb-1111-1111-1111-111111111111"),
+                ContractState = "Active",
+                Placement = ContractSnapshotPlacement.Active,
+                Order = 4,
+                Data = System.Text.Encoding.UTF8.GetBytes("guid = bbbbbbbb-1111-1111-1111-111111111111\nstate = Active\n"),
+                NumBytes = System.Text.Encoding.UTF8.GetByteCount("guid = bbbbbbbb-1111-1111-1111-111111111111\nstate = Active\n")
+            };
+
+            var commandPayload = ContractIntentPayloadSerializer.SerializeCommand(
+                ContractIntentPayloadKind.AcceptContract,
+                contract.ContractGuid);
+            var commandRoundTrip = ContractIntentPayloadSerializer.Deserialize(commandPayload, commandPayload.Length);
+            Assert.AreEqual(ContractIntentPayloadKind.AcceptContract, commandRoundTrip.Kind);
+            Assert.AreEqual(contract.ContractGuid, commandRoundTrip.ContractGuid);
+            Assert.IsNull(commandRoundTrip.Contract);
+            Assert.AreEqual(0, commandRoundTrip.Contracts.Length);
+
+            var proposalPayload = ContractIntentPayloadSerializer.SerializeProposal(
+                ContractIntentPayloadKind.ParameterProgressObserved,
+                contract);
+            var proposalRoundTrip = ContractIntentPayloadSerializer.Deserialize(proposalPayload, proposalPayload.Length);
+            Assert.AreEqual(ContractIntentPayloadKind.ParameterProgressObserved, proposalRoundTrip.Kind);
+            Assert.AreEqual(contract.ContractGuid, proposalRoundTrip.ContractGuid);
+            Assert.IsNotNull(proposalRoundTrip.Contract);
+            Assert.AreEqual("Active", proposalRoundTrip.Contract.ContractState);
+            Assert.AreEqual(ContractSnapshotPlacement.Active, proposalRoundTrip.Contract.Placement);
+
+            var reconcilePayload = ContractIntentPayloadSerializer.SerializeFullReconcile(new[] { contract });
+            var reconcileRoundTrip = ContractIntentPayloadSerializer.Deserialize(reconcilePayload, reconcilePayload.Length);
+            Assert.AreEqual(ContractIntentPayloadKind.FullReconcile, reconcileRoundTrip.Kind);
+            Assert.AreEqual(1, reconcileRoundTrip.Contracts.Length);
+            Assert.AreEqual(contract.ContractGuid, reconcileRoundTrip.Contracts[0].ContractGuid);
+        }
+
+        [TestMethod]
+        public void TestContractSnapshotInfoComparerIgnoresWhitespaceOnlyDifferences()
+        {
+            var guid = Guid.Parse("33333333-3333-3333-3333-333333333333");
+            var compact = new ContractSnapshotInfo
+            {
+                ContractGuid = guid,
+                ContractState = "Offered",
+                Placement = ContractSnapshotPlacement.Current,
+                Order = 0,
+                Data = System.Text.Encoding.UTF8.GetBytes("guid = 33333333-3333-3333-3333-333333333333\nstate = Offered\nPARAM\n{\nstate = Complete\n}\n"),
+                NumBytes = System.Text.Encoding.UTF8.GetByteCount("guid = 33333333-3333-3333-3333-333333333333\nstate = Offered\nPARAM\n{\nstate = Complete\n}\n")
+            };
+            var spaced = new ContractSnapshotInfo
+            {
+                ContractGuid = guid,
+                ContractState = "Offered",
+                Placement = ContractSnapshotPlacement.Current,
+                Order = 99,
+                Data = System.Text.Encoding.UTF8.GetBytes("guid   =   33333333-3333-3333-3333-333333333333\r\nstate = Offered\r\n\r\nPARAM\r\n{\r\n    state = Complete\r\n}\r\n"),
+                NumBytes = System.Text.Encoding.UTF8.GetByteCount("guid   =   33333333-3333-3333-3333-333333333333\r\nstate = Offered\r\n\r\nPARAM\r\n{\r\n    state = Complete\r\n}\r\n")
+            };
+
+            Assert.IsTrue(ContractSnapshotInfoComparer.AreEquivalent(compact, spaced));
+        }
+
+        [TestMethod]
+        public void TestContractSnapshotChangeTrackerFiltersEquivalentSnapshotsByGuid()
+        {
+            var tracker = new ContractSnapshotChangeTracker();
+            var guid = Guid.Parse("44444444-4444-4444-4444-444444444444");
+            var baseline = new ContractSnapshotInfo
+            {
+                ContractGuid = guid,
+                ContractState = "Offered",
+                Placement = ContractSnapshotPlacement.Current,
+                Order = 1,
+                Data = System.Text.Encoding.UTF8.GetBytes("guid = 44444444-4444-4444-4444-444444444444\nstate = Offered\nvalues = 1,0,0\n"),
+                NumBytes = System.Text.Encoding.UTF8.GetByteCount("guid = 44444444-4444-4444-4444-444444444444\nstate = Offered\nvalues = 1,0,0\n")
+            };
+            var equivalent = new ContractSnapshotInfo
+            {
+                ContractGuid = guid,
+                ContractState = "Offered",
+                Placement = ContractSnapshotPlacement.Current,
+                Order = 2,
+                Data = System.Text.Encoding.UTF8.GetBytes("guid = 44444444-4444-4444-4444-444444444444\r\nstate = Offered\r\nvalues = 1,0,0\r\n"),
+                NumBytes = System.Text.Encoding.UTF8.GetByteCount("guid = 44444444-4444-4444-4444-444444444444\r\nstate = Offered\r\nvalues = 1,0,0\r\n")
+            };
+            var changed = new ContractSnapshotInfo
+            {
+                ContractGuid = guid,
+                ContractState = "Offered",
+                Placement = ContractSnapshotPlacement.Current,
+                Order = 3,
+                Data = System.Text.Encoding.UTF8.GetBytes("guid = 44444444-4444-4444-4444-444444444444\nstate = Offered\nvalues = 1,1,0\n"),
+                NumBytes = System.Text.Encoding.UTF8.GetByteCount("guid = 44444444-4444-4444-4444-444444444444\nstate = Offered\nvalues = 1,1,0\n")
+            };
+
+            CollectionAssert.AreEqual(new[] { guid }, tracker.FilterChanged(new[] { baseline }).Select(c => c.ContractGuid).ToArray());
+            Assert.AreEqual(0, tracker.FilterChanged(new[] { equivalent }).Length);
+            CollectionAssert.AreEqual(new[] { guid }, tracker.FilterChanged(new[] { changed }).Select(c => c.ContractGuid).ToArray());
+        }
+
+        [TestMethod]
         public void TestTechnologySnapshotPayloadSerializerRoundTrip()
         {
             var technologyPayload = new[]

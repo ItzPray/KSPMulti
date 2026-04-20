@@ -129,7 +129,7 @@ namespace Server.System.PersistentSync
             }
 
             var revisionBefore = domain.GetCurrentSnapshot().Revision;
-            var result = domain.ApplyClientIntent(data);
+            var result = domain.ApplyClientIntent(client, data);
 
             if (!result.Accepted || result.Snapshot == null)
             {
