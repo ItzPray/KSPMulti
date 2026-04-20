@@ -946,10 +946,18 @@ namespace LmpClient.Systems.ShareContracts
         }
 
         /// <summary>
-        /// Called when THIS client acquires the contract lock. Once the controlled-refresh settle window passes, we
-        /// own producer authority for the canonical contract domain; publish a single explicit producer full-reconcile
-        /// so the server can accept a FullReplace from the rightful authority on transfer (rather than relying only on
-        /// per-proposal convergence).
+        /// Called when THIS client acquires the contract lock. Once the controlled-refresh settle window passes and
+        /// we have actually applied the server's authoritative Contracts snapshot, we own producer authority for the
+        /// canonical contract domain; publish a single explicit producer full-reconcile so the server can accept a
+        /// FullReplace from the rightful authority on transfer (rather than relying only on per-proposal convergence).
+        ///
+        /// CRITICAL GATE: we MUST NOT publish our local <c>ContractSystem</c> state as a full-reconcile before the
+        /// initial authoritative snapshot has been applied in this session. On a fresh (re)connect the local list
+        /// is whatever stock KSP regenerated from <c>ProgressTracking</c> in <c>HighLogic.CurrentGame.Start()</c>
+        /// (typically 4 starter offers with brand-new GUIDs); pushing that as a FullReplace would overwrite the
+        /// server's authoritative Active/Finished rows (accepted missions, completed archive entries).
+        /// Server-side <c>ReduceFullReplace</c> enforces the contract state machine as a defense in depth, but this
+        /// client-side gate avoids the wasted round trip entirely.
         /// </summary>
         public void ScheduleProducerFullReconcileAfterLockHandoff(string source)
         {
@@ -977,6 +985,16 @@ namespace LmpClient.Systems.ShareContracts
             if (!LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
             {
                 LunaLog.Log($"[PersistentSync] producer full reconcile skipped source={source} reason=lock-no-longer-owned");
+                yield break;
+            }
+
+            var ps = PersistentSyncSystem.Singleton;
+            if (ps != null && ps.Enabled && !ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.Contracts))
+            {
+                LunaLog.Log(
+                    $"[PersistentSync] producer full reconcile skipped source={source} " +
+                    "reason=authoritative-snapshot-not-yet-applied " +
+                    "(local ContractSystem state is stock-regenerated; publishing would overwrite server truth)");
                 yield break;
             }
 
@@ -1122,6 +1140,7 @@ namespace LmpClient.Systems.ShareContracts
                     $"subspace={(warp != null ? warp.CurrentSubspace.ToString() : "null")} waitingSubspace={(warp != null && warp.WaitingSubspaceIdFromServer)} " +
                     $"contractLockOwner={(string.IsNullOrEmpty(lockOwner) ? "none" : lockOwner)} lockIsSelf={lockSelf} " +
                     $"MissionControl={(MissionControl.Instance != null)} ContractsApp={(ContractsApp.Instance != null)} " +
+                    $"ContractSystem.loaded={ContractSystem.loaded} ContractSystem.Instance={(ContractSystem.Instance != null ? ContractSystem.Instance.GetInstanceID().ToString() : "null")} " +
                     $"mainCount={main.Count} finishedCount={fin.Count}");
 
                 var activeInMain = main.Count(c => c != null && c.ContractState == Contract.State.Active);

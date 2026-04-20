@@ -21,6 +21,10 @@ namespace LmpClient.Harmony
         {
             if (MainSystem.NetworkState < ClientState.Connected) return;
 
+            LunaLog.Log(
+                $"[PersistentSync] ContractSystem.OnAwake fired instanceId={__instance?.GetInstanceID()} " +
+                $"(stock sets static ContractSystem.loaded=false here; coroutine must reach loaded=true again)");
+
             ShareContractsSystem.Singleton.CaptureDefaultContractGenerateIterationsIfNeeded();
             ShareContractsSystem.Singleton.ApplyStockContractMutationPolicy("ContractSystem.OnAwake");
         }

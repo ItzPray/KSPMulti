@@ -260,16 +260,117 @@ namespace Server.System.PersistentSync
             return ReduceResult<Canonical>.Accept(new Canonical(nextMap));
         }
 
+        /// <summary>
+        /// Canonical invariant: the server's contract store must mirror the stock KSP contract state machine.
+        /// Legitimate transitions are one-way: Offered -&gt; Active/Finished, Active -&gt; Finished, Finished is terminal.
+        /// A producer's <c>FullReconcile</c> is a merge, not a wipe: we preserve every canonical Active / Finished
+        /// row whose incoming counterpart is missing or regresses state. This protects player-committed work
+        /// (accepted missions, completed history) against producers whose local <c>ContractSystem</c> has not yet
+        /// caught up to the server snapshot (e.g. a freshly reconnected client whose local list still contains
+        /// stock-generated starter offers from <c>HighLogic.CurrentGame.Start()</c> before the PS snapshot applied).
+        /// Offered-pool rows are still fully driven by the incoming set so the producer remains authoritative over
+        /// which offers are available.
+        /// </summary>
         private static ReduceResult<Canonical> ReduceFullReplace(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)
         {
-            var nextMap = new Dictionary<Guid, ContractSnapshotInfo>();
-            var nextOrder = 0;
+            var incomingByGuid = new Dictionary<Guid, ContractSnapshotInfo>();
             foreach (var rec in incoming ?? Enumerable.Empty<ContractSnapshotInfo>())
             {
-                ApplyCanonicalRecord(nextMap, rec, ref nextOrder);
+                if (rec == null || rec.ContractGuid == Guid.Empty) continue;
+                incomingByGuid[rec.ContractGuid] = rec;
+            }
+
+            var nextMap = new Dictionary<Guid, ContractSnapshotInfo>();
+            var nextOrder = 0;
+            var preservedActive = 0;
+            var preservedFinished = 0;
+            var rejectedRegressions = 0;
+
+            // Step 1: walk canonical rows in Order so preserved state keeps stable ordering. Preserve every Active/
+            // Finished canonical row unless the incoming record for that GUID represents a legitimate forward
+            // transition; forward transitions fall through and are applied from the incoming set below.
+            foreach (var canonicalRec in current.ContractsByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid))
+            {
+                var isActive = IsActiveContract(canonicalRec);
+                var isFinished = IsFinishedContract(canonicalRec);
+                if (!isActive && !isFinished) continue;
+
+                if (incomingByGuid.TryGetValue(canonicalRec.ContractGuid, out var incomingRec) &&
+                    IsForwardContractStateTransition(canonicalRec, incomingRec))
+                {
+                    continue;
+                }
+
+                if (incomingByGuid.Remove(canonicalRec.ContractGuid))
+                {
+                    rejectedRegressions++;
+                }
+
+                ApplyCanonicalRecord(nextMap, canonicalRec, ref nextOrder);
+                if (isFinished) preservedFinished++;
+                else preservedActive++;
+            }
+
+            // Step 2: apply remaining incoming records. These are either offered-pool rows (producer is authoritative)
+            // or forward-transitioned Active/Finished rows the producer legitimately advanced.
+            foreach (var incomingRec in incomingByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid))
+            {
+                ApplyCanonicalRecord(nextMap, incomingRec, ref nextOrder);
+            }
+
+            if (preservedActive > 0 || preservedFinished > 0 || rejectedRegressions > 0)
+            {
+                LunaLog.Debug(
+                    $"[PersistentSync] Contracts FullReplace merge preservedActive={preservedActive} " +
+                    $"preservedFinished={preservedFinished} rejectedRegressions={rejectedRegressions} " +
+                    $"incomingRows={current.ContractsByGuid.Count} finalRows={nextMap.Count}");
             }
 
             return ReduceResult<Canonical>.Accept(new Canonical(nextMap));
+        }
+
+        private static bool IsFinishedContract(ContractSnapshotInfo contract)
+        {
+            if (contract == null) return false;
+            if (contract.Placement == ContractSnapshotPlacement.Finished) return true;
+            var state = contract.ContractState?.Trim();
+            if (string.IsNullOrEmpty(state)) return false;
+            switch (state.ToLowerInvariant())
+            {
+                case "completed":
+                case "deadlineexpired":
+                case "failed":
+                case "cancelled":
+                case "declined":
+                case "withdrawn":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Mirrors the stock KSP <c>Contract.State</c> machine. Allowed transitions (or identity):
+        ///   Offered/Available -&gt; any state.
+        ///   Active -&gt; Active (identity) or Finished (terminal).
+        ///   Finished -&gt; Finished (identity only; terminal rows are immutable in the canonical store).
+        /// Returns false for any regression (Active -&gt; Offered, Finished -&gt; non-Finished, etc.).
+        /// </summary>
+        private static bool IsForwardContractStateTransition(ContractSnapshotInfo canonical, ContractSnapshotInfo incoming)
+        {
+            if (canonical == null || incoming == null) return false;
+
+            if (IsFinishedContract(canonical))
+            {
+                return IsFinishedContract(incoming);
+            }
+
+            if (IsActiveContract(canonical))
+            {
+                return IsActiveContract(incoming) || IsFinishedContract(incoming);
+            }
+
+            return true;
         }
 
         protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)

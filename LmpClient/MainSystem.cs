@@ -385,16 +385,11 @@ namespace LmpClient
 
             LunaLog.Log($"[LMP]: Starting {SettingsSystem.ServerSettings.GameMode} game...");
 
-            // Pre-populate the Contracts ProtoScenarioModule moduleValues from the buffered server snapshot BEFORE
-            // HighLogic.CurrentGame.Start(). Without this, stock ContractSystem.OnLoadRoutine reads an empty
-            // moduleValues (loaded=false, contracts cleared after one yield); the authoritative snapshot only
-            // lands after OnSceneReady retries the deferred payload, which leaves Mission Control briefly empty
-            // and races with stock's early list-clear path.
-            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
-            {
-                PersistentSyncSystem.Singleton.TryPrePopulateContractsProtoBeforeGameStart("StartGameNow:BeforeGameStart");
-            }
-
+            // Intentionally do NOT pre-populate ContractSystem's ProtoScenarioModule.moduleValues here. Writing raw
+            // snapshot ConfigNodes into the proto before Start() reliably breaks stock ContractSystem.OnLoadRoutine
+            // (observed with KSP.log showing Instance null for minutes and persistent.sfs missing the scenario).
+            // PersistentSync instead applies the buffered Contracts snapshot after Start(), gated on
+            // ContractSystem.loaded so we never race the coroutine that clears the live contract lists.
             //.Start() seems to stupidly .Load() somewhere - Let's overwrite it so it loads correctly.
             GamePersistence.SaveGame(HighLogic.CurrentGame, "persistent", HighLogic.SaveFolder, SaveMode.OVERWRITE);
             HighLogic.CurrentGame.Start();
