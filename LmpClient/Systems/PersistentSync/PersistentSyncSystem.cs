@@ -45,6 +45,27 @@ namespace LmpClient.Systems.PersistentSync
             GameEvents.onGUIRnDComplexSpawn.Add(OnRnDComplexSpawn);
         }
 
+        /// <summary>
+        /// Single live-predicate every <c>Share*MessageSender</c> must use when deciding whether to publish a client
+        /// intent to the server. Returns true only when:
+        /// <list type="bullet">
+        /// <item><description>the system singleton exists and is Enabled (post-scenario-sync, pre-disconnect), AND</description></item>
+        /// <item><description>a client-side domain handler for <paramref name="domainId"/> is registered (i.e., the
+        /// scenario-domain layer for <paramref name="domainId"/> is actually live in this session).</description></item>
+        /// </list>
+        ///
+        /// Scenario Sync Domain Contract rule: per-domain predicates (<c>IsPersistentSyncLiveForContracts</c>, inline
+        /// <c>PersistentSyncSystem.Singleton.Enabled</c> checks, missing checks) are forbidden. Use this instead.
+        /// </summary>
+        public static bool IsLiveForDomain(PersistentSyncDomainId domainId)
+        {
+            var singleton = Singleton;
+            return singleton != null
+                   && singleton.Enabled
+                   && singleton.Domains != null
+                   && singleton.Domains.ContainsKey(domainId);
+        }
+
         protected override void OnDisabled()
         {
             base.OnDisabled();

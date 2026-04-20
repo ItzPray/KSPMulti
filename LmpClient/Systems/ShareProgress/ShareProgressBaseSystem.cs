@@ -7,7 +7,7 @@ using System.Collections.Generic;
 
 namespace LmpClient.Systems.ShareProgress
 {
-    public abstract class ShareProgressBaseSystem<T, TS, TH> : MessageSystem<T, TS, TH>
+    public abstract class ShareProgressBaseSystem<T, TS, TH> : MessageSystem<T, TS, TH>, IShareProgressEventSuppressor
         where T : System<T>, new()
         where TS : class, IMessageSender, new()
         where TH : class, IMessageHandler, new()

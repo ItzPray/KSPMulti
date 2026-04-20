@@ -26,7 +26,7 @@ namespace LmpClient.Systems.ShareScienceSubject
             var data = configNode.Serialize();
             var numBytes = data.Length;
 
-            if (PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.ScienceSubjects))
             {
                 PersistentSyncSystem.Singleton.MessageSender.SendScienceSubjectsIntent(new[]
                 {

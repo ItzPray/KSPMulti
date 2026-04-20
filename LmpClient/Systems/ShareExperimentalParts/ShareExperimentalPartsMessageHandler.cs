@@ -8,6 +8,7 @@ using LmpClient.Systems.ShareTechnology;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
+using LmpCommon.PersistentSync;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
@@ -21,7 +22,7 @@ namespace LmpClient.Systems.ShareExperimentalParts
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.ExperimentalPart) return;
-            if (PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.ExperimentalParts))
             {
                 LunaLog.LogWarning("[LMP] Ignoring legacy ExperimentalPart because persistent sync owns experimental-parts convergence.");
                 return;

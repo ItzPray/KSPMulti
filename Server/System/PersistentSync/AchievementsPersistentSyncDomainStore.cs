@@ -1,9 +1,7 @@
 using LmpCommon.Enums;
-using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
-using Server.System;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,123 +9,90 @@ using System.Text;
 
 namespace Server.System.PersistentSync
 {
-    public class AchievementsPersistentSyncDomainStore : IPersistentSyncServerDomain
+    public sealed class AchievementsPersistentSyncDomainStore : ScenarioSyncDomainStore<AchievementsPersistentSyncDomainStore.Canonical>
     {
-        private const string ScenarioName = "ProgressTracking";
         private const string ProgressNodeName = "Progress";
 
-        private readonly Dictionary<string, AchievementSnapshotInfo> _achievementsById = new Dictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal);
+        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Achievements;
+        public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+        protected override string ScenarioName => "ProgressTracking";
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Achievements;
-        public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-
-        private long Revision { get; set; }
-
-        public void LoadFromPersistence(bool createdFromScratch)
+        protected override Canonical CreateEmpty()
         {
-            _achievementsById.Clear();
+            return new Canonical(new SortedDictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal));
+        }
 
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        {
+            var map = new SortedDictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal);
+            if (scenario == null)
             {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
+                return new Canonical(map);
+            }
 
-                var progressNodeText = ExtractNamedNodeText(scenario.ToString(), ProgressNodeName);
-                if (string.IsNullOrEmpty(progressNodeText))
-                {
-                    return;
-                }
+            var progressNodeText = ExtractNamedNodeText(scenario.ToString(), ProgressNodeName);
+            if (string.IsNullOrEmpty(progressNodeText))
+            {
+                return new Canonical(map);
+            }
 
-                foreach (var childNodeText in SplitTopLevelNodes(progressNodeText))
+            foreach (var childNodeText in SplitTopLevelNodes(progressNodeText))
+            {
+                var info = CreateSnapshotInfo(new ConfigNode(childNodeText));
+                if (info != null)
                 {
-                    var info = CreateSnapshotInfo(new ConfigNode(childNodeText));
-                    if (info != null)
-                    {
-                        _achievementsById[info.Id] = info;
-                    }
+                    map[info.Id] = info;
                 }
             }
+            return new Canonical(map);
         }
 
-        public PersistentSyncDomainSnapshot GetCurrentSnapshot()
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
         {
-            var payload = AchievementSnapshotPayloadSerializer.Serialize(_achievementsById.Values.OrderBy(value => value.Id).Select(CloneInfo).ToArray());
-            return new PersistentSyncDomainSnapshot
-            {
-                DomainId = DomainId,
-                Revision = Revision,
-                AuthorityPolicy = AuthorityPolicy,
-                Payload = payload,
-                NumBytes = payload.Length
-            };
-        }
-
-        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
-        {
-            return ApplyRecords(AchievementSnapshotPayloadSerializer.Deserialize(data.Payload), data.ClientKnownRevision);
-        }
-
-        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
-        {
-            return ApplyRecords(AchievementSnapshotPayloadSerializer.Deserialize(payload), null);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyRecords(IEnumerable<AchievementSnapshotInfo> records, long? clientKnownRevision)
-        {
-            var changed = false;
-            foreach (var record in records ?? Enumerable.Empty<AchievementSnapshotInfo>())
+            var records = AchievementSnapshotPayloadSerializer.Deserialize(payload) ?? Enumerable.Empty<AchievementSnapshotInfo>();
+            var next = new SortedDictionary<string, AchievementSnapshotInfo>(current.Achievements, StringComparer.Ordinal);
+            foreach (var record in records)
             {
                 var normalized = NormalizeSnapshotInfo(record);
-                if (normalized == null)
-                {
-                    continue;
-                }
-
-                if (_achievementsById.TryGetValue(normalized.Id, out var existing) && RecordsAreEqual(existing, normalized))
-                {
-                    continue;
-                }
-
-                _achievementsById[normalized.Id] = normalized;
-                changed = true;
+                if (normalized == null) continue;
+                next[normalized.Id] = normalized;
             }
-
-            if (changed)
-            {
-                Revision++;
-                PersistCurrentState();
-            }
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = changed,
-                ReplyToOriginClient = !changed && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                Snapshot = GetCurrentSnapshot()
-            };
+            return ReduceResult<Canonical>.Accept(new Canonical(next));
         }
 
-        private void PersistCurrentState()
+        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
         {
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+            // Universe saves can accumulate multiple top-level nodes named "Progress". GetNode() requires a
+            // unique key and throws MixedCollection GetSingle — remove every Progress wrapper, then add one.
+            foreach (var existing in scenario.GetNodes(ProgressNodeName).Select(n => n.Value).Where(n => n != null).ToArray())
             {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
-
-                // Universe saves can accumulate multiple top-level nodes named "Progress". GetNode() requires a
-                // unique key and throws MixedCollection GetSingle — remove every Progress wrapper, then add one.
-                foreach (var existing in scenario.GetNodes(ProgressNodeName).Select(n => n.Value).Where(n => n != null).ToArray())
-                {
-                    scenario.RemoveNode(existing);
-                }
-
-                var progressNode = new ConfigNode(BuildProgressNodeText(_achievementsById.Values.OrderBy(value => value.Id)));
-                scenario.AddNode(progressNode);
+                scenario.RemoveNode(existing);
             }
+
+            var progressNode = new ConfigNode(BuildProgressNodeText(canonical.Achievements.Values));
+            scenario.AddNode(progressNode);
+            return scenario;
+        }
+
+        protected override byte[] SerializeSnapshot(Canonical canonical)
+        {
+            return AchievementSnapshotPayloadSerializer.Serialize(canonical.Achievements.Values.Select(CloneInfo).ToArray());
+        }
+
+        protected override bool AreEquivalent(Canonical a, Canonical b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            if (a.Achievements.Count != b.Achievements.Count) return false;
+
+            foreach (var kvp in a.Achievements)
+            {
+                if (!b.Achievements.TryGetValue(kvp.Key, out var other) || !RecordsAreEqual(kvp.Value, other))
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private static AchievementSnapshotInfo CreateSnapshotInfo(ConfigNode node)
@@ -165,6 +130,7 @@ namespace Server.System.PersistentSync
 
         private static bool RecordsAreEqual(AchievementSnapshotInfo left, AchievementSnapshotInfo right)
         {
+            if (left == null || right == null) return left == right;
             return string.Equals(left.Id, right.Id, StringComparison.Ordinal) &&
                    string.Equals(Encoding.UTF8.GetString(left.Data, 0, left.NumBytes), Encoding.UTF8.GetString(right.Data, 0, right.NumBytes), StringComparison.Ordinal);
         }
@@ -291,6 +257,17 @@ namespace Server.System.PersistentSync
             }
 
             return string.Empty;
+        }
+
+        /// <summary>Typed canonical state: achievements keyed by Id (ordinal, sorted for deterministic iteration).</summary>
+        public sealed class Canonical
+        {
+            public Canonical(SortedDictionary<string, AchievementSnapshotInfo> achievements)
+            {
+                Achievements = achievements ?? new SortedDictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal);
+            }
+
+            public SortedDictionary<string, AchievementSnapshotInfo> Achievements { get; }
         }
     }
 }

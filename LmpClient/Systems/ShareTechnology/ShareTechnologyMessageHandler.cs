@@ -7,6 +7,7 @@ using LmpClient.Base.Interface;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
+using LmpCommon.PersistentSync;
 using LmpClient.Systems.PersistentSync;
 
 namespace LmpClient.Systems.ShareTechnology
@@ -20,7 +21,7 @@ namespace LmpClient.Systems.ShareTechnology
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.TechnologyUpdate) return;
 
-            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Technology))
             {
                 LunaLog.LogWarning("[PersistentSync] bypass guard: ShareProgress technology update received after R&D migrated to PersistentSync snapshots. Message ignored.");
                 return;

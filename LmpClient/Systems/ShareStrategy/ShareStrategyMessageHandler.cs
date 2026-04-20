@@ -9,6 +9,7 @@ using LmpClient.Systems.ShareScience;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
+using LmpCommon.PersistentSync;
 using System;
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -23,7 +24,7 @@ namespace LmpClient.Systems.ShareStrategy
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.StrategyUpdate) return;
-            if (PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Strategy))
             {
                 LunaLog.LogWarning("[LMP] Ignoring legacy StrategyUpdate because persistent sync owns strategy convergence.");
                 return;

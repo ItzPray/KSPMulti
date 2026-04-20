@@ -229,7 +229,7 @@ namespace LmpClient.Systems.ShareContracts
                     return;
                 }
 
-                if (PersistentSyncSystem.Singleton == null || !PersistentSyncSystem.Singleton.Enabled)
+                if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Contracts))
                 {
                     LunaLog.Log($"[PersistentSync] contract refresh skip source=LargeUniversalTimeJumpStart reason=persistent-sync-disabled targetTime={targetTick}");
                     return;

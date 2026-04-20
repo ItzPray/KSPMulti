@@ -1,109 +1,90 @@
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
-using LmpCommon.Message.Data.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
-using Server.System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace Server.System.PersistentSync
 {
-    public abstract class ScalarPersistentSyncDomainStore<T> : IPersistentSyncServerDomain
+    /// <summary>
+    /// Thin scalar shim over <see cref="ScenarioSyncDomainStore{TCanonical}"/> so existing scalar domains (Funds,
+    /// Science, Reputation) inherit the Scenario Sync Domain Contract (revision, equality short-circuit, write lock)
+    /// without rewriting their serializers or parsing code.
+    ///
+    /// Domains still only override:
+    /// <list type="bullet">
+    /// <item><description><see cref="GetStartingValue"/></description></item>
+    /// <item><description><see cref="TryParseStoredValue"/> + <see cref="FormatStoredValue"/> (scenario field round-trip)</description></item>
+    /// <item><description><see cref="ValuesAreEqual"/> (drives the equality short-circuit)</description></item>
+    /// <item><description><see cref="DeserializeIntentPayload"/> + <see cref="SerializeSnapshotPayload"/> (wire)</description></item>
+    /// </list>
+    /// </summary>
+    public abstract class ScalarPersistentSyncDomainStore<T> : ScenarioSyncDomainStore<ScalarCanonical<T>>
     {
-        public abstract PersistentSyncDomainId DomainId { get; }
-        public abstract PersistentAuthorityPolicy AuthorityPolicy { get; }
-        protected abstract string ScenarioName { get; }
         protected abstract string ScenarioFieldName { get; }
 
-        protected T CurrentValue { get; private set; }
-        protected long Revision { get; private set; }
-
-        public void LoadFromPersistence(bool createdFromScratch)
+        /// <summary>Convenience accessor used by legacy tests and subclasses. Must remain on the public scalar surface.</summary>
+        protected T CurrentValue
         {
-            CurrentValue = GetStartingValue();
-
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+            get
             {
-                if (ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+                var canonical = CurrentForTests;
+                return canonical != null ? canonical.Value : default;
+            }
+        }
+
+        /// <summary>Convenience accessor used by legacy tests and subclasses.</summary>
+        protected long Revision => RevisionForTests;
+
+        protected sealed override ScalarCanonical<T> CreateEmpty()
+        {
+            return new ScalarCanonical<T>(GetStartingValue());
+        }
+
+        protected sealed override ScalarCanonical<T> LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        {
+            var value = GetStartingValue();
+
+            if (scenario != null)
+            {
+                var rawValue = scenario.GetValue(ScenarioFieldName)?.Value;
+                if (!string.IsNullOrEmpty(rawValue) && TryParseStoredValue(rawValue, out var parsedValue))
                 {
-                    var rawValue = scenario.GetValue(ScenarioFieldName)?.Value;
-                    if (!string.IsNullOrEmpty(rawValue) && TryParseStoredValue(rawValue, out var parsedValue))
-                    {
-                        CurrentValue = parsedValue;
-                    }
-                    else if (createdFromScratch)
-                    {
-                        scenario.UpdateValue(ScenarioFieldName, FormatStoredValue(CurrentValue));
-                    }
+                    value = parsedValue;
                 }
             }
+
+            return new ScalarCanonical<T>(value);
         }
 
-        public PersistentSyncDomainSnapshot GetCurrentSnapshot()
+        protected sealed override ConfigNode WriteCanonical(ConfigNode scenario, ScalarCanonical<T> canonical)
         {
-            var payload = SerializeSnapshotPayload(CurrentValue);
-            return new PersistentSyncDomainSnapshot
+            if (scenario == null || canonical == null)
             {
-                DomainId = DomainId,
-                Revision = Revision,
-                AuthorityPolicy = AuthorityPolicy,
-                Payload = payload,
-                NumBytes = payload.Length
-            };
-        }
-
-        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
-        {
-            var incomingValue = DeserializeIntentPayload(data.Payload, data.NumBytes, out _);
-            if (ValuesAreEqual(CurrentValue, incomingValue))
-            {
-                return new PersistentSyncDomainApplyResult
-                {
-                    Accepted = true,
-                    Changed = false,
-                    ReplyToOriginClient = data.ClientKnownRevision != Revision,
-                    Snapshot = GetCurrentSnapshot()
-                };
+                return scenario;
             }
 
-            CurrentValue = incomingValue;
-            Revision++;
-            PersistCurrentValue();
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = true,
-                ReplyToOriginClient = false,
-                Snapshot = GetCurrentSnapshot()
-            };
+            scenario.UpdateValue(ScenarioFieldName, FormatStoredValue(canonical.Value));
+            return scenario;
         }
 
-        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
+        protected sealed override byte[] SerializeSnapshot(ScalarCanonical<T> canonical)
+        {
+            return SerializeSnapshotPayload((canonical ?? new ScalarCanonical<T>(GetStartingValue())).Value);
+        }
+
+        protected sealed override bool AreEquivalent(ScalarCanonical<T> a, ScalarCanonical<T> b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            return ValuesAreEqual(a.Value, b.Value);
+        }
+
+        protected sealed override ReduceResult<ScalarCanonical<T>> ReduceIntent(ClientStructure client, ScalarCanonical<T> current, byte[] payload, int numBytes, string reason, bool isServerMutation)
         {
             var incomingValue = DeserializeIntentPayload(payload, numBytes, out _);
-            if (ValuesAreEqual(CurrentValue, incomingValue))
-            {
-                return new PersistentSyncDomainApplyResult
-                {
-                    Accepted = true,
-                    Changed = false,
-                    ReplyToOriginClient = false,
-                    Snapshot = GetCurrentSnapshot()
-                };
-            }
-
-            CurrentValue = incomingValue;
-            Revision++;
-            PersistCurrentValue();
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = true,
-                ReplyToOriginClient = false,
-                Snapshot = GetCurrentSnapshot()
-            };
+            return ReduceResult<ScalarCanonical<T>>.Accept(new ScalarCanonical<T>(incomingValue));
         }
 
         protected abstract T GetStartingValue();
@@ -113,19 +94,6 @@ namespace Server.System.PersistentSync
         protected abstract T DeserializeIntentPayload(byte[] payload, int numBytes, out string reason);
         protected abstract byte[] SerializeSnapshotPayload(T value);
 
-        private void PersistCurrentValue()
-        {
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
-            {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
-
-                scenario.UpdateValue(ScenarioFieldName, FormatStoredValue(CurrentValue));
-            }
-        }
-
         protected static bool TryParseDouble(string value, out double parsedValue)
         {
             return double.TryParse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsedValue);
@@ -134,6 +102,31 @@ namespace Server.System.PersistentSync
         protected static bool TryParseFloat(string value, out float parsedValue)
         {
             return float.TryParse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsedValue);
+        }
+    }
+
+    /// <summary>
+    /// Minimal reference-type wrapper around a scalar value so it satisfies the
+    /// <see cref="ScenarioSyncDomainStore{TCanonical}"/> <c>class</c> constraint while keeping scalar domains' value
+    /// semantics (immutable, comparable by <c>Value</c>).
+    /// </summary>
+    public sealed class ScalarCanonical<T>
+    {
+        public ScalarCanonical(T value)
+        {
+            Value = value;
+        }
+
+        public T Value { get; }
+
+        public override bool Equals(object obj)
+        {
+            return obj is ScalarCanonical<T> other && EqualityComparer<T>.Default.Equals(Value, other.Value);
+        }
+
+        public override int GetHashCode()
+        {
+            return EqualityComparer<T>.Default.GetHashCode(Value);
         }
     }
 }

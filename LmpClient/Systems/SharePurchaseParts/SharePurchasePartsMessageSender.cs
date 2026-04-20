@@ -19,7 +19,7 @@ namespace LmpClient.Systems.SharePurchaseParts
 
         public void SendPartPurchasedMessage(string techId, string partName)
         {
-            if (PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.PartPurchases))
             {
                 var techState = ResearchAndDevelopment.Instance?.GetTechState(techId);
                 if (techState == null)

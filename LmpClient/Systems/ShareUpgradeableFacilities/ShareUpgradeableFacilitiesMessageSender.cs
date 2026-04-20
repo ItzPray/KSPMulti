@@ -5,6 +5,7 @@ using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
+using LmpCommon.PersistentSync;
 
 namespace LmpClient.Systems.ShareUpgradeableFacilities
 {
@@ -17,6 +18,11 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
 
         public void SendFacilityUpgradeMessage(string facilityId, int level, float normLevel)
         {
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.UpgradeableFacilities))
+            {
+                return;
+            }
+
             var reason = $"Facility upgrade {facilityId} -> level {level}";
             PersistentSyncSystem.Singleton.MessageSender.SendUpgradeableFacilityIntent(facilityId, level, reason);
         }

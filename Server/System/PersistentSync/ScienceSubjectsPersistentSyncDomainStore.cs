@@ -1,9 +1,7 @@
 using LmpCommon.Enums;
-using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
-using Server.System;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,118 +9,86 @@ using System.Text;
 
 namespace Server.System.PersistentSync
 {
-    public class ScienceSubjectsPersistentSyncDomainStore : IPersistentSyncServerDomain
+    public sealed class ScienceSubjectsPersistentSyncDomainStore : ScenarioSyncDomainStore<ScienceSubjectsPersistentSyncDomainStore.Canonical>
     {
-        private const string ScenarioName = "ResearchAndDevelopment";
         private const string ScienceNodeName = "Science";
         private const string ScienceIdFieldName = "id";
 
-        private readonly Dictionary<string, ScienceSubjectSnapshotInfo> _scienceSubjectById = new Dictionary<string, ScienceSubjectSnapshotInfo>(StringComparer.Ordinal);
+        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.ScienceSubjects;
+        public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+        protected override string ScenarioName => "ResearchAndDevelopment";
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.ScienceSubjects;
-        public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-
-        private long Revision { get; set; }
-
-        public void LoadFromPersistence(bool createdFromScratch)
+        protected override Canonical CreateEmpty()
         {
-            _scienceSubjectById.Clear();
+            return new Canonical(new SortedDictionary<string, ScienceSubjectSnapshotInfo>(StringComparer.Ordinal));
+        }
 
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        {
+            var map = new SortedDictionary<string, ScienceSubjectSnapshotInfo>(StringComparer.Ordinal);
+            if (scenario == null)
             {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
+                return new Canonical(map);
+            }
 
-                foreach (var subjectNode in scenario.GetNodes(ScienceNodeName).Select(node => node.Value).Where(node => node != null))
+            foreach (var subjectNode in scenario.GetNodes(ScienceNodeName).Select(node => node.Value).Where(node => node != null))
+            {
+                var info = CreateSnapshotInfo(subjectNode);
+                if (info != null)
                 {
-                    var info = CreateSnapshotInfo(subjectNode);
-                    if (info != null)
-                    {
-                        _scienceSubjectById[info.Id] = info;
-                    }
+                    map[info.Id] = info;
                 }
             }
+            return new Canonical(map);
         }
 
-        public PersistentSyncDomainSnapshot GetCurrentSnapshot()
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
         {
-            var payload = ScienceSubjectSnapshotPayloadSerializer.Serialize(_scienceSubjectById.Values.OrderBy(value => value.Id).Select(CloneInfo).ToArray());
-            return new PersistentSyncDomainSnapshot
-            {
-                DomainId = DomainId,
-                Revision = Revision,
-                AuthorityPolicy = AuthorityPolicy,
-                Payload = payload,
-                NumBytes = payload.Length
-            };
-        }
-
-        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
-        {
-            return ApplyRecords(ScienceSubjectSnapshotPayloadSerializer.Deserialize(data.Payload), data.ClientKnownRevision);
-        }
-
-        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
-        {
-            return ApplyRecords(ScienceSubjectSnapshotPayloadSerializer.Deserialize(payload), null);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyRecords(IEnumerable<ScienceSubjectSnapshotInfo> records, long? clientKnownRevision)
-        {
-            var changed = false;
-            foreach (var record in records ?? Enumerable.Empty<ScienceSubjectSnapshotInfo>())
+            var records = ScienceSubjectSnapshotPayloadSerializer.Deserialize(payload) ?? Enumerable.Empty<ScienceSubjectSnapshotInfo>();
+            var next = new SortedDictionary<string, ScienceSubjectSnapshotInfo>(current.Subjects, StringComparer.Ordinal);
+            foreach (var record in records)
             {
                 var normalized = NormalizeSnapshotInfo(record);
-                if (normalized == null)
-                {
-                    continue;
-                }
-
-                if (_scienceSubjectById.TryGetValue(normalized.Id, out var existing) && RecordsAreEqual(existing, normalized))
-                {
-                    continue;
-                }
-
-                _scienceSubjectById[normalized.Id] = normalized;
-                changed = true;
+                if (normalized == null) continue;
+                next[normalized.Id] = normalized;
             }
-
-            if (changed)
-            {
-                Revision++;
-                PersistCurrentState();
-            }
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = changed,
-                ReplyToOriginClient = !changed && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                Snapshot = GetCurrentSnapshot()
-            };
+            return ReduceResult<Canonical>.Accept(new Canonical(next));
         }
 
-        private void PersistCurrentState()
+        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
         {
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+            foreach (var existingNode in scenario.GetNodes(ScienceNodeName).Select(node => node.Value).Where(node => node != null).ToArray())
             {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
+                scenario.RemoveNode(existingNode);
+            }
 
-                foreach (var existingNode in scenario.GetNodes(ScienceNodeName).Select(node => node.Value).Where(node => node != null).ToArray())
-                {
-                    scenario.RemoveNode(existingNode);
-                }
+            foreach (var subject in canonical.Subjects.Values)
+            {
+                scenario.AddNode(new ConfigNode(Encoding.UTF8.GetString(subject.Data, 0, subject.NumBytes)) { Name = ScienceNodeName });
+            }
 
-                foreach (var subject in _scienceSubjectById.Values.OrderBy(value => value.Id))
+            return scenario;
+        }
+
+        protected override byte[] SerializeSnapshot(Canonical canonical)
+        {
+            return ScienceSubjectSnapshotPayloadSerializer.Serialize(canonical.Subjects.Values.Select(CloneInfo).ToArray());
+        }
+
+        protected override bool AreEquivalent(Canonical a, Canonical b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            if (a.Subjects.Count != b.Subjects.Count) return false;
+
+            foreach (var kvp in a.Subjects)
+            {
+                if (!b.Subjects.TryGetValue(kvp.Key, out var other) || !RecordsAreEqual(kvp.Value, other))
                 {
-                    scenario.AddNode(new ConfigNode(Encoding.UTF8.GetString(subject.Data, 0, subject.NumBytes)) { Name = ScienceNodeName });
+                    return false;
                 }
             }
+            return true;
         }
 
         private static ScienceSubjectSnapshotInfo CreateSnapshotInfo(ConfigNode subjectNode)
@@ -169,6 +135,7 @@ namespace Server.System.PersistentSync
 
         private static bool RecordsAreEqual(ScienceSubjectSnapshotInfo left, ScienceSubjectSnapshotInfo right)
         {
+            if (left == null || right == null) return left == right;
             return string.Equals(left.Id, right.Id, StringComparison.Ordinal) &&
                    string.Equals(Encoding.UTF8.GetString(left.Data, 0, left.NumBytes), Encoding.UTF8.GetString(right.Data, 0, right.NumBytes), StringComparison.Ordinal);
         }
@@ -183,6 +150,17 @@ namespace Server.System.PersistentSync
                 NumBytes = source.NumBytes,
                 Data = data
             };
+        }
+
+        /// <summary>Typed canonical state: science subjects keyed by Id (ordinal, sorted for deterministic iteration).</summary>
+        public sealed class Canonical
+        {
+            public Canonical(SortedDictionary<string, ScienceSubjectSnapshotInfo> subjects)
+            {
+                Subjects = subjects ?? new SortedDictionary<string, ScienceSubjectSnapshotInfo>(StringComparer.Ordinal);
+            }
+
+            public SortedDictionary<string, ScienceSubjectSnapshotInfo> Subjects { get; }
         }
     }
 }

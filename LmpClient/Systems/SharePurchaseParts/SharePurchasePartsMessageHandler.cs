@@ -8,6 +8,7 @@ using LmpClient.Systems.ShareTechnology;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
+using LmpCommon.PersistentSync;
 using System.Collections.Concurrent;
 
 namespace LmpClient.Systems.SharePurchaseParts
@@ -20,7 +21,7 @@ namespace LmpClient.Systems.SharePurchaseParts
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.PartPurchase) return;
-            if (PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.PartPurchases))
             {
                 LunaLog.LogWarning("[LMP] Ignoring legacy PartPurchase because persistent sync owns part-purchase convergence.");
                 return;

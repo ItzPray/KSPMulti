@@ -27,7 +27,7 @@ namespace LmpClient.Systems.ShareStrategy
             var data = configNode.Serialize();
             var numBytes = data.Length;
 
-            if (PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Strategy))
             {
                 PersistentSyncSystem.Singleton.MessageSender.SendStrategyIntent(new[]
                 {

@@ -1,12 +1,10 @@
 using LmpCommon.Enums;
-using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
 using Server.Log;
 using Server.Properties;
 using Server.Settings.Structures;
-using Server.System;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,9 +13,21 @@ using System.Text.RegularExpressions;
 
 namespace Server.System.PersistentSync
 {
-    public class ContractsPersistentSyncDomainStore : IPersistentSyncServerDomain
+    /// <summary>
+    /// Authoritative server-side contract store. Migrated onto <see cref="ScenarioSyncDomainStore{TCanonical}"/>
+    /// per the Scenario Sync Domain Contract; the substring-based scenario rewriter used previously has been
+    /// replaced with typed <see cref="WriteCanonical"/> via the LunaConfigNode graph.
+    ///
+    /// Known shortcut: producer-only intents (OfferObserved, ParameterProgressObserved, ContractCompletedObserved,
+    /// ContractFailedObserved, FullReconcile) are still checked in-reducer via
+    /// <see cref="ClientOwnsProducerAuthority"/>. The plan envisioned moving this to
+    /// <see cref="PersistentAuthorityPolicy.DesignatedProducer"/>, but that policy is a registry-level stub
+    /// today and Contracts has a mixed authority model (Accept/Decline/Cancel/RequestOfferGeneration are open to
+    /// any client). Promoting per-intent authority to the registry is a separate change tracked under the
+    /// "upgrade registry to per-intent DesignatedProducer dispatch" follow-up.
+    /// </summary>
+    public sealed class ContractsPersistentSyncDomainStore : ScenarioSyncDomainStore<ContractsPersistentSyncDomainStore.Canonical>
     {
-        private const string ScenarioName = "ContractSystem";
         private const string ContractsNodeName = "CONTRACTS";
         private const string ContractNodeName = "CONTRACT";
         private const string GuidFieldName = "guid";
@@ -26,95 +36,342 @@ namespace Server.System.PersistentSync
         private const string TitleFieldName = "title";
         private const string LmpOfferTitleFieldName = "lmpOfferTitle";
 
-        private readonly Dictionary<Guid, ContractSnapshotInfo> _contractsByGuid = new Dictionary<Guid, ContractSnapshotInfo>();
+        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
+        public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+        protected override string ScenarioName => "ContractSystem";
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
-
-        public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-
-        private long Revision { get; set; }
-
-        public void LoadFromPersistence(bool createdFromScratch)
+        protected override Canonical CreateEmpty()
         {
-            _contractsByGuid.Clear();
+            return new Canonical(new Dictionary<Guid, ContractSnapshotInfo>());
+        }
 
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        {
+            var contractsByGuid = new Dictionary<Guid, ContractSnapshotInfo>();
+
+            // Match PersistentSyncDomainApplicability / ScenarioSystem: any save that includes the Career bit.
+            var careerContracts = (GeneralSettings.SettingsStore.GameMode & GameMode.Career) != 0;
+
+            if (scenario == null)
             {
-                // Match PersistentSyncDomainApplicability / ScenarioSystem: any save that includes the Career bit.
-                var careerContracts = (GeneralSettings.SettingsStore.GameMode & GameMode.Career) != 0;
-                var needsPersist = false;
-
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+                if (!careerContracts)
                 {
-                    if (!careerContracts)
-                    {
-                        return;
-                    }
-
-                    scenario = new ConfigNode(Resources.ContractSystem);
-                    ScenarioStoreSystem.CurrentScenarios[ScenarioName] = scenario;
-                    needsPersist = true;
+                    return new Canonical(contractsByGuid);
                 }
 
-                if (IngestContractsFromScenario(scenario))
-                {
-                    needsPersist = true;
-                }
+                // Fall through to seeding path below after constructing a synthetic scenario. The base class
+                // will write it back via the createdFromScratch path in LoadFromPersistence.
+                scenario = new ConfigNode(Resources.ContractSystem);
+                ScenarioStoreSystem.CurrentScenarios[ScenarioName] = scenario;
+            }
 
-                if (careerContracts && _contractsByGuid.Count == 0)
-                {
-                    if (TryPopulateContractsFromEmbeddedTemplate())
-                    {
-                        needsPersist = true;
-                    }
-                }
+            var cleanedDuringLoad = IngestContractsFromScenario(scenario, contractsByGuid);
 
-                if (needsPersist && _contractsByGuid.Count > 0)
+            if (careerContracts && contractsByGuid.Count == 0)
+            {
+                if (TryPopulateContractsFromEmbeddedTemplate(contractsByGuid))
                 {
-                    PersistCurrentState();
+                    cleanedDuringLoad = true;
                 }
+            }
 
-                if (careerContracts)
-                {
-                    LunaLog.Normal(
-                        $"[PersistentSync] Contracts LoadFromPersistence: gameMode={GeneralSettings.SettingsStore.GameMode} " +
-                        $"contractRows={_contractsByGuid.Count} seededOrInsertedScenario={needsPersist}");
-                }
+            if (careerContracts)
+            {
+                LunaLog.Normal(
+                    $"[PersistentSync] Contracts LoadFromPersistence: gameMode={GeneralSettings.SettingsStore.GameMode} contractRows={contractsByGuid.Count} cleanedDuringLoad={cleanedDuringLoad}");
+            }
+
+            _loadRequiresWriteBack = cleanedDuringLoad;
+            return new Canonical(contractsByGuid);
+        }
+
+        protected override bool ShouldWriteBackAfterLoad(Canonical loaded, ConfigNode scenario)
+        {
+            var requires = _loadRequiresWriteBack;
+            _loadRequiresWriteBack = false;
+            return requires;
+        }
+
+        // Communicates from LoadCanonical back up to LoadFromPersistence / ShouldWriteBackAfterLoad. Safe because
+        // LoadFromPersistence holds the state lock for the duration of both calls (see ScenarioSyncDomainStore).
+        private bool _loadRequiresWriteBack;
+
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        {
+            if (TryDeserializeContractIntentPayload(payload, numBytes, out var intentPayload))
+            {
+                return ReduceTypedClientIntent(client, current, intentPayload, isServerMutation);
+            }
+
+            // Envelope fallback (producer-authorized full replace or legacy raw rows). On server mutations
+            // we accept any envelope; on client intents require producer authority.
+            if (!isServerMutation && !ClientOwnsProducerAuthority(client))
+            {
+                return ReduceResult<Canonical>.Reject();
+            }
+
+            var envelope = ContractSnapshotPayloadSerializer.DeserializeEnvelope(payload, numBytes);
+            return envelope.Mode == ContractSnapshotPayloadMode.FullReplace
+                ? ReduceFullReplace(current, envelope.Contracts)
+                : ReduceRecords(current, envelope.Contracts);
+        }
+
+        private ReduceResult<Canonical> ReduceTypedClientIntent(ClientStructure client, Canonical current, ContractIntentPayload intentPayload, bool isServerMutation)
+        {
+            switch (intentPayload.Kind)
+            {
+                case ContractIntentPayloadKind.AcceptContract:
+                    return ReduceCommandStateRewrite(current, intentPayload.ContractGuid, "Active", ContractSnapshotPlacement.Active, requireOfferPool: true);
+                case ContractIntentPayloadKind.DeclineContract:
+                    return ReduceCommandStateRewrite(current, intentPayload.ContractGuid, "Declined", ContractSnapshotPlacement.Finished, requireOfferPool: true);
+                case ContractIntentPayloadKind.CancelContract:
+                    return ReduceCommandStateRewrite(current, intentPayload.ContractGuid, "Cancelled", ContractSnapshotPlacement.Finished, requireOfferPool: false, requireActive: true);
+                case ContractIntentPayloadKind.RequestOfferGeneration:
+                    return ReduceOfferGenerationRequest(current);
+                case ContractIntentPayloadKind.OfferObserved:
+                    if (!isServerMutation && !ClientOwnsProducerAuthority(client)) return ReduceResult<Canonical>.Reject();
+                    return ReduceObservedOffer(current, intentPayload);
+                case ContractIntentPayloadKind.ParameterProgressObserved:
+                case ContractIntentPayloadKind.ContractCompletedObserved:
+                case ContractIntentPayloadKind.ContractFailedObserved:
+                    if (!isServerMutation && !ClientOwnsProducerAuthority(client)) return ReduceResult<Canonical>.Reject();
+                    return ReduceObservedActive(current, intentPayload);
+                case ContractIntentPayloadKind.FullReconcile:
+                    if (!isServerMutation && !ClientOwnsProducerAuthority(client)) return ReduceResult<Canonical>.Reject();
+                    return ReduceFullReplace(current, intentPayload.Contracts);
+                default:
+                    return ReduceResult<Canonical>.Reject();
             }
         }
 
-        private bool IngestContractsFromScenario(ConfigNode scenario)
+        private static ReduceResult<Canonical> ReduceCommandStateRewrite(Canonical current, Guid contractGuid, string targetState, ContractSnapshotPlacement placement, bool requireOfferPool = false, bool requireActive = false)
         {
-            _contractsByGuid.Clear();
+            if (!current.ContractsByGuid.TryGetValue(contractGuid, out var existing))
+            {
+                return ReduceResult<Canonical>.Reject();
+            }
+
+            if (requireOfferPool && !IsOfferPoolContract(existing)) return ReduceResult<Canonical>.Reject();
+            if (requireActive && !IsActiveContract(existing)) return ReduceResult<Canonical>.Reject();
+
+            var rewritten = RewriteContractState(existing, targetState, placement);
+            return ReduceSingleRecord(current, rewritten);
+        }
+
+        private static ReduceResult<Canonical> ReduceOfferGenerationRequest(Canonical current)
+        {
+            // This intent never changes canonical state; we return the same state so the base class's
+            // equality short-circuit collapses it to an accepted no-op. The producer-replay routing is
+            // signaled via ReplyToProducerClient when the offer pool is empty.
+            var offerPoolEmpty = !current.ContractsByGuid.Values.Any(IsOfferPoolContract);
+            return ReduceResult<Canonical>.Accept(current, replyToProducerClient: offerPoolEmpty);
+        }
+
+        private static ReduceResult<Canonical> ReduceObservedOffer(Canonical current, ContractIntentPayload intentPayload)
+        {
+            if (!TryGetSingleIntentContract(intentPayload, out var incoming) || !IsOfferPoolContract(incoming))
+            {
+                return ReduceResult<Canonical>.Reject();
+            }
+
+            return ReduceSingleRecord(current, incoming);
+        }
+
+        private static ReduceResult<Canonical> ReduceObservedActive(Canonical current, ContractIntentPayload intentPayload)
+        {
+            if (!TryGetSingleIntentContract(intentPayload, out var incoming)
+                || !current.ContractsByGuid.TryGetValue(incoming.ContractGuid, out var existing)
+                || !IsActiveContract(existing))
+            {
+                return ReduceResult<Canonical>.Reject();
+            }
+
+            return ReduceSingleRecord(current, incoming);
+        }
+
+        private static ReduceResult<Canonical> ReduceSingleRecord(Canonical current, ContractSnapshotInfo incoming)
+        {
+            var nextMap = current.ContractsByGuid.ToDictionary(kv => kv.Key, kv => ContractSnapshotInfoComparer.Clone(kv.Value));
+            var nextOrder = nextMap.Any() ? nextMap.Values.Max(c => c.Order) + 1 : 0;
+            ApplyCanonicalRecord(nextMap, incoming, ref nextOrder);
+            return ReduceResult<Canonical>.Accept(new Canonical(nextMap));
+        }
+
+        private static ReduceResult<Canonical> ReduceRecords(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)
+        {
+            var nextMap = current.ContractsByGuid.ToDictionary(kv => kv.Key, kv => ContractSnapshotInfoComparer.Clone(kv.Value));
+            var nextOrder = nextMap.Any() ? nextMap.Values.Max(c => c.Order) + 1 : 0;
+            foreach (var rec in incoming ?? Enumerable.Empty<ContractSnapshotInfo>())
+            {
+                ApplyCanonicalRecord(nextMap, rec, ref nextOrder);
+            }
+
+            return ReduceResult<Canonical>.Accept(new Canonical(nextMap));
+        }
+
+        private static ReduceResult<Canonical> ReduceFullReplace(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)
+        {
+            var nextMap = new Dictionary<Guid, ContractSnapshotInfo>();
+            var nextOrder = 0;
+            foreach (var rec in incoming ?? Enumerable.Empty<ContractSnapshotInfo>())
+            {
+                ApplyCanonicalRecord(nextMap, rec, ref nextOrder);
+            }
+
+            return ReduceResult<Canonical>.Accept(new Canonical(nextMap));
+        }
+
+        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
+        {
+            // LunaConfigNode caches pre-parse text for nodes it didn't construct from scratch; remove/add on the
+            // retained CONTRACTS wrapper still re-emits the old children. Rebuild the entire scenario node from
+            // canonical-synthesized text so the serializer has no stale text to fall back on. The base class
+            // stores the returned replacement back into ScenarioStoreSystem.CurrentScenarios.
+            var scenarioText = scenario?.ToString() ?? string.Empty;
+            var rewrittenText = ReplaceContractsSectionInScenarioText(scenarioText, canonical);
+            return new ConfigNode(rewrittenText);
+        }
+
+        private static string ReplaceContractsSectionInScenarioText(string scenarioText, Canonical canonical)
+        {
+            var contractsBlock = BuildContractsNodeText(canonical);
+            if (string.IsNullOrEmpty(scenarioText))
+            {
+                return contractsBlock;
+            }
+
+            var patterns = new[] { "CONTRACTS\r\n{", "CONTRACTS\n{" };
+            var blockStart = -1;
+            var openBrace = -1;
+            foreach (var p in patterns)
+            {
+                var idx = scenarioText.IndexOf(p, StringComparison.Ordinal);
+                if (idx < 0) continue;
+                blockStart = idx;
+                openBrace = idx + p.Length - 1;
+                break;
+            }
+
+            if (blockStart < 0 || openBrace < 0 || openBrace >= scenarioText.Length || scenarioText[openBrace] != '{')
+            {
+                // No existing CONTRACTS block: append ours at the end of the scenario text.
+                var appended = scenarioText.TrimEnd('\r', '\n') + "\n" + contractsBlock;
+                return appended;
+            }
+
+            var depth = 0;
+            var closeBrace = -1;
+            for (var i = openBrace; i < scenarioText.Length; i++)
+            {
+                var c = scenarioText[i];
+                if (c == '{') depth++;
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0) { closeBrace = i; break; }
+                }
+            }
+
+            if (closeBrace < 0)
+            {
+                return contractsBlock;
+            }
+
+            var tailStart = closeBrace + 1;
+            while (tailStart < scenarioText.Length && (scenarioText[tailStart] == '\r' || scenarioText[tailStart] == '\n'))
+            {
+                tailStart++;
+            }
+
+            var sb = new StringBuilder(scenarioText.Length + 64);
+            sb.Append(scenarioText, 0, blockStart);
+            sb.Append(contractsBlock);
+            if (tailStart < scenarioText.Length)
+            {
+                sb.Append(scenarioText, tailStart, scenarioText.Length - tailStart);
+            }
+
+            return sb.ToString();
+        }
+
+        private static string BuildContractsNodeText(Canonical canonical)
+        {
+            var sb = new StringBuilder();
+            sb.Append(ContractsNodeName);
+            sb.Append('\n');
+            sb.Append('{');
+            sb.Append('\n');
+            foreach (var contract in canonical.ContractsByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid))
+            {
+                var bodyText = Encoding.UTF8.GetString(contract.Data, 0, contract.NumBytes);
+                sb.Append(ContractNodeName);
+                sb.Append('\n');
+                sb.Append('{');
+                sb.Append('\n');
+                foreach (var line in bodyText.Replace("\r\n", "\n").Split('\n'))
+                {
+                    if (line.Length == 0) continue;
+                    sb.Append("    ");
+                    sb.Append(line);
+                    sb.Append('\n');
+                }
+                sb.Append('}');
+                sb.Append('\n');
+            }
+            sb.Append('}');
+            sb.Append('\n');
+            return sb.ToString();
+        }
+
+        protected override byte[] SerializeSnapshot(Canonical canonical)
+        {
+            var orderedContracts = canonical.ContractsByGuid.Values
+                .OrderBy(c => c.Order)
+                .ThenBy(c => c.ContractGuid)
+                .Select(ContractSnapshotInfoComparer.Clone)
+                .ToArray();
+            return ContractSnapshotPayloadSerializer.Serialize(orderedContracts);
+        }
+
+        protected override bool AreEquivalent(Canonical a, Canonical b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            if (a.ContractsByGuid.Count != b.ContractsByGuid.Count) return false;
+
+            foreach (var kv in a.ContractsByGuid)
+            {
+                if (!b.ContractsByGuid.TryGetValue(kv.Key, out var other)) return false;
+                if (kv.Value.Order != other.Order) return false;
+                if (!ContractSnapshotInfoComparer.AreEquivalent(kv.Value, other)) return false;
+            }
+
+            return true;
+        }
+
+        private static bool IngestContractsFromScenario(ConfigNode scenario, Dictionary<Guid, ContractSnapshotInfo> contractsByGuid)
+        {
+            contractsByGuid.Clear();
 
             var contractsNode = scenario.GetNode(ContractsNodeName)?.Value;
-            if (contractsNode == null)
-            {
-                return false;
-            }
+            if (contractsNode == null) return false;
 
             var nextOrder = 0;
             var rawCount = 0;
-            var cleanedDuringLoad = false;
             foreach (var contractNode in contractsNode.GetNodes(ContractNodeName).Select(n => n.Value).Where(n => n != null))
             {
                 var snapshotInfo = CreateSnapshotInfo(contractNode, nextOrder);
                 if (snapshotInfo != null)
                 {
                     rawCount++;
-                    ApplyCanonicalRecord(snapshotInfo, ref nextOrder, ref cleanedDuringLoad);
+                    ApplyCanonicalRecord(contractsByGuid, snapshotInfo, ref nextOrder);
                 }
             }
 
-            return cleanedDuringLoad || _contractsByGuid.Count != rawCount;
+            return contractsByGuid.Count != rawCount;
         }
 
-        /// <summary>
-        /// Career saves sometimes end up with an empty or unreadable CONTRACTS block (for example after a bad sync).
-        /// Stock seeds starter offers on new games; mirror that from the embedded template so PersistentSync snapshots
-        /// are never authoritative-empty while the server is in Career mode.
-        /// </summary>
-        private bool TryPopulateContractsFromEmbeddedTemplate()
+        private static bool TryPopulateContractsFromEmbeddedTemplate(Dictionary<Guid, ContractSnapshotInfo> contractsByGuid)
         {
             ConfigNode templateRoot;
             try
@@ -128,29 +385,19 @@ namespace Server.System.PersistentSync
             }
 
             var templateContracts = templateRoot.GetNode(ContractsNodeName)?.Value;
-            if (templateContracts == null)
-            {
-                return false;
-            }
+            if (templateContracts == null) return false;
 
             var addedAny = false;
-            var nextOrder = _contractsByGuid.Any() ? _contractsByGuid.Values.Max(c => c.Order) + 1 : 0;
-            var cleanedSeededRows = false;
+            var nextOrder = contractsByGuid.Any() ? contractsByGuid.Values.Max(c => c.Order) + 1 : 0;
             foreach (var templateContractWrapper in templateContracts.GetNodes(ContractNodeName))
             {
                 var templateContract = templateContractWrapper.Value;
-                if (templateContract == null)
-                {
-                    continue;
-                }
+                if (templateContract == null) continue;
 
                 var snapshotInfo = CreateSnapshotInfo(templateContract, nextOrder);
-                if (snapshotInfo == null)
-                {
-                    continue;
-                }
+                if (snapshotInfo == null) continue;
 
-                if (ApplyCanonicalRecord(snapshotInfo, ref nextOrder, ref cleanedSeededRows))
+                if (ApplyCanonicalRecord(contractsByGuid, snapshotInfo, ref nextOrder))
                 {
                     addedAny = true;
                 }
@@ -162,196 +409,6 @@ namespace Server.System.PersistentSync
             }
 
             return addedAny;
-        }
-
-        public PersistentSyncDomainSnapshot GetCurrentSnapshot()
-        {
-            var orderedContracts = GetOrderedContracts().Select(ContractSnapshotInfoComparer.Clone).ToArray();
-            var payload = ContractSnapshotPayloadSerializer.Serialize(orderedContracts);
-            return new PersistentSyncDomainSnapshot
-            {
-                DomainId = DomainId,
-                Revision = Revision,
-                AuthorityPolicy = AuthorityPolicy,
-                Payload = payload,
-                NumBytes = payload.Length
-            };
-        }
-
-        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
-        {
-            if (TryDeserializeContractIntentPayload(data.Payload, data.NumBytes, out var intentPayload))
-            {
-                return ApplyTypedClientIntent(client, intentPayload, data.ClientKnownRevision);
-            }
-
-            if (!ClientOwnsProducerAuthority(client))
-            {
-                return RejectedApplyResult();
-            }
-
-            var payload = ContractSnapshotPayloadSerializer.DeserializeEnvelope(data.Payload, data.NumBytes);
-            return payload.Mode == ContractSnapshotPayloadMode.FullReplace
-                ? ApplyFullReplace(payload.Contracts, data.ClientKnownRevision)
-                : ApplyRecords(payload.Contracts, data.ClientKnownRevision);
-        }
-
-        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
-        {
-            var deserialized = ContractSnapshotPayloadSerializer.DeserializeEnvelope(payload, numBytes);
-            return deserialized.Mode == ContractSnapshotPayloadMode.FullReplace
-                ? ApplyFullReplace(deserialized.Contracts, null)
-                : ApplyRecords(deserialized.Contracts, null);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyTypedClientIntent(ClientStructure client, ContractIntentPayload intentPayload, long? clientKnownRevision)
-        {
-            switch (intentPayload.Kind)
-            {
-                case ContractIntentPayloadKind.AcceptContract:
-                    return ApplyAcceptContractCommand(intentPayload.ContractGuid, clientKnownRevision);
-                case ContractIntentPayloadKind.DeclineContract:
-                    return ApplyDeclineContractCommand(intentPayload.ContractGuid, clientKnownRevision);
-                case ContractIntentPayloadKind.CancelContract:
-                    return ApplyCancelContractCommand(intentPayload.ContractGuid, clientKnownRevision);
-                case ContractIntentPayloadKind.RequestOfferGeneration:
-                    return ApplyOfferGenerationRequest(clientKnownRevision);
-                case ContractIntentPayloadKind.OfferObserved:
-                    return ApplyProducerObservedOffer(client, intentPayload, clientKnownRevision);
-                case ContractIntentPayloadKind.ParameterProgressObserved:
-                    return ApplyProducerObservedActiveMutation(client, intentPayload, clientKnownRevision);
-                case ContractIntentPayloadKind.ContractCompletedObserved:
-                    return ApplyProducerObservedFinishedMutation(client, intentPayload, clientKnownRevision);
-                case ContractIntentPayloadKind.ContractFailedObserved:
-                    return ApplyProducerObservedFinishedMutation(client, intentPayload, clientKnownRevision);
-                case ContractIntentPayloadKind.FullReconcile:
-                    if (!ClientOwnsProducerAuthority(client))
-                    {
-                        return RejectedApplyResult();
-                    }
-
-                    return ApplyFullReplace(intentPayload.Contracts, clientKnownRevision);
-                default:
-                    return RejectedApplyResult();
-            }
-        }
-
-        private PersistentSyncDomainApplyResult ApplyAcceptContractCommand(Guid contractGuid, long? clientKnownRevision)
-        {
-            if (!_contractsByGuid.TryGetValue(contractGuid, out var existing) || !IsOfferPoolContract(existing))
-            {
-                return RejectedApplyResult();
-            }
-
-            return ApplySingleCanonicalMutation(RewriteContractState(existing, "Active", ContractSnapshotPlacement.Active), clientKnownRevision);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyDeclineContractCommand(Guid contractGuid, long? clientKnownRevision)
-        {
-            if (!_contractsByGuid.TryGetValue(contractGuid, out var existing) || !IsOfferPoolContract(existing))
-            {
-                return RejectedApplyResult();
-            }
-
-            return ApplySingleCanonicalMutation(RewriteContractState(existing, "Declined", ContractSnapshotPlacement.Finished), clientKnownRevision);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyCancelContractCommand(Guid contractGuid, long? clientKnownRevision)
-        {
-            if (!_contractsByGuid.TryGetValue(contractGuid, out var existing) || !IsActiveContract(existing))
-            {
-                return RejectedApplyResult();
-            }
-
-            return ApplySingleCanonicalMutation(RewriteContractState(existing, "Cancelled", ContractSnapshotPlacement.Finished), clientKnownRevision);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyOfferGenerationRequest(long? clientKnownRevision)
-        {
-            // Canonical snapshot only changes when someone actually mints; this intent is a signal. When the canonical
-            // offer pool is empty we route the snapshot to the current producer (contract lock owner) so their
-            // ContractsPersistentSyncClientDomain.FlushPendingState runs ReplenishStockOffersAfterPersistentSnapshotApply
-            // and mints offers back to the server as OfferObserved proposals. Origin client is re-notified only when
-            // its known revision diverges from canonical, to avoid a feedback echo when state already matches.
-            var offerPoolEmpty = !HasOfferPoolContracts();
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = false,
-                ReplyToOriginClient = clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                ReplyToProducerClient = offerPoolEmpty,
-                Snapshot = GetCurrentSnapshot()
-            };
-        }
-
-        private PersistentSyncDomainApplyResult ApplyProducerObservedOffer(ClientStructure client, ContractIntentPayload intentPayload, long? clientKnownRevision)
-        {
-            if (!ClientOwnsProducerAuthority(client))
-            {
-                return RejectedApplyResult();
-            }
-
-            if (!TryGetSingleIntentContract(intentPayload, out var incomingContract) || !IsOfferPoolContract(incomingContract))
-            {
-                return RejectedApplyResult();
-            }
-
-            return ApplyRecords(new[] { incomingContract }, clientKnownRevision);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyProducerObservedActiveMutation(ClientStructure client, ContractIntentPayload intentPayload, long? clientKnownRevision)
-        {
-            if (!ClientOwnsProducerAuthority(client))
-            {
-                return RejectedApplyResult();
-            }
-
-            if (!TryGetSingleIntentContract(intentPayload, out var incomingContract) ||
-                !_contractsByGuid.TryGetValue(incomingContract.ContractGuid, out var existing) ||
-                !IsActiveContract(existing))
-            {
-                return RejectedApplyResult();
-            }
-
-            return ApplyRecords(new[] { incomingContract }, clientKnownRevision);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyProducerObservedFinishedMutation(ClientStructure client, ContractIntentPayload intentPayload, long? clientKnownRevision)
-        {
-            if (!ClientOwnsProducerAuthority(client))
-            {
-                return RejectedApplyResult();
-            }
-
-            if (!TryGetSingleIntentContract(intentPayload, out var incomingContract) ||
-                !_contractsByGuid.TryGetValue(incomingContract.ContractGuid, out var existing) ||
-                !IsActiveContract(existing))
-            {
-                return RejectedApplyResult();
-            }
-
-            return ApplyRecords(new[] { incomingContract }, clientKnownRevision);
-        }
-
-        private PersistentSyncDomainApplyResult ApplySingleCanonicalMutation(ContractSnapshotInfo mutatedContract, long? clientKnownRevision)
-        {
-            var changed = false;
-            var nextOrder = _contractsByGuid.Any() ? _contractsByGuid.Values.Max(c => c.Order) + 1 : 0;
-            ApplyCanonicalRecord(mutatedContract, ref nextOrder, ref changed);
-
-            if (changed)
-            {
-                Revision++;
-                PersistCurrentState();
-            }
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = changed,
-                ReplyToOriginClient = !changed && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                Snapshot = GetCurrentSnapshot()
-            };
         }
 
         private static bool TryDeserializeContractIntentPayload(byte[] payload, int numBytes, out ContractIntentPayload intentPayload)
@@ -387,25 +444,9 @@ namespace Server.System.PersistentSync
             return true;
         }
 
-        private static PersistentSyncDomainApplyResult RejectedApplyResult()
-        {
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = false,
-                Changed = false,
-                ReplyToOriginClient = false,
-                Snapshot = null
-            };
-        }
-
         private static bool ClientOwnsProducerAuthority(ClientStructure client)
         {
             return client != null && LockSystem.LockQuery.ContractLockBelongsToPlayer(client.PlayerName);
-        }
-
-        private bool HasOfferPoolContracts()
-        {
-            return _contractsByGuid.Values.Any(IsOfferPoolContract);
         }
 
         private static bool IsOfferPoolContract(ContractSnapshotInfo contract)
@@ -445,220 +486,7 @@ namespace Server.System.PersistentSync
             return CanonicalizeRecordData(rewritten);
         }
 
-        private PersistentSyncDomainApplyResult ApplyRecords(IEnumerable<ContractSnapshotInfo> incomingRecords, long? clientKnownRevision)
-        {
-            var changed = false;
-            var nextOrder = _contractsByGuid.Any() ? _contractsByGuid.Values.Max(c => c.Order) + 1 : 0;
-
-            foreach (var incomingRecord in incomingRecords ?? Enumerable.Empty<ContractSnapshotInfo>())
-            {
-                ApplyCanonicalRecord(incomingRecord, ref nextOrder, ref changed);
-            }
-
-            if (changed)
-            {
-                Revision++;
-                PersistCurrentState();
-            }
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = changed,
-                ReplyToOriginClient = !changed && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                Snapshot = GetCurrentSnapshot()
-            };
-        }
-
-        private PersistentSyncDomainApplyResult ApplyFullReplace(IEnumerable<ContractSnapshotInfo> incomingRecords, long? clientKnownRevision)
-        {
-            var previous = _contractsByGuid.ToDictionary(kv => kv.Key, kv => ContractSnapshotInfoComparer.Clone(kv.Value));
-
-            _contractsByGuid.Clear();
-            var nextOrder = 0;
-            var ignoredChanged = false;
-            var ignoredCleanup = false;
-            foreach (var incomingRecord in incomingRecords ?? Enumerable.Empty<ContractSnapshotInfo>())
-            {
-                ApplyCanonicalRecord(incomingRecord, ref nextOrder, ref ignoredChanged, ref ignoredCleanup);
-            }
-
-            var changed = !AreCanonicalSetsEquivalent(previous, _contractsByGuid);
-            if (changed)
-            {
-                Revision++;
-                PersistCurrentState();
-            }
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = changed,
-                ReplyToOriginClient = !changed && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                Snapshot = GetCurrentSnapshot()
-            };
-        }
-
-        private void PersistCurrentState()
-        {
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
-            {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
-
-                // LunaConfigNode graph edits for CONTRACTS have proven easy to get wrong (wrong layer removed,
-                // leaving stale CONTRACT rows in the serialized scenario). Rewrite the CONTRACTS { ... } region in
-                // the full scenario text so persistence always matches the canonical in-memory contract set while
-                // preserving sibling blocks (WEIGHTS, etc.).
-                var scenarioText = scenario.ToString();
-                if (!TryReplaceContractsSectionInScenarioText(scenarioText, GetOrderedContracts(), out var rewritten))
-                {
-                    return;
-                }
-
-                ScenarioStoreSystem.CurrentScenarios[ScenarioName] = new ConfigNode(rewritten);
-            }
-        }
-
-        private static bool TryReplaceContractsSectionInScenarioText(
-            string scenarioText,
-            IEnumerable<ContractSnapshotInfo> orderedContracts,
-            out string rewritten)
-        {
-            rewritten = null;
-            if (string.IsNullOrEmpty(scenarioText))
-            {
-                return false;
-            }
-
-            var patterns = new[] { "CONTRACTS\r\n{", "CONTRACTS\n{" };
-            var blockStart = -1;
-            var openBrace = -1;
-            foreach (var p in patterns)
-            {
-                var idx = scenarioText.IndexOf(p, StringComparison.Ordinal);
-                if (idx < 0)
-                {
-                    continue;
-                }
-
-                blockStart = idx;
-                openBrace = idx + p.Length - 1;
-                break;
-            }
-
-            if (blockStart < 0 || openBrace < 0 || openBrace >= scenarioText.Length || scenarioText[openBrace] != '{')
-            {
-                return false;
-            }
-
-            var depth = 0;
-            var closeBrace = -1;
-            for (var i = openBrace; i < scenarioText.Length; i++)
-            {
-                var c = scenarioText[i];
-                if (c == '{')
-                {
-                    depth++;
-                }
-                else if (c == '}')
-                {
-                    depth--;
-                    if (depth == 0)
-                    {
-                        closeBrace = i;
-                        break;
-                    }
-                }
-            }
-
-            if (closeBrace < 0)
-            {
-                return false;
-            }
-
-            var tailStart = closeBrace + 1;
-            while (tailStart < scenarioText.Length &&
-                   (scenarioText[tailStart] == '\r' || scenarioText[tailStart] == '\n'))
-            {
-                tailStart++;
-            }
-
-            var sb = new StringBuilder(scenarioText.Length + 64);
-            sb.Append(scenarioText, 0, blockStart);
-            sb.AppendLine("CONTRACTS");
-            sb.AppendLine("{");
-            foreach (var contract in orderedContracts ?? Enumerable.Empty<ContractSnapshotInfo>())
-            {
-                sb.AppendLine("CONTRACT");
-                sb.AppendLine("{");
-                sb.AppendLine(IndentContractData(Encoding.UTF8.GetString(contract.Data, 0, contract.NumBytes)));
-                sb.AppendLine("}");
-            }
-
-            sb.AppendLine("}");
-            if (tailStart < scenarioText.Length)
-            {
-                sb.Append(scenarioText, tailStart, scenarioText.Length - tailStart);
-            }
-
-            rewritten = sb.ToString();
-            return true;
-        }
-
-        private IEnumerable<ContractSnapshotInfo> GetOrderedContracts()
-        {
-            return _contractsByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid);
-        }
-
-        private static bool AreCanonicalSetsEquivalent(
-            IReadOnlyDictionary<Guid, ContractSnapshotInfo> left,
-            IReadOnlyDictionary<Guid, ContractSnapshotInfo> right)
-        {
-            if (ReferenceEquals(left, right))
-            {
-                return true;
-            }
-
-            if (left == null || right == null || left.Count != right.Count)
-            {
-                return false;
-            }
-
-            foreach (var kv in left)
-            {
-                if (!right.TryGetValue(kv.Key, out var other))
-                {
-                    return false;
-                }
-
-                if (kv.Value.Order != other.Order || !ContractSnapshotInfoComparer.AreEquivalent(kv.Value, other))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static ContractSnapshotInfo NormalizeRecord(ContractSnapshotInfo incomingRecord, int nextOrder)
-        {
-            var normalized = ContractSnapshotInfoComparer.Clone(incomingRecord);
-            normalized = CanonicalizeRecordData(normalized);
-            normalized.Order = normalized.Order >= 0 ? normalized.Order : nextOrder;
-            normalized.Placement = DeterminePlacement(normalized.ContractState);
-            return normalized;
-        }
-
-        private bool ApplyCanonicalRecord(ContractSnapshotInfo incomingRecord, ref int nextOrder, ref bool changed)
-        {
-            var ignoredCleanup = false;
-            return ApplyCanonicalRecord(incomingRecord, ref nextOrder, ref changed, ref ignoredCleanup);
-        }
-
-        private bool ApplyCanonicalRecord(ContractSnapshotInfo incomingRecord, ref int nextOrder, ref bool changed, ref bool cleanedDuringLoad)
+        private static bool ApplyCanonicalRecord(Dictionary<Guid, ContractSnapshotInfo> map, ContractSnapshotInfo incomingRecord, ref int nextOrder)
         {
             if (incomingRecord == null || incomingRecord.ContractGuid == Guid.Empty)
             {
@@ -671,34 +499,35 @@ namespace Server.System.PersistentSync
                 nextOrder++;
             }
 
-            if (ShouldRejectIncomingOfferedDuplicateOfActive(normalizedRecord))
+            if (ShouldRejectIncomingOfferedDuplicateOfActive(map, normalizedRecord))
             {
-                cleanedDuringLoad = true;
                 return false;
             }
 
-            if (RemoveOlderOfferedDuplicatesOf(normalizedRecord))
-            {
-                changed = true;
-                cleanedDuringLoad = true;
-            }
+            RemoveOlderOfferedDuplicatesOf(map, normalizedRecord);
 
-            if (_contractsByGuid.TryGetValue(normalizedRecord.ContractGuid, out var existingRecord))
+            if (map.TryGetValue(normalizedRecord.ContractGuid, out var existingRecord))
             {
                 normalizedRecord.Order = existingRecord.Order;
                 if (!ContractSnapshotInfoComparer.AreEquivalent(existingRecord, normalizedRecord))
                 {
-                    _contractsByGuid[normalizedRecord.ContractGuid] = normalizedRecord;
-                    changed = true;
-                    cleanedDuringLoad = true;
+                    map[normalizedRecord.ContractGuid] = normalizedRecord;
                 }
 
                 return false;
             }
 
-            _contractsByGuid[normalizedRecord.ContractGuid] = normalizedRecord;
-            changed = true;
+            map[normalizedRecord.ContractGuid] = normalizedRecord;
             return true;
+        }
+
+        private static ContractSnapshotInfo NormalizeRecord(ContractSnapshotInfo incomingRecord, int nextOrder)
+        {
+            var normalized = ContractSnapshotInfoComparer.Clone(incomingRecord);
+            normalized = CanonicalizeRecordData(normalized);
+            normalized.Order = normalized.Order >= 0 ? normalized.Order : nextOrder;
+            normalized.Placement = DeterminePlacement(normalized.ContractState);
+            return normalized;
         }
 
         private static ContractSnapshotInfo CreateSnapshotInfo(ConfigNode contractNode, int order)
@@ -712,7 +541,7 @@ namespace Server.System.PersistentSync
             // Client-produced ContractSnapshotInfo.Data is body-only (no CONTRACT wrapper). When we ingest from a
             // scenario ConfigNode, contractNode.ToString() emits the wrapping "CONTRACT\n{\n ... \n}" header. Strip
             // it so all canonical in-memory/persisted rows share the same body-only shape, otherwise mutations like
-            // RewriteContractState operate at the wrong node level (they'd touch the root, not the inner CONTRACT).
+            // RewriteContractState operate at the wrong node level.
             var bodyText = StripContractWrapper(contractNode.ToString());
             var bodyBytes = Encoding.UTF8.GetBytes(bodyText);
 
@@ -740,8 +569,6 @@ namespace Server.System.PersistentSync
                 return wrappedText;
             }
 
-            // Only strip if the pre-brace header is "CONTRACT" (plus whitespace). Body-only text starts with
-            // "key = value" and has no leading "CONTRACT\n" header.
             var header = wrappedText.Substring(0, openBrace).Trim();
             if (!string.Equals(header, ContractNodeName, StringComparison.Ordinal))
             {
@@ -779,8 +606,6 @@ namespace Server.System.PersistentSync
             var sb = new StringBuilder(normalized.Length);
             foreach (var line in lines)
             {
-                // LunaConfigNode indents children with tabs; strip one level so the body is flat (matches
-                // client-produced data shape).
                 var stripped = line;
                 if (stripped.Length > 0 && stripped[0] == '\t')
                 {
@@ -824,9 +649,6 @@ namespace Server.System.PersistentSync
 
         private static ContractSnapshotInfo CanonicalizeRecordData(ContractSnapshotInfo info)
         {
-            // info.Data can arrive either wrapped ("CONTRACT { ... }") from scenario ingestion or unwrapped (body
-            // only) from client-sent proposals. Canonicalize to body-only so RewriteContractState and diff/equality
-            // logic always operate at the same node level.
             var text = Encoding.UTF8.GetString(info.Data, 0, info.NumBytes);
             var stripped = StripContractWrapper(text);
             var contractNode = new ConfigNode(stripped);
@@ -838,35 +660,17 @@ namespace Server.System.PersistentSync
             return info;
         }
 
-        private static string IndentContractData(string data)
+        /// <summary>Stock can offer the same career template many times during time warp (new GUID each tick).
+        /// Collapse to one offered row per contract type + title so Mission Control stays sane across clients.</summary>
+        private static void RemoveOlderOfferedDuplicatesOf(Dictionary<Guid, ContractSnapshotInfo> map, ContractSnapshotInfo incoming)
         {
-            var lines = data.Replace("\r\n", "\n").Split('\n');
-            return string.Join("\n", lines.Where(line => line.Length > 0).Select(line => "    " + line));
-        }
-
-        /// <summary>
-        /// Stock can offer the same career template many times during time warp (new GUID each tick). Collapse to one
-        /// offered row per contract type + title so Mission Control stays sane across clients.
-        /// </summary>
-        private bool RemoveOlderOfferedDuplicatesOf(ContractSnapshotInfo incoming)
-        {
-            if (!TryBuildContractIdentityKey(incoming, out var key))
-            {
-                return false;
-            }
+            if (!TryBuildContractIdentityKey(incoming, out var key)) return;
 
             var toRemove = new List<Guid>();
-            foreach (var kv in _contractsByGuid)
+            foreach (var kv in map)
             {
-                if (kv.Key == incoming.ContractGuid)
-                {
-                    continue;
-                }
-
-                if (!TryBuildContractIdentityKey(kv.Value, out var existingKey) || existingKey != key)
-                {
-                    continue;
-                }
+                if (kv.Key == incoming.ContractGuid) continue;
+                if (!TryBuildContractIdentityKey(kv.Value, out var existingKey) || existingKey != key) continue;
 
                 if (incoming.Placement == ContractSnapshotPlacement.Active)
                 {
@@ -874,55 +678,25 @@ namespace Server.System.PersistentSync
                     {
                         toRemove.Add(kv.Key);
                     }
-
                     continue;
                 }
 
-                if (!TryBuildOfferedDedupKey(incoming, out _) || !TryBuildOfferedDedupKey(kv.Value, out _))
-                {
-                    continue;
-                }
-
+                if (!TryBuildOfferedDedupKey(incoming, out _) || !TryBuildOfferedDedupKey(kv.Value, out _)) continue;
                 toRemove.Add(kv.Key);
             }
 
-            if (toRemove.Count == 0)
-            {
-                return false;
-            }
-
-            foreach (var g in toRemove)
-            {
-                _contractsByGuid.Remove(g);
-            }
-
-            return true;
+            foreach (var g in toRemove) map.Remove(g);
         }
 
-        private bool ShouldRejectIncomingOfferedDuplicateOfActive(ContractSnapshotInfo incoming)
+        private static bool ShouldRejectIncomingOfferedDuplicateOfActive(Dictionary<Guid, ContractSnapshotInfo> map, ContractSnapshotInfo incoming)
         {
-            if (!TryBuildOfferedDedupKey(incoming, out var key))
+            if (!TryBuildOfferedDedupKey(incoming, out var key)) return false;
+
+            foreach (var kv in map)
             {
-                return false;
-            }
-
-            foreach (var kv in _contractsByGuid)
-            {
-                if (kv.Key == incoming.ContractGuid)
-                {
-                    continue;
-                }
-
-                if (kv.Value.Placement != ContractSnapshotPlacement.Active)
-                {
-                    continue;
-                }
-
-                if (!TryBuildContractIdentityKey(kv.Value, out var existingKey) || existingKey != key)
-                {
-                    continue;
-                }
-
+                if (kv.Key == incoming.ContractGuid) continue;
+                if (kv.Value.Placement != ContractSnapshotPlacement.Active) continue;
+                if (!TryBuildContractIdentityKey(kv.Value, out var existingKey) || existingKey != key) continue;
                 return true;
             }
 
@@ -932,10 +706,7 @@ namespace Server.System.PersistentSync
         private static bool TryBuildContractIdentityKey(ContractSnapshotInfo info, out string key)
         {
             key = null;
-            if (info == null)
-            {
-                return false;
-            }
+            if (info == null) return false;
 
             try
             {
@@ -943,7 +714,6 @@ namespace Server.System.PersistentSync
                 var contractNode = new ConfigNode(text);
                 var type = contractNode.GetValue(TypeFieldName)?.Value?.Trim()
                            ?? TryReadContractLineValue(text, TypeFieldName);
-                // Serialized CONTRACT nodes sometimes omit `title` at the root; fall back to fields stock still writes.
                 var rawTitle = contractNode.GetValue(LmpOfferTitleFieldName)?.Value
                                ?? TryReadContractLineValue(text, LmpOfferTitleFieldName)
                                ?? contractNode.GetValue(TitleFieldName)?.Value
@@ -956,10 +726,7 @@ namespace Server.System.PersistentSync
                                ?? contractNode.GetValue("description")?.Value
                                ?? TryReadContractLineValue(text, "description");
                 var title = NormalizeOfferTitleForDedupe(rawTitle);
-                if (string.IsNullOrEmpty(type) || string.IsNullOrEmpty(title))
-                {
-                    return false;
-                }
+                if (string.IsNullOrEmpty(type) || string.IsNullOrEmpty(title)) return false;
 
                 key = string.Concat(type, "\u001f", title);
                 return true;
@@ -973,16 +740,10 @@ namespace Server.System.PersistentSync
         private static bool TryBuildOfferedDedupKey(ContractSnapshotInfo info, out string key)
         {
             key = null;
-            if (info.Placement != ContractSnapshotPlacement.Current)
-            {
-                return false;
-            }
+            if (info.Placement != ContractSnapshotPlacement.Current) return false;
 
             var state = (info.ContractState ?? string.Empty).Trim();
-            if (!IsOfferLikeContractState(state))
-            {
-                return false;
-            }
+            if (!IsOfferLikeContractState(state)) return false;
 
             return TryBuildContractIdentityKey(info, out key);
         }
@@ -995,10 +756,7 @@ namespace Server.System.PersistentSync
 
         private static string TryReadContractLineValue(string configText, string key)
         {
-            if (string.IsNullOrEmpty(configText) || string.IsNullOrEmpty(key))
-            {
-                return null;
-            }
+            if (string.IsNullOrEmpty(configText) || string.IsNullOrEmpty(key)) return null;
 
             var prefix = key + " = ";
             foreach (var line in configText.Replace("\r\n", "\n").Split('\n'))
@@ -1015,12 +773,19 @@ namespace Server.System.PersistentSync
 
         private static string NormalizeOfferTitleForDedupe(string title)
         {
-            if (string.IsNullOrWhiteSpace(title))
+            if (string.IsNullOrWhiteSpace(title)) return string.Empty;
+            return Regex.Replace(title.Trim(), @"\s+", " ");
+        }
+
+        /// <summary>Typed canonical state: contracts keyed by GUID.</summary>
+        public sealed class Canonical
+        {
+            public Canonical(Dictionary<Guid, ContractSnapshotInfo> contractsByGuid)
             {
-                return string.Empty;
+                ContractsByGuid = contractsByGuid ?? new Dictionary<Guid, ContractSnapshotInfo>();
             }
 
-            return Regex.Replace(title.Trim(), @"\s+", " ");
+            public Dictionary<Guid, ContractSnapshotInfo> ContractsByGuid { get; }
         }
     }
 }

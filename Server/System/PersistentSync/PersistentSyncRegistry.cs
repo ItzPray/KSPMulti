@@ -43,9 +43,12 @@ namespace Server.System.PersistentSync
             Register(new StrategyPersistentSyncDomainStore());
             Register(new AchievementsPersistentSyncDomainStore());
             Register(new ScienceSubjectsPersistentSyncDomainStore());
-            Register(new TechnologyPersistentSyncDomainStore());
+            var technologyStore = new TechnologyPersistentSyncDomainStore();
+            Register(technologyStore);
             Register(new ExperimentalPartsPersistentSyncDomainStore());
-            Register(new PartPurchasesPersistentSyncDomainStore());
+            // PartPurchases is a projection over Technology's canonical (see class XML doc). Inject the
+            // Technology store so PartPurchases never has to Reach into the registry at intent time.
+            Register(new PartPurchasesPersistentSyncDomainStore(technologyStore));
 
             foreach (var domain in Domains.Values)
             {
@@ -73,6 +76,16 @@ namespace Server.System.PersistentSync
         public static void ReplaceRegisteredDomainForTests(PersistentSyncDomainId domainId, IPersistentSyncServerDomain domain)
         {
             Domains[domainId] = domain;
+        }
+
+        /// <summary>
+        /// Returns the registered domain for <paramref name="domainId"/>, or null if missing. Used by
+        /// projection domains (e.g. PartPurchases → Technology) to resolve their backing store without
+        /// introducing a constructor-time dependency that conflicts with the registry's no-arg construction.
+        /// </summary>
+        public static IPersistentSyncServerDomain GetRegisteredDomain(PersistentSyncDomainId domainId)
+        {
+            return Domains.TryGetValue(domainId, out var domain) ? domain : null;
         }
 
         /// <summary>

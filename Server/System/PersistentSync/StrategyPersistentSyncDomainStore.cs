@@ -1,9 +1,7 @@
 using LmpCommon.Enums;
-using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
-using Server.System;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,75 +9,47 @@ using System.Text;
 
 namespace Server.System.PersistentSync
 {
-    public class StrategyPersistentSyncDomainStore : IPersistentSyncServerDomain
+    public sealed class StrategyPersistentSyncDomainStore : ScenarioSyncDomainStore<StrategyPersistentSyncDomainStore.Canonical>
     {
-        private const string ScenarioName = "StrategySystem";
         private const string StrategiesNodeName = "STRATEGIES";
         private const string StrategyNodeName = "STRATEGY";
         private const string StrategyNameFieldName = "name";
 
-        private readonly Dictionary<string, StrategySnapshotInfo> _strategiesByName = new Dictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal);
+        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Strategy;
+        public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+        protected override string ScenarioName => "StrategySystem";
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Strategy;
-        public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-
-        private long Revision { get; set; }
-
-        public void LoadFromPersistence(bool createdFromScratch)
+        protected override Canonical CreateEmpty()
         {
-            _strategiesByName.Clear();
+            return new Canonical(new SortedDictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal));
+        }
 
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        {
+            var map = new SortedDictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal);
+            var strategiesNode = scenario?.GetNode(StrategiesNodeName)?.Value;
+            if (strategiesNode == null)
             {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
+                return new Canonical(map);
+            }
 
-                var strategiesNode = scenario.GetNode(StrategiesNodeName)?.Value;
-                if (strategiesNode == null)
+            foreach (var strategyNode in strategiesNode.GetNodes(StrategyNodeName).Select(node => node.Value).Where(node => node != null))
+            {
+                var info = CreateSnapshotInfo(strategyNode);
+                if (info != null)
                 {
-                    return;
-                }
-
-                foreach (var strategyNode in strategiesNode.GetNodes(StrategyNodeName).Select(node => node.Value).Where(node => node != null))
-                {
-                    var info = CreateSnapshotInfo(strategyNode);
-                    if (info != null)
-                    {
-                        _strategiesByName[info.Name] = info;
-                    }
+                    map[info.Name] = info;
                 }
             }
+
+            return new Canonical(map);
         }
 
-        public PersistentSyncDomainSnapshot GetCurrentSnapshot()
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
         {
-            var payload = StrategySnapshotPayloadSerializer.Serialize(_strategiesByName.Values.OrderBy(value => value.Name).Select(CloneInfo).ToArray());
-            return new PersistentSyncDomainSnapshot
-            {
-                DomainId = DomainId,
-                Revision = Revision,
-                AuthorityPolicy = AuthorityPolicy,
-                Payload = payload,
-                NumBytes = payload.Length
-            };
-        }
-
-        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
-        {
-            return ApplyRecords(StrategySnapshotPayloadSerializer.Deserialize(data.Payload), data.ClientKnownRevision);
-        }
-
-        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
-        {
-            return ApplyRecords(StrategySnapshotPayloadSerializer.Deserialize(payload), null);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyRecords(IEnumerable<StrategySnapshotInfo> records, long? clientKnownRevision)
-        {
-            var changed = false;
-            foreach (var record in records ?? Enumerable.Empty<StrategySnapshotInfo>())
+            var records = StrategySnapshotPayloadSerializer.Deserialize(payload) ?? Enumerable.Empty<StrategySnapshotInfo>();
+            var next = new SortedDictionary<string, StrategySnapshotInfo>(current.Strategies, StringComparer.Ordinal);
+            foreach (var record in records)
             {
                 var normalized = NormalizeSnapshotInfo(record);
                 if (normalized == null)
@@ -87,56 +57,53 @@ namespace Server.System.PersistentSync
                     continue;
                 }
 
-                if (_strategiesByName.TryGetValue(normalized.Name, out var existing) && RecordsAreEqual(existing, normalized))
-                {
-                    continue;
-                }
-
-                _strategiesByName[normalized.Name] = normalized;
-                changed = true;
+                next[normalized.Name] = normalized;
             }
 
-            if (changed)
-            {
-                Revision++;
-                PersistCurrentState();
-            }
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = changed,
-                ReplyToOriginClient = !changed && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                Snapshot = GetCurrentSnapshot()
-            };
+            return ReduceResult<Canonical>.Accept(new Canonical(next));
         }
 
-        private void PersistCurrentState()
+        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
         {
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+            var strategiesNode = scenario.GetNode(StrategiesNodeName)?.Value;
+            if (strategiesNode == null)
             {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
+                strategiesNode = new ConfigNode(StrategiesNodeName, scenario);
+                scenario.AddNode(strategiesNode);
+            }
 
-                var strategiesNode = scenario.GetNode(StrategiesNodeName)?.Value;
-                if (strategiesNode == null)
-                {
-                    strategiesNode = new ConfigNode(StrategiesNodeName, scenario);
-                    scenario.AddNode(strategiesNode);
-                }
+            foreach (var existingNode in strategiesNode.GetNodes(StrategyNodeName).Select(node => node.Value).Where(node => node != null).ToArray())
+            {
+                strategiesNode.RemoveNode(existingNode);
+            }
 
-                foreach (var existingNode in strategiesNode.GetNodes(StrategyNodeName).Select(node => node.Value).Where(node => node != null).ToArray())
-                {
-                    strategiesNode.RemoveNode(existingNode);
-                }
+            foreach (var strategy in canonical.Strategies.Values)
+            {
+                strategiesNode.AddNode(CreateScenarioStrategyNode(strategy));
+            }
 
-                foreach (var strategy in _strategiesByName.Values.OrderBy(value => value.Name))
+            return scenario;
+        }
+
+        protected override byte[] SerializeSnapshot(Canonical canonical)
+        {
+            return StrategySnapshotPayloadSerializer.Serialize(canonical.Strategies.Values.Select(CloneInfo).ToArray());
+        }
+
+        protected override bool AreEquivalent(Canonical a, Canonical b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            if (a.Strategies.Count != b.Strategies.Count) return false;
+
+            foreach (var kvp in a.Strategies)
+            {
+                if (!b.Strategies.TryGetValue(kvp.Key, out var other) || !RecordsAreEqual(kvp.Value, other))
                 {
-                    strategiesNode.AddNode(CreateScenarioStrategyNode(strategy));
+                    return false;
                 }
             }
+            return true;
         }
 
         private static StrategySnapshotInfo CreateSnapshotInfo(ConfigNode strategyNode)
@@ -193,6 +160,7 @@ namespace Server.System.PersistentSync
 
         private static bool RecordsAreEqual(StrategySnapshotInfo left, StrategySnapshotInfo right)
         {
+            if (left == null || right == null) return left == right;
             return string.Equals(left.Name, right.Name, StringComparison.Ordinal) &&
                    string.Equals(Encoding.UTF8.GetString(left.Data, 0, left.NumBytes), Encoding.UTF8.GetString(right.Data, 0, right.NumBytes), StringComparison.Ordinal);
         }
@@ -207,6 +175,17 @@ namespace Server.System.PersistentSync
                 NumBytes = source.NumBytes,
                 Data = data
             };
+        }
+
+        /// <summary>Typed canonical state: strategies keyed by Name (ordinal, sorted for deterministic iteration).</summary>
+        public sealed class Canonical
+        {
+            public Canonical(SortedDictionary<string, StrategySnapshotInfo> strategies)
+            {
+                Strategies = strategies ?? new SortedDictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal);
+            }
+
+            public SortedDictionary<string, StrategySnapshotInfo> Strategies { get; }
         }
     }
 }

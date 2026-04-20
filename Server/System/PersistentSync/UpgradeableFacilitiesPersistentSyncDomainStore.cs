@@ -1,9 +1,8 @@
 using LmpCommon.Enums;
-using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
+using LunaConfigNode.CfgNode;
 using Server.Client;
 using Server.Log;
-using Server.System;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -11,9 +10,8 @@ using System.Linq;
 
 namespace Server.System.PersistentSync
 {
-    public class UpgradeableFacilitiesPersistentSyncDomainStore : IPersistentSyncServerDomain
+    public sealed class UpgradeableFacilitiesPersistentSyncDomainStore : ScenarioSyncDomainStore<UpgradeableFacilitiesPersistentSyncDomainStore.Canonical>
     {
-        private const string ScenarioName = "ScenarioUpgradeableFacilities";
         private const string LevelFieldName = "lvl";
         private const float MaxPersistentLevel = 2f;
 
@@ -30,28 +28,30 @@ namespace Server.System.PersistentSync
             "SpaceCenter/Administration"
         };
 
-        private readonly Dictionary<string, int> _facilityLevels = new Dictionary<string, int>();
+        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.UpgradeableFacilities;
+        public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+        protected override string ScenarioName => "ScenarioUpgradeableFacilities";
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.UpgradeableFacilities;
-        public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-
-        private long Revision { get; set; }
-
-        public void LoadFromPersistence(bool createdFromScratch)
+        protected override Canonical CreateEmpty()
         {
-            _facilityLevels.Clear();
+            var map = new SortedDictionary<string, int>(StringComparer.Ordinal);
             foreach (var facilityId in KnownFacilityIds)
             {
-                _facilityLevels[facilityId] = 0;
+                map[facilityId] = 0;
+            }
+            return new Canonical(map);
+        }
+
+        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        {
+            var map = new SortedDictionary<string, int>(StringComparer.Ordinal);
+            foreach (var facilityId in KnownFacilityIds)
+            {
+                map[facilityId] = 0;
             }
 
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+            if (scenario != null)
             {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
-
                 foreach (var facilityId in KnownFacilityIds)
                 {
                     if (!UpgradeableFacilitiesScenarioNodes.TryGetFacilityNode(scenario, facilityId, out var facilityNode))
@@ -60,32 +60,96 @@ namespace Server.System.PersistentSync
                     }
 
                     var rawValue = facilityNode.GetValue(LevelFieldName)?.Value;
-                    if (string.IsNullOrEmpty(rawValue))
-                    {
-                        continue;
-                    }
+                    if (string.IsNullOrEmpty(rawValue)) continue;
 
                     if (float.TryParse(rawValue, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedLevel))
                     {
-                        _facilityLevels[facilityId] = DeserializePersistentLevel(parsedLevel);
+                        map[facilityId] = DeserializePersistentLevel(parsedLevel);
                     }
-                }
-
-                if (createdFromScratch)
-                {
-                    PersistCurrentState();
                 }
             }
 
-            LogFacilityLevelsSnapshot("LoadFromPersistence");
+            var canonical = new Canonical(map);
+            LogFacilityLevelsSnapshot("LoadFromPersistence", canonical, 0L);
+            return canonical;
         }
 
-        private void LogFacilityLevelsSnapshot(string context)
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
         {
-            var summary = string.Join(",", _facilityLevels
-                .OrderBy(kvp => kvp.Key)
+            UpgradeableFacilitiesIntentPayloadSerializer.Deserialize(payload, numBytes, out var facilityId, out var level);
+
+            if (string.IsNullOrEmpty(facilityId))
+            {
+                return ReduceResult<Canonical>.Reject();
+            }
+
+            if (!TryResolveCanonicalFacilityId(facilityId, out var canonicalFacilityId))
+            {
+                return ReduceResult<Canonical>.Reject();
+            }
+
+            if (current.Levels.TryGetValue(canonicalFacilityId, out var existingLevel))
+            {
+                // KSC init fires OnKSCFacilityUpgraded with FacilityLevel 0 before the client applies the
+                // PersistentSync snapshot; those intents must not clobber a copied universe that already
+                // has higher persisted levels. Accept but leave state untouched so the equality short-circuit
+                // collapses them into a no-op.
+                if (level < existingLevel)
+                {
+                    return ReduceResult<Canonical>.Accept(current);
+                }
+
+                if (existingLevel == level)
+                {
+                    return ReduceResult<Canonical>.Accept(current);
+                }
+            }
+
+            var next = new SortedDictionary<string, int>(current.Levels, StringComparer.Ordinal)
+            {
+                [canonicalFacilityId] = level
+            };
+            return ReduceResult<Canonical>.Accept(new Canonical(next));
+        }
+
+        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
+        {
+            foreach (var facility in canonical.Levels)
+            {
+                var lvlText = SerializePersistentLevel(facility.Value).ToString(CultureInfo.InvariantCulture);
+                UpgradeableFacilitiesScenarioNodes.EnsureFacilityLevelValue(scenario, facility.Key, lvlText);
+            }
+            return scenario;
+        }
+
+        protected override byte[] SerializeSnapshot(Canonical canonical)
+        {
+            LogFacilityLevelsSnapshot("GetCurrentSnapshot", canonical, RevisionForTests);
+            var snapshotMap = new Dictionary<string, int>(canonical.Levels);
+            return UpgradeableFacilitiesSnapshotPayloadSerializer.Serialize(snapshotMap);
+        }
+
+        protected override bool AreEquivalent(Canonical a, Canonical b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            if (a.Levels.Count != b.Levels.Count) return false;
+
+            foreach (var kvp in a.Levels)
+            {
+                if (!b.Levels.TryGetValue(kvp.Key, out var other) || other != kvp.Value)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static void LogFacilityLevelsSnapshot(string context, Canonical canonical, long revision)
+        {
+            var summary = string.Join(",", canonical.Levels
                 .Select(kvp => $"{FacilityShortName(kvp.Key)}={kvp.Value}"));
-            LunaLog.Debug($"[PersistentSync] UpgradeableFacilities {context} revision={Revision} levels=[{summary}]");
+            LunaLog.Debug($"[PersistentSync] UpgradeableFacilities {context} revision={revision} levels=[{summary}]");
         }
 
         private static string FacilityShortName(string facilityId)
@@ -97,105 +161,6 @@ namespace Server.System.PersistentSync
 
             var slash = facilityId.LastIndexOf('/');
             return slash >= 0 && slash < facilityId.Length - 1 ? facilityId.Substring(slash + 1) : facilityId;
-        }
-
-        public PersistentSyncDomainSnapshot GetCurrentSnapshot()
-        {
-            LogFacilityLevelsSnapshot("GetCurrentSnapshot");
-            var snapshotMap = new Dictionary<string, int>(_facilityLevels);
-            var payload = UpgradeableFacilitiesSnapshotPayloadSerializer.Serialize(snapshotMap);
-            return new PersistentSyncDomainSnapshot
-            {
-                DomainId = DomainId,
-                Revision = Revision,
-                AuthorityPolicy = AuthorityPolicy,
-                Payload = payload,
-                NumBytes = payload.Length
-            };
-        }
-
-        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
-        {
-            UpgradeableFacilitiesIntentPayloadSerializer.Deserialize(data.Payload, data.NumBytes, out var facilityId, out var level);
-            return ApplyFacilityMutation(facilityId, level, data.ClientKnownRevision);
-        }
-
-        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
-        {
-            UpgradeableFacilitiesIntentPayloadSerializer.Deserialize(payload, numBytes, out var facilityId, out var level);
-            return ApplyFacilityMutation(facilityId, level, null);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyFacilityMutation(string facilityId, int level, long? clientKnownRevision)
-        {
-            if (string.IsNullOrEmpty(facilityId))
-            {
-                return new PersistentSyncDomainApplyResult { Accepted = false };
-            }
-
-            if (!TryResolveCanonicalFacilityId(facilityId, out facilityId))
-            {
-                return new PersistentSyncDomainApplyResult { Accepted = false };
-            }
-
-            if (_facilityLevels.TryGetValue(facilityId, out var existingLevel))
-            {
-                // KSC init fires OnKSCFacilityUpgraded with FacilityLevel 0 before the client applies the
-                // PersistentSync snapshot; those intents must not clobber a copied universe that already
-                // has higher persisted levels.
-                if (level < existingLevel)
-                {
-                    PersistCurrentState();
-                    return new PersistentSyncDomainApplyResult
-                    {
-                        Accepted = true,
-                        Changed = false,
-                        ReplyToOriginClient = clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                        Snapshot = GetCurrentSnapshot()
-                    };
-                }
-
-                if (existingLevel == level)
-                {
-                    PersistCurrentState();
-                    return new PersistentSyncDomainApplyResult
-                    {
-                        Accepted = true,
-                        Changed = false,
-                        ReplyToOriginClient = clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                        Snapshot = GetCurrentSnapshot()
-                    };
-                }
-            }
-
-            _facilityLevels[facilityId] = level;
-            Revision++;
-            PersistCurrentState();
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = true,
-                ReplyToOriginClient = false,
-                Snapshot = GetCurrentSnapshot()
-            };
-        }
-
-        private void PersistCurrentState()
-        {
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
-            {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
-
-                foreach (var facility in _facilityLevels.OrderBy(kvp => kvp.Key))
-                {
-                    var lvlText = SerializePersistentLevel(facility.Value).ToString(CultureInfo.InvariantCulture);
-                    UpgradeableFacilitiesScenarioNodes.EnsureFacilityLevelValue(scenario, facility.Key, lvlText);
-                }
-            }
         }
 
         private static int DeserializePersistentLevel(float normalizedLevel)
@@ -245,6 +210,17 @@ namespace Server.System.PersistentSync
             }
 
             return false;
+        }
+
+        /// <summary>Typed canonical state: facility levels keyed by canonical facility id (ordinal, sorted).</summary>
+        public sealed class Canonical
+        {
+            public Canonical(SortedDictionary<string, int> levels)
+            {
+                Levels = levels ?? new SortedDictionary<string, int>(StringComparer.Ordinal);
+            }
+
+            public SortedDictionary<string, int> Levels { get; }
         }
     }
 }

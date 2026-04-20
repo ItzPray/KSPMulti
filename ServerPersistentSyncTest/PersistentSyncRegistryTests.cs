@@ -643,8 +643,11 @@ Tech
         }
 
         [TestMethod]
-        public void ExperimentalPartsAndPartPurchasesDomainsPersistSeparateRDOwnership()
+        public void ExperimentalPartsAndPartPurchasesDomainsPersistSharedRDOwnership()
         {
+            // PartPurchases is a projection over Technology (per AGENTS.md "one scenario, one domain"):
+            // Technology owns the Tech/* scenario nodes including the repeated part= values. PartPurchases
+            // still exposes its own wire snapshot format by routing intents through Technology's reducer.
             var basicRocketry = CreateTechnologySnapshotInfo("basicRocketry", "Available", 5);
             ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateResearchAndDevelopmentScenarioWithScience(new[] { basicRocketry }, Array.Empty<ScienceSubjectSnapshotInfo>());
             ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].AddNode(new ConfigNode("ExpParts\n{\n liquidEngine = 1\n}\n"));
@@ -652,7 +655,9 @@ Tech
 
             var experimentalStore = new ExperimentalPartsPersistentSyncDomainStore();
             experimentalStore.LoadFromPersistence(false);
-            var partPurchasesStore = new PartPurchasesPersistentSyncDomainStore();
+            var technologyStore = new TechnologyPersistentSyncDomainStore();
+            technologyStore.LoadFromPersistence(false);
+            var partPurchasesStore = new PartPurchasesPersistentSyncDomainStore(technologyStore);
             partPurchasesStore.LoadFromPersistence(false);
 
             var experimentalPayload = ExperimentalPartsSnapshotPayloadSerializer.Serialize(new[] { new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 } });
@@ -677,6 +682,14 @@ Tech
             StringAssert.Contains(scenarioText, "liquidEngine = 2");
             StringAssert.Contains(scenarioText, "part = liquidEngine");
             StringAssert.Contains(scenarioText, "part = solidBooster");
+
+            // PartPurchases wire snapshot is projected from Technology's canonical, so the returned payload
+            // must reflect the mutation we just routed through it.
+            var projectedSnapshot = partPurchasesStore.GetCurrentSnapshot();
+            var projected = PartPurchasesSnapshotPayloadSerializer.Deserialize(projectedSnapshot.Payload);
+            Assert.AreEqual(1, projected.Length);
+            Assert.AreEqual("basicRocketry", projected[0].TechId);
+            CollectionAssert.AreEqual(new[] { "liquidEngine", "solidBooster" }, projected[0].PartNames);
         }
 
         [TestMethod]

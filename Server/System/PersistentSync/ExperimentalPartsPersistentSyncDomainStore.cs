@@ -1,9 +1,7 @@
 using LmpCommon.Enums;
-using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
-using Server.System;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -11,151 +9,125 @@ using System.Linq;
 
 namespace Server.System.PersistentSync
 {
-    public class ExperimentalPartsPersistentSyncDomainStore : IPersistentSyncServerDomain
+    public sealed class ExperimentalPartsPersistentSyncDomainStore : ScenarioSyncDomainStore<ExperimentalPartsPersistentSyncDomainStore.Canonical>
     {
-        private const string ScenarioName = "ResearchAndDevelopment";
         private const string ExpPartsNodeName = "ExpParts";
 
-        private readonly Dictionary<string, int> _partCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.ExperimentalParts;
+        public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+        protected override string ScenarioName => "ResearchAndDevelopment";
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.ExperimentalParts;
-        public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-
-        private long Revision { get; set; }
-
-        public void LoadFromPersistence(bool createdFromScratch)
+        protected override Canonical CreateEmpty()
         {
-            _partCounts.Clear();
+            return new Canonical(new SortedDictionary<string, int>(StringComparer.Ordinal));
+        }
 
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        {
+            var map = new SortedDictionary<string, int>(StringComparer.Ordinal);
+            if (scenario == null)
             {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
-                {
-                    return;
-                }
+                return new Canonical(map);
+            }
 
-                var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
-                if (expPartsNode == null)
-                {
-                    return;
-                }
+            var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
+            if (expPartsNode == null)
+            {
+                return new Canonical(map);
+            }
 
-                foreach (var value in expPartsNode.GetAllValues())
+            foreach (var value in expPartsNode.GetAllValues())
+            {
+                if (int.TryParse(value.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) && count > 0)
                 {
-                    if (int.TryParse(value.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) && count > 0)
-                    {
-                        _partCounts[value.Key] = count;
-                    }
+                    map[value.Key] = count;
                 }
             }
+            return new Canonical(map);
         }
 
-        public PersistentSyncDomainSnapshot GetCurrentSnapshot()
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
         {
-            var payload = ExperimentalPartsSnapshotPayloadSerializer.Serialize(_partCounts
-                .OrderBy(value => value.Key)
-                .Select(value => new ExperimentalPartSnapshotInfo { PartName = value.Key, Count = value.Value })
-                .ToArray());
-            return new PersistentSyncDomainSnapshot
+            var records = ExperimentalPartsSnapshotPayloadSerializer.Deserialize(payload) ?? Enumerable.Empty<ExperimentalPartSnapshotInfo>();
+            var next = new SortedDictionary<string, int>(current.Counts, StringComparer.Ordinal);
+            foreach (var record in records)
             {
-                DomainId = DomainId,
-                Revision = Revision,
-                AuthorityPolicy = AuthorityPolicy,
-                Payload = payload,
-                NumBytes = payload.Length
-            };
-        }
-
-        public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data)
-        {
-            return ApplyRecords(ExperimentalPartsSnapshotPayloadSerializer.Deserialize(data.Payload), data.ClientKnownRevision);
-        }
-
-        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
-        {
-            return ApplyRecords(ExperimentalPartsSnapshotPayloadSerializer.Deserialize(payload), null);
-        }
-
-        private PersistentSyncDomainApplyResult ApplyRecords(IEnumerable<ExperimentalPartSnapshotInfo> records, long? clientKnownRevision)
-        {
-            var changed = false;
-            foreach (var record in records ?? Enumerable.Empty<ExperimentalPartSnapshotInfo>())
-            {
-                if (record == null || string.IsNullOrEmpty(record.PartName))
-                {
-                    continue;
-                }
+                if (record == null || string.IsNullOrEmpty(record.PartName)) continue;
 
                 if (record.Count <= 0)
                 {
-                    if (_partCounts.Remove(record.PartName))
-                    {
-                        changed = true;
-                    }
-
+                    next.Remove(record.PartName);
                     continue;
                 }
 
-                if (_partCounts.TryGetValue(record.PartName, out var currentCount) && currentCount == record.Count)
-                {
-                    continue;
-                }
-
-                _partCounts[record.PartName] = record.Count;
-                changed = true;
+                next[record.PartName] = record.Count;
             }
-
-            if (changed)
-            {
-                Revision++;
-                PersistCurrentState();
-            }
-
-            return new PersistentSyncDomainApplyResult
-            {
-                Accepted = true,
-                Changed = changed,
-                ReplyToOriginClient = !changed && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
-                Snapshot = GetCurrentSnapshot()
-            };
+            return ReduceResult<Canonical>.Accept(new Canonical(next));
         }
 
-        private void PersistCurrentState()
+        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
         {
-            lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+            var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
+            if (canonical.Counts.Count == 0)
             {
-                if (!ScenarioStoreSystem.CurrentScenarios.TryGetValue(ScenarioName, out var scenario))
+                if (expPartsNode != null)
                 {
-                    return;
+                    scenario.RemoveNode(expPartsNode);
                 }
+                return scenario;
+            }
 
-                var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
-                if (!_partCounts.Any())
+            if (expPartsNode == null)
+            {
+                expPartsNode = new ConfigNode(ExpPartsNodeName, scenario);
+                scenario.AddNode(expPartsNode);
+            }
+
+            foreach (var existingValue in expPartsNode.GetAllValues().ToArray())
+            {
+                expPartsNode.RemoveValue(existingValue.Key);
+            }
+
+            foreach (var value in canonical.Counts)
+            {
+                expPartsNode.CreateValue(new CfgNodeValue<string, string>(value.Key, value.Value.ToString(CultureInfo.InvariantCulture)));
+            }
+
+            return scenario;
+        }
+
+        protected override byte[] SerializeSnapshot(Canonical canonical)
+        {
+            return ExperimentalPartsSnapshotPayloadSerializer.Serialize(canonical.Counts
+                .Select(pair => new ExperimentalPartSnapshotInfo { PartName = pair.Key, Count = pair.Value })
+                .ToArray());
+        }
+
+        protected override bool AreEquivalent(Canonical a, Canonical b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null) return false;
+            if (a.Counts.Count != b.Counts.Count) return false;
+
+            foreach (var kvp in a.Counts)
+            {
+                if (!b.Counts.TryGetValue(kvp.Key, out var other) || other != kvp.Value)
                 {
-                    if (expPartsNode != null)
-                    {
-                        scenario.RemoveNode(expPartsNode);
-                    }
-
-                    return;
-                }
-
-                if (expPartsNode == null)
-                {
-                    expPartsNode = new ConfigNode(ExpPartsNodeName, scenario);
-                    scenario.AddNode(expPartsNode);
-                }
-
-                foreach (var existingValue in expPartsNode.GetAllValues().ToArray())
-                {
-                    expPartsNode.RemoveValue(existingValue.Key);
-                }
-
-                foreach (var value in _partCounts.OrderBy(pair => pair.Key))
-                {
-                    expPartsNode.CreateValue(new CfgNodeValue<string, string>(value.Key, value.Value.ToString(CultureInfo.InvariantCulture)));
+                    return false;
                 }
             }
+            return true;
+        }
+
+        /// <summary>Typed canonical state: experimental part counts keyed by part name (ordinal, sorted).</summary>
+        public sealed class Canonical
+        {
+            public Canonical(SortedDictionary<string, int> counts)
+            {
+                Counts = counts ?? new SortedDictionary<string, int>(StringComparer.Ordinal);
+            }
+
+            public SortedDictionary<string, int> Counts { get; }
         }
     }
 }

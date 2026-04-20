@@ -14,6 +14,7 @@ using LmpClient.Systems.Motd;
 using LmpClient.Systems.PlayerColorSys;
 using LmpClient.Systems.PlayerConnection;
 using LmpClient.Systems.PersistentSync;
+using LmpCommon.PersistentSync;
 using LmpClient.Systems.Scenario;
 using LmpClient.Systems.Screenshot;
 using LmpClient.Systems.SettingsSys;
@@ -264,7 +265,7 @@ namespace LmpClient.Network
                             ShareStrategySystem.Singleton.EnqueueMessage(msg);
                             break;
                         case ShareProgressMessageType.FacilityUpgrade:
-                            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+                            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.UpgradeableFacilities))
                             {
                                 LunaLog.LogError("[PersistentSync] bypass guard: ShareProgress facility path received; facilities now use PersistentSync snapshots. Message not queued.");
                             }

@@ -5,6 +5,7 @@ using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
+using LmpCommon.PersistentSync;
 using System;
 using System.Collections.Concurrent;
 
@@ -18,7 +19,7 @@ namespace LmpClient.Systems.ShareScienceSubject
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.ScienceSubjectUpdate) return;
-            if (PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.ScienceSubjects))
             {
                 LunaLog.LogWarning("[LMP] Ignoring legacy ScienceSubjectUpdate because persistent sync owns science subject convergence.");
                 return;

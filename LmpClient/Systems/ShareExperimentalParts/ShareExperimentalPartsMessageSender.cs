@@ -18,7 +18,7 @@ namespace LmpClient.Systems.ShareExperimentalParts
 
         public void SendExperimentalPartMessage(string partName, int count)
         {
-            if (PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.ExperimentalParts))
             {
                 PersistentSyncSystem.Singleton.MessageSender.SendExperimentalPartsIntent(new[]
                 {

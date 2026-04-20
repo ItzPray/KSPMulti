@@ -25,7 +25,7 @@ namespace LmpClient.Systems.ShareTechnology
 
         public void SendTechnologyMessage(RDTech tech)
         {
-            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Technology))
             {
                 // Do not call UnlockProtoTechNode here: OnTechnologyResearched already ran after stock applied
                 // the unlock. Re-invoking stock unlock can reset or corrupt local tech state on some KSP builds,
@@ -262,7 +262,7 @@ namespace LmpClient.Systems.ShareTechnology
 
         private static void SendPartPurchasesIntentForUnlockedTech(string techId, string technologyReason)
         {
-            if (string.IsNullOrEmpty(techId) || PersistentSyncSystem.Singleton == null || !PersistentSyncSystem.Singleton.Enabled)
+            if (string.IsNullOrEmpty(techId) || !PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.PartPurchases))
             {
                 return;
             }
