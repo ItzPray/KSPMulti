@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using LmpClient.Systems.ShareProgress;
 using LmpCommon.PersistentSync;
 
 namespace LmpClient.Systems.PersistentSync

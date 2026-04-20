@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
-using LmpClient.Systems.ShareProgress;
 
-namespace LmpClient.Systems.PersistentSync
+namespace LmpCommon.PersistentSync
 {
     /// <summary>
     /// Single primitive for the &quot;applying server state&quot; window on the client. Replaces hand-rolled
@@ -12,14 +11,19 @@ namespace LmpClient.Systems.PersistentSync
     /// <code>
     /// using (ScenarioSyncApplyScope.Begin(peersToSilence))
     /// {
-    ///     // write authoritative state into stock; KSP GameEvents fired from this code
-    ///     // will be observed by the listed Share systems with IgnoreEvents = true.
+    ///     // write authoritative state into stock; any events fired from this code will be observed
+    ///     // by the listed suppressors with IgnoreEvents = true.
     /// }
     /// </code>
     ///
-    /// The scope is strictly restore-last-wins: on dispose every peer has <see cref="IShareProgressEventSuppressor.StopIgnoringEvents"/>
-    /// called with <c>restoreOldValue: false</c>, matching the contract the previous hand-rolled sites used. Exceptions
-    /// inside the scope do not leak the ignore flag.
+    /// The scope is strictly restore-last-wins: on dispose every peer has
+    /// <see cref="IShareProgressEventSuppressor.StopIgnoringEvents"/> called with <c>restoreOldValue: false</c>,
+    /// matching the contract the previous hand-rolled sites used. Exceptions thrown by any peer during
+    /// <see cref="Dispose"/> are swallowed so a single failing peer cannot leave later peers stuck with
+    /// IgnoreEvents == true.
+    ///
+    /// Lives in LmpCommon so the struct is unit-testable without KSP/Unity references. See
+    /// <c>LmpCommonTest.ScenarioSyncApplyScopeTests</c> for the behavioral regression suite.
     /// </summary>
     public readonly struct ScenarioSyncApplyScope : IDisposable
     {

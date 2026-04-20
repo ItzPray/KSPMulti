@@ -1,5 +1,6 @@
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
+using Server.Client;
 using Server.Settings.Structures;
 using System.Globalization;
 
@@ -11,6 +12,8 @@ namespace Server.System.PersistentSync
         protected override string ScenarioName => "ResearchAndDevelopment";
         protected override string ScenarioFieldName => "sci";
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+
+        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
         protected override float GetStartingValue() => GameplaySettings.SettingsStore.StartingScience;
 

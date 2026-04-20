@@ -19,6 +19,8 @@ namespace Server.System.PersistentSync
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "StrategySystem";
 
+        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
+
         protected override Canonical CreateEmpty()
         {
             return new Canonical(new SortedDictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal));

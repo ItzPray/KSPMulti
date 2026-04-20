@@ -30,6 +30,8 @@ namespace Server.System.PersistentSync
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
 
+        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
+
         /// <summary>
         /// Exposes the current canonical state for <see cref="PartPurchasesPersistentSyncDomainStore"/> to
         /// project its wire snapshot. Internal so projection domains living in the same assembly can read it

@@ -58,6 +58,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\AchievementSnapshotPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ExperimentalPartsSnapshotPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PartPurchasesSnapshotPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\IShareProgressEventSuppressor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ScenarioSyncApplyScope.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncBufferedSnapshot.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncDomainId.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\PersistentSyncMaterializationDomainMap.cs" />

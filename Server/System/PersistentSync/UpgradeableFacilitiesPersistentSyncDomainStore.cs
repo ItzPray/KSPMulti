@@ -32,6 +32,8 @@ namespace Server.System.PersistentSync
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ScenarioUpgradeableFacilities";
 
+        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
+
         protected override Canonical CreateEmpty()
         {
             var map = new SortedDictionary<string, int>(StringComparer.Ordinal);

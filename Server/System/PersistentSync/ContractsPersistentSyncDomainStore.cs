@@ -15,16 +15,26 @@ namespace Server.System.PersistentSync
 {
     /// <summary>
     /// Authoritative server-side contract store. Migrated onto <see cref="ScenarioSyncDomainStore{TCanonical}"/>
-    /// per the Scenario Sync Domain Contract; the substring-based scenario rewriter used previously has been
-    /// replaced with typed <see cref="WriteCanonical"/> via the LunaConfigNode graph.
+    /// per the Scenario Sync Domain Contract.
     ///
-    /// Known shortcut: producer-only intents (OfferObserved, ParameterProgressObserved, ContractCompletedObserved,
-    /// ContractFailedObserved, FullReconcile) are still checked in-reducer via
-    /// <see cref="ClientOwnsProducerAuthority"/>. The plan envisioned moving this to
-    /// <see cref="PersistentAuthorityPolicy.DesignatedProducer"/>, but that policy is a registry-level stub
-    /// today and Contracts has a mixed authority model (Accept/Decline/Cancel/RequestOfferGeneration are open to
-    /// any client). Promoting per-intent authority to the registry is a separate change tracked under the
-    /// "upgrade registry to per-intent DesignatedProducer dispatch" follow-up.
+    /// Contracts has mixed authority per intent kind:
+    /// <list type="bullet">
+    /// <item><description>Player commands (Accept/Decline/Cancel/RequestOfferGeneration) — any client.</description></item>
+    /// <item><description>Producer-only observations (OfferObserved/ParameterProgressObserved/Completed/Failed/FullReconcile)
+    /// — only the current contract lock owner.</description></item>
+    /// </list>
+    /// Per-intent dispatch happens in <see cref="AuthorizeIntent"/>, called by the registry before the reducer
+    /// ever sees the payload. The reducer itself does not perform authority checks; rule: &quot;No domain may do its
+    /// own LockQuery check inside ReduceIntent&quot; (AGENTS.md).
+    ///
+    /// <see cref="WriteCanonical"/> rebuilds the scenario node via the LunaConfigNode graph API (no text
+    /// splicing) by constructing a fresh <c>ScenarioModule</c> node, copying scalar values and non-CONTRACTS
+    /// child nodes from the old scenario, and attaching a freshly-built CONTRACTS node derived from canonical
+    /// state. Every node in the emitted subtree &mdash; the scenario wrapper, the CONTRACTS wrapper, each
+    /// CONTRACT leaf, and each nested PARAMETER child &mdash; is created via the name-only graph constructor
+    /// (<c>new ConfigNode(name, null)</c>) so no text-backed node survives out of <c>WriteCanonical</c>. This
+    /// sidesteps the LunaConfigNode text cache that previously made <c>RemoveNode</c>/<c>AddNode</c> edits on
+    /// text-backed nodes invisible to <c>ToString()</c>.
     /// </summary>
     public sealed class ContractsPersistentSyncDomainStore : ScenarioSyncDomainStore<ContractsPersistentSyncDomainStore.Canonical>
     {
@@ -37,8 +47,41 @@ namespace Server.System.PersistentSync
         private const string LmpOfferTitleFieldName = "lmpOfferTitle";
 
         public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
+
+        /// <summary>
+        /// Floor policy advertised to clients and the registry's default path. Real gating happens in
+        /// <see cref="AuthorizeIntent"/> because Contracts has mixed per-intent authority. Advertising
+        /// <see cref="PersistentAuthorityPolicy.AnyClientIntent"/> keeps player commands responsive; producer-only
+        /// intents are rejected in <see cref="AuthorizeIntent"/> before reaching the reducer.
+        /// </summary>
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ContractSystem";
+
+        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes)
+        {
+            if (TryDeserializeContractIntentPayload(payload, numBytes, out var intentPayload))
+            {
+                switch (intentPayload.Kind)
+                {
+                    case ContractIntentPayloadKind.AcceptContract:
+                    case ContractIntentPayloadKind.DeclineContract:
+                    case ContractIntentPayloadKind.CancelContract:
+                    case ContractIntentPayloadKind.RequestOfferGeneration:
+                        return true;
+                    case ContractIntentPayloadKind.OfferObserved:
+                    case ContractIntentPayloadKind.ParameterProgressObserved:
+                    case ContractIntentPayloadKind.ContractCompletedObserved:
+                    case ContractIntentPayloadKind.ContractFailedObserved:
+                    case ContractIntentPayloadKind.FullReconcile:
+                        return ClientOwnsProducerAuthority(client);
+                    default:
+                        return false;
+                }
+            }
+
+            // Envelope fallback: legacy full-replace / raw-row paths require producer authority.
+            return ClientOwnsProducerAuthority(client);
+        }
 
         protected override Canonical CreateEmpty()
         {
@@ -98,16 +141,11 @@ namespace Server.System.PersistentSync
 
         protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
         {
+            // Authority was already enforced by AuthorizeIntent at the registry gate for client intents; server
+            // mutations are trusted by construction. The reducer is pure state-transition logic here.
             if (TryDeserializeContractIntentPayload(payload, numBytes, out var intentPayload))
             {
-                return ReduceTypedClientIntent(client, current, intentPayload, isServerMutation);
-            }
-
-            // Envelope fallback (producer-authorized full replace or legacy raw rows). On server mutations
-            // we accept any envelope; on client intents require producer authority.
-            if (!isServerMutation && !ClientOwnsProducerAuthority(client))
-            {
-                return ReduceResult<Canonical>.Reject();
+                return ReduceTypedIntent(current, intentPayload);
             }
 
             var envelope = ContractSnapshotPayloadSerializer.DeserializeEnvelope(payload, numBytes);
@@ -116,7 +154,7 @@ namespace Server.System.PersistentSync
                 : ReduceRecords(current, envelope.Contracts);
         }
 
-        private ReduceResult<Canonical> ReduceTypedClientIntent(ClientStructure client, Canonical current, ContractIntentPayload intentPayload, bool isServerMutation)
+        private ReduceResult<Canonical> ReduceTypedIntent(Canonical current, ContractIntentPayload intentPayload)
         {
             switch (intentPayload.Kind)
             {
@@ -129,15 +167,12 @@ namespace Server.System.PersistentSync
                 case ContractIntentPayloadKind.RequestOfferGeneration:
                     return ReduceOfferGenerationRequest(current);
                 case ContractIntentPayloadKind.OfferObserved:
-                    if (!isServerMutation && !ClientOwnsProducerAuthority(client)) return ReduceResult<Canonical>.Reject();
                     return ReduceObservedOffer(current, intentPayload);
                 case ContractIntentPayloadKind.ParameterProgressObserved:
                 case ContractIntentPayloadKind.ContractCompletedObserved:
                 case ContractIntentPayloadKind.ContractFailedObserved:
-                    if (!isServerMutation && !ClientOwnsProducerAuthority(client)) return ReduceResult<Canonical>.Reject();
                     return ReduceObservedActive(current, intentPayload);
                 case ContractIntentPayloadKind.FullReconcile:
-                    if (!isServerMutation && !ClientOwnsProducerAuthority(client)) return ReduceResult<Canonical>.Reject();
                     return ReduceFullReplace(current, intentPayload.Contracts);
                 default:
                     return ReduceResult<Canonical>.Reject();
@@ -223,104 +258,77 @@ namespace Server.System.PersistentSync
 
         protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
         {
-            // LunaConfigNode caches pre-parse text for nodes it didn't construct from scratch; remove/add on the
-            // retained CONTRACTS wrapper still re-emits the old children. Rebuild the entire scenario node from
-            // canonical-synthesized text so the serializer has no stale text to fall back on. The base class
-            // stores the returned replacement back into ScenarioStoreSystem.CurrentScenarios.
-            var scenarioText = scenario?.ToString() ?? string.Empty;
-            var rewrittenText = ReplaceContractsSectionInScenarioText(scenarioText, canonical);
-            return new ConfigNode(rewrittenText);
-        }
+            // Build a fresh scenario ConfigNode via the LunaConfigNode graph API. Every node in the emitted
+            // subtree is constructed with the name-only constructor (no backing text) and populated via
+            // CreateValue/AddNode, so no text-backed node from the incoming scenario leaks through. This
+            // sidesteps the LunaConfigNode pre-parse text cache that previously made RemoveNode/AddNode
+            // edits on text-backed nodes invisible to ToString().
+            var scenarioName = string.IsNullOrEmpty(scenario?.Name) ? ScenarioName : scenario.Name;
+            var fresh = new ConfigNode(scenarioName, null);
 
-        private static string ReplaceContractsSectionInScenarioText(string scenarioText, Canonical canonical)
-        {
-            var contractsBlock = BuildContractsNodeText(canonical);
-            if (string.IsNullOrEmpty(scenarioText))
+            if (scenario != null)
             {
-                return contractsBlock;
-            }
-
-            var patterns = new[] { "CONTRACTS\r\n{", "CONTRACTS\n{" };
-            var blockStart = -1;
-            var openBrace = -1;
-            foreach (var p in patterns)
-            {
-                var idx = scenarioText.IndexOf(p, StringComparison.Ordinal);
-                if (idx < 0) continue;
-                blockStart = idx;
-                openBrace = idx + p.Length - 1;
-                break;
-            }
-
-            if (blockStart < 0 || openBrace < 0 || openBrace >= scenarioText.Length || scenarioText[openBrace] != '{')
-            {
-                // No existing CONTRACTS block: append ours at the end of the scenario text.
-                var appended = scenarioText.TrimEnd('\r', '\n') + "\n" + contractsBlock;
-                return appended;
-            }
-
-            var depth = 0;
-            var closeBrace = -1;
-            for (var i = openBrace; i < scenarioText.Length; i++)
-            {
-                var c = scenarioText[i];
-                if (c == '{') depth++;
-                else if (c == '}')
+                foreach (var value in scenario.GetAllValues())
                 {
-                    depth--;
-                    if (depth == 0) { closeBrace = i; break; }
+                    fresh.CreateValue(new CfgNodeValue<string, string>(value.Key, value.Value));
+                }
+
+                foreach (var childNode in scenario.GetAllNodes())
+                {
+                    if (childNode == null) continue;
+                    if (string.Equals(childNode.Name, ContractsNodeName, StringComparison.Ordinal)) continue;
+                    fresh.AddNode(CloneIntoFreshGraphNode(childNode, childNode.Name));
                 }
             }
 
-            if (closeBrace < 0)
-            {
-                return contractsBlock;
-            }
-
-            var tailStart = closeBrace + 1;
-            while (tailStart < scenarioText.Length && (scenarioText[tailStart] == '\r' || scenarioText[tailStart] == '\n'))
-            {
-                tailStart++;
-            }
-
-            var sb = new StringBuilder(scenarioText.Length + 64);
-            sb.Append(scenarioText, 0, blockStart);
-            sb.Append(contractsBlock);
-            if (tailStart < scenarioText.Length)
-            {
-                sb.Append(scenarioText, tailStart, scenarioText.Length - tailStart);
-            }
-
-            return sb.ToString();
+            fresh.AddNode(BuildContractsNode(canonical));
+            return fresh;
         }
 
-        private static string BuildContractsNodeText(Canonical canonical)
+        private static ConfigNode BuildContractsNode(Canonical canonical)
         {
-            var sb = new StringBuilder();
-            sb.Append(ContractsNodeName);
-            sb.Append('\n');
-            sb.Append('{');
-            sb.Append('\n');
+            var contractsNode = new ConfigNode(ContractsNodeName, null);
             foreach (var contract in canonical.ContractsByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid))
             {
                 var bodyText = Encoding.UTF8.GetString(contract.Data, 0, contract.NumBytes);
-                sb.Append(ContractNodeName);
-                sb.Append('\n');
-                sb.Append('{');
-                sb.Append('\n');
-                foreach (var line in bodyText.Replace("\r\n", "\n").Split('\n'))
-                {
-                    if (line.Length == 0) continue;
-                    sb.Append("    ");
-                    sb.Append(line);
-                    sb.Append('\n');
-                }
-                sb.Append('}');
-                sb.Append('\n');
+                contractsNode.AddNode(BuildContractNodeFromBody(bodyText));
             }
-            sb.Append('}');
-            sb.Append('\n');
-            return sb.ToString();
+
+            return contractsNode;
+        }
+
+        /// <summary>
+        /// Parses a header-less CONTRACT body into a transient text-backed ConfigNode, then deep-copies its
+        /// values and children into a fresh graph-backed subtree. The transient parse is discarded; no
+        /// text-backed node survives into the scenario graph. This eliminates the last remnant of the
+        /// LunaConfigNode text-cache concern in the Contracts write path.
+        /// </summary>
+        private static ConfigNode BuildContractNodeFromBody(string bodyText)
+        {
+            var parsed = new ConfigNode(bodyText) { Name = ContractNodeName };
+            return CloneIntoFreshGraphNode(parsed, ContractNodeName);
+        }
+
+        /// <summary>
+        /// Recursively rebuild <paramref name="source"/> as a brand-new graph-backed ConfigNode (name-only
+        /// constructor, no backing text). Values and child nodes are re-created via the graph API so no
+        /// cached text from <paramref name="source"/> leaks into the returned subtree.
+        /// </summary>
+        private static ConfigNode CloneIntoFreshGraphNode(ConfigNode source, string nameOverride)
+        {
+            var fresh = new ConfigNode(nameOverride ?? source.Name, null);
+            foreach (var value in source.GetAllValues())
+            {
+                fresh.CreateValue(new CfgNodeValue<string, string>(value.Key, value.Value));
+            }
+
+            foreach (var child in source.GetAllNodes())
+            {
+                if (child == null) continue;
+                fresh.AddNode(CloneIntoFreshGraphNode(child, child.Name));
+            }
+
+            return fresh;
         }
 
         protected override byte[] SerializeSnapshot(Canonical canonical)

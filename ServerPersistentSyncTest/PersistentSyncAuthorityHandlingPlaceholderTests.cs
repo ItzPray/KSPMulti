@@ -50,6 +50,11 @@ namespace ServerPersistentSyncTest
             {
                 return new PersistentSyncDomainApplyResult { Accepted = false };
             }
+
+            public bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes)
+            {
+                return PersistentSyncRegistry.ValidateClientMaySubmitIntent(client, this);
+            }
         }
 
         [TestInitialize]

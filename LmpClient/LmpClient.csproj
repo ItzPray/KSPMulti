@@ -312,7 +312,6 @@
     <Compile Include="Systems\PersistentSync\PersistentSyncSessionCapabilitiesFactory.cs" />
     <Compile Include="Systems\PersistentSync\ReputationPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\ScalarPersistentSyncClientDomain.cs" />
-    <Compile Include="Systems\PersistentSync\ScenarioSyncApplyScope.cs" />
     <Compile Include="Systems\PersistentSync\ScenarioSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\SciencePersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\ResearchAndDevelopmentProtoMirror.cs" />
@@ -329,7 +328,6 @@
     <Compile Include="Systems\Screenshot\ScreenshotMessageHandler.cs" />
     <Compile Include="Systems\Screenshot\ScreenshotMessageSender.cs" />
     <Compile Include="Systems\Screenshot\ScreenshotSystem.cs" />
-    <Compile Include="Systems\ShareProgress\IShareProgressEventSuppressor.cs" />
     <Compile Include="Systems\ShareProgress\ShareProgressBaseSystem.cs" />
     <Compile Include="Systems\SharePurchaseParts\SharePurchasePartsEvents.cs" />
     <Compile Include="Systems\SharePurchaseParts\SharePurchasePartsMessageHandler.cs" />

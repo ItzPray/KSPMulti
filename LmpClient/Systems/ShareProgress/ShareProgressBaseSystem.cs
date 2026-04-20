@@ -2,6 +2,7 @@
 using LmpClient.Base.Interface;
 using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
+using LmpCommon.PersistentSync;
 using System;
 using System.Collections.Generic;
 

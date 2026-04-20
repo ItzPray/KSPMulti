@@ -125,6 +125,30 @@ namespace Server.System.PersistentSync
             return ApplyInternal(client, data.Payload, data.NumBytes, data.ClientKnownRevision, data.Reason, isServerMutation: false);
         }
 
+        /// <summary>
+        /// Per-intent authority gate; must be declared explicitly by every concrete domain. The method is
+        /// <c>abstract</c> rather than providing a default implementation so authority is never silently
+        /// inherited: a new domain author cannot forget to declare which gate applies (see AGENTS.md
+        /// &quot;Scenario Sync Domain Contract&quot; rule: &quot;Authority is declared once and enforced at the registry gate.&quot;).
+        ///
+        /// <list type="bullet">
+        /// <item><description>For simple policy-based domains, implement with
+        /// <c>=&gt; <see cref="AuthorizeByPolicy"/>(client);</c>.</description></item>
+        /// <item><description>For mixed per-intent authority (e.g. Contracts), decode the payload and dispatch.</description></item>
+        /// </list>
+        /// </summary>
+        public abstract bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes);
+
+        /// <summary>
+        /// Canonical policy-based authority check — evaluates <see cref="AuthorityPolicy"/> through the
+        /// registry. Use this from simple-domain <see cref="AuthorizeIntent"/> overrides; mixed-authority
+        /// domains may call it as part of their per-intent dispatch where the policy still applies.
+        /// </summary>
+        protected bool AuthorizeByPolicy(ClientStructure client)
+        {
+            return PersistentSyncRegistry.ValidateClientMaySubmitIntent(client, this);
+        }
+
         public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
         {
             return ApplyInternal(null, payload, numBytes, null, reason, isServerMutation: true);

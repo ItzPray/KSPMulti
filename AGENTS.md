@@ -134,11 +134,11 @@ Every piece of career/science/contract/facility state we sync through Persistent
 
 ### Mandatory rules
 
-- **Must inherit the template.** New server-side scenario domains inherit `ScenarioSyncDomainStore<TCanonical>`. New client-side scenario domains inherit `ScenarioSyncClientDomain<TCanonical>`. Direct implementations of `IPersistentSyncServerDomain` / `IPersistentSyncClientDomain` are forbidden for scenario state.
-- **One scenario, one domain.** No two registered domains may write the same scenario node path. If a single scenario node (e.g. `ResearchAndDevelopment`) needs two facets, they must be owned by one domain with a compound `TCanonical`, or one must be a pure read-only projection of the other.
-- **Canonical state is typed, not text.** `TCanonical` must be a structural type (record/class of fields, `IReadOnlyDictionary`, ordered list, etc.). Substring rewriting of scenario files is forbidden. If the `ConfigNode` graph cannot express the shape cleanly, write a typed serializer and let `WriteCanonical` rebuild the node graph.
+- **Must inherit one of the sanctioned templates.** New server-side scenario domains inherit `ScenarioSyncDomainStore<TCanonical>`. Pure projection domains (no independent scenario state, route through an owner domain) inherit `ProjectionSyncDomain<TOwner>`. New client-side scenario domains inherit `ScenarioSyncClientDomain<TCanonical>`. Direct implementations of `IPersistentSyncServerDomain` / `IPersistentSyncClientDomain` are forbidden; the regression gate `AllServerDomainsInheritOneOfTheSanctionedTemplates` enforces this on the server.
+- **One scenario, one domain.** No two registered domains may write the same scenario node path. If a single scenario node (e.g. `ResearchAndDevelopment`) needs two facets, they must be owned by one domain with a compound `TCanonical`, or one must be a pure read-only projection via `ProjectionSyncDomain<TOwner>`.
+- **Canonical state is typed, not text.** `TCanonical` must be a structural type (record/class of fields, `IReadOnlyDictionary`, ordered list, etc.). Substring rewriting of scenario files is forbidden. `WriteCanonical` rebuilds the `ConfigNode` graph via the LunaConfigNode graph API; when a text-backed cache prevents `RemoveNode`/`AddNode` from flushing through `ToString()`, construct a fresh name-only `ConfigNode` and attach the desired children (see `ContractsPersistentSyncDomainStore.WriteCanonical`).
 - **Equality short-circuits revisions.** `AreEquivalent` must be implemented and correct. The base class asserts that equivalent reductions do not bump `Revision` or rewrite the scenario. Unconditional `Revision++` in a domain is forbidden.
-- **Authority is declared once, at the domain.** `AuthorityPolicy` on the domain is the sole source of truth. Hand-rolled `LockQuery` / player-name checks inside `ReduceIntent` are forbidden; use `PersistentAuthorityPolicy.LockOwnerIntent` or `DesignatedProducer` and let the base class gate.
+- **Authority is declared once and enforced at the registry gate.** `IPersistentSyncServerDomain.AuthorizeIntent` is the authoritative per-intent gate and is declared `abstract` on both sanctioned templates (`ScenarioSyncDomainStore<TCanonical>` and `ProjectionSyncDomain<TOwner>`) so every concrete domain MUST explicitly declare its gate — authority is never silently inherited. Simple policy-based domains override with one line: `public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);`. Domains with mixed per-intent authority (e.g. Contracts) decode the payload in the override and dispatch. Hand-rolled `LockQuery` / player-name checks inside `ReduceIntent` are forbidden — the reducer is pure state-transition logic, never a secondary authority gate.
 - **Echo suppression uses the scope.** Client apply paths silence peer Share systems by declaring `PeersToSilence` on the client domain; the base class runs `ScenarioSyncApplyScope.Begin(PeersToSilence)` around `ApplyCanonicalToStock`. Hand calls to `StartIgnoringEvents` / `StopIgnoringEvents` outside the scope or an outbound send wrapper are forbidden.
 - **Enabled check is centralized.** `Share*MessageSender` gates sends with `PersistentSync.IsLiveForDomain(id)` only. Per-domain predicates (`IsPersistentSyncLiveForContracts`, inline `PersistentSyncSystem.Singleton.Enabled`, missing checks) are forbidden.
 - **Intents are typed from day one.** New domains ship a typed intent serializer under `LmpCommon/Message/Data/PersistentSync/` or `LmpCommon/PersistentSync/`. Raw `ConfigNode` byte blobs as intents are forbidden.
@@ -147,20 +147,21 @@ Every piece of career/science/contract/facility state we sync through Persistent
 
 - Text-based scenario rewriting (`scenarioText.IndexOf("CONTRACTS\n{")`, manual brace counting, regex substitution on save files).
 - Two writers on one scenario node path.
+- Direct `IPersistentSyncServerDomain` / `IPersistentSyncClientDomain` implementations (must inherit the scenario-owning or projection template).
 - Per-domain `ApplyingX` / `SuppressX` flags independent of `ScenarioSyncApplyScope`.
 - Legacy `ShareProgress*MsgData` raw-relay fallbacks. The template is the single live path.
 - `Revision++` without a preceding `AreEquivalent` guard.
-- Inlining lock ownership checks inside `ReduceIntent` instead of declaring `AuthorityPolicy`.
+- Inlining lock-ownership / player-name checks inside `ReduceIntent`. Per-intent authority lives in `AuthorizeIntent`, not the reducer.
 
 ### Adding a new scenario domain (checklist)
 
 1. Add an entry to `PersistentSyncDomainId`.
 2. Define `TCanonical` (typed, structural).
-3. Implement the server domain by inheriting `ScenarioSyncDomainStore<TCanonical>` and overriding `LoadCanonical`, `WriteCanonical`, `AreEquivalent`, `ReduceIntent`, `SerializeSnapshot`.
+3. Implement the server domain by inheriting `ScenarioSyncDomainStore<TCanonical>` (or `ProjectionSyncDomain<TOwner>` if the domain owns no scenario state) and overriding `LoadCanonical`, `WriteCanonical`, `AreEquivalent`, `ReduceIntent`, `SerializeSnapshot`. `AuthorizeIntent` is abstract and MUST be overridden — use `=> AuthorizeByPolicy(client)` for simple policy-based gates or decode the payload for mixed per-intent authority. For projection domains, remember the revision contract: the projection's snapshot `Revision` is the owner's `Revision` (enforced by `ProjectionRevisionTracksOwnerRevisionAfterMutation`); do NOT maintain an independent counter.
 4. Implement the client domain by inheriting `ScenarioSyncClientDomain<TCanonical>` and overriding `DeserializeSnapshot`, `ReadyToApply`, `ApplyCanonicalToStock`, and declaring `PeersToSilence`.
 5. Register both sides (`PersistentSyncRegistry.Register` / `PersistentSyncSystem.RegisterClientDomain`).
 6. Route all outbound intents through `Share*MessageSender` guarded by `PersistentSync.IsLiveForDomain(id)`.
-7. Add a gate test under `ServerPersistentSyncTest` covering equality short-circuit, authority rejection (for non-AnyClientIntent domains), and server-restart persistence.
+7. Add a gate test under `ServerPersistentSyncTest` covering equality short-circuit, authority rejection (for non-AnyClientIntent domains; for per-intent-authority domains, cover each dispatch branch), and server-restart persistence.
 
 ## Stage Completion Review
 
@@ -173,10 +174,10 @@ At the end of any architectural stage, explicitly review:
 
 For any change that touches scenario sync, additionally review:
 
-- No new direct `IPersistentSyncServerDomain` / `IPersistentSyncClientDomain` implementations.
-- No new scenario text rewriters.
-- `AuthorityPolicy` on every touched domain reflects real enforcement (no hand-rolled lock checks in `ReduceIntent`).
+- No new direct `IPersistentSyncServerDomain` / `IPersistentSyncClientDomain` implementations (must inherit `ScenarioSyncDomainStore<>` or `ProjectionSyncDomain<>`; the regression gate `AllServerDomainsInheritOneOfTheSanctionedTemplates` enforces this on the server).
+- No new scenario text rewriters; `WriteCanonical` uses the `ConfigNode` graph API.
+- Authority lives at the registry gate: `AuthorizeIntent` reflects real enforcement (no hand-rolled lock checks in `ReduceIntent`).
 - Every `Share*MessageSender` edited in this stage uses `PersistentSync.IsLiveForDomain(id)`.
-- Client apply paths use `ScenarioSyncApplyScope`, not raw `StartIgnoringEvents`.
+- Client apply paths use `ScenarioSyncApplyScope` (in `LmpCommon.PersistentSync`), not raw `StartIgnoringEvents`.
 
 If any remaining shortcut violates the intended ownership/contract, the stage is not complete.

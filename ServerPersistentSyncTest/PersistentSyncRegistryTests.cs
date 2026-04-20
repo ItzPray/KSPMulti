@@ -693,6 +693,59 @@ Tech
         }
 
         [TestMethod]
+        public void ProjectionRevisionTracksOwnerRevisionAfterMutation()
+        {
+            // Enforces the ProjectionSyncDomain<> revision contract: the projection emits the owner's
+            // revision, not an independent counter. A projection with its own counter could drift from the
+            // owner and violate snapshot ordering for clients reconciling both streams. AGENTS.md pins this
+            // to the projection template's "Revision contract" clause.
+            var basicRocketry = CreateTechnologySnapshotInfo("basicRocketry", "Available", 5);
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateResearchAndDevelopmentScenarioWithScience(new[] { basicRocketry }, Array.Empty<ScienceSubjectSnapshotInfo>());
+
+            var technologyStore = new TechnologyPersistentSyncDomainStore();
+            technologyStore.LoadFromPersistence(false);
+            var partPurchasesStore = new PartPurchasesPersistentSyncDomainStore(technologyStore);
+            partPurchasesStore.LoadFromPersistence(false);
+
+            Assert.AreEqual(
+                technologyStore.GetCurrentSnapshot().Revision,
+                partPurchasesStore.GetCurrentSnapshot().Revision,
+                "Projection and owner must report the same revision at rest.");
+
+            // Mutation routed through PartPurchases: the owner advances first (it owns the canonical), and
+            // the projection reprojects the owner's new revision.
+            var purchasePayload = PartPurchasesSnapshotPayloadSerializer.Serialize(new[]
+            {
+                new PartPurchaseSnapshotInfo
+                {
+                    TechId = "basicRocketry",
+                    PartNames = new[] { "liquidEngine" }
+                }
+            });
+            var projectionResult = partPurchasesStore.ApplyServerMutation(purchasePayload, purchasePayload.Length, "Buy part");
+            Assert.IsTrue(projectionResult.Accepted);
+            Assert.IsTrue(projectionResult.Changed);
+            Assert.AreEqual(
+                technologyStore.GetCurrentSnapshot().Revision,
+                projectionResult.Snapshot.Revision,
+                "Projection snapshot revision must equal owner revision after a projection-driven mutation.");
+            Assert.AreEqual(
+                technologyStore.GetCurrentSnapshot().Revision,
+                partPurchasesStore.GetCurrentSnapshot().Revision,
+                "Projection and owner must continue to report the same revision after a projection-driven mutation.");
+
+            // Mutation routed through the owner directly: the owner advances; the projection must pick the
+            // new revision up on its next GetCurrentSnapshot call.
+            var techPayload = TechnologySnapshotPayloadSerializer.Serialize(new[] { CreateTechnologySnapshotInfo("basicRocketry", "Available", 5) });
+            var ownerResult = technologyStore.ApplyServerMutation(techPayload, techPayload.Length, "Refresh tech");
+            Assert.IsTrue(ownerResult.Accepted);
+            Assert.AreEqual(
+                technologyStore.GetCurrentSnapshot().Revision,
+                partPurchasesStore.GetCurrentSnapshot().Revision,
+                "Projection must track owner-driven revision bumps.");
+        }
+
+        [TestMethod]
         public void ApplyClientIntentWithAuthority_AnyClientIntent_AcceptsAndUpdatesCanonicalState()
         {
             ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
@@ -1106,6 +1159,11 @@ Tech
             public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
             {
                 return _inner.ApplyServerMutation(payload, numBytes, reason);
+            }
+
+            public bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes)
+            {
+                return PersistentSyncRegistry.ValidateClientMaySubmitIntent(client, this);
             }
         }
 

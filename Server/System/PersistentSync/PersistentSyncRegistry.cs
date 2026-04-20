@@ -135,7 +135,7 @@ namespace Server.System.PersistentSync
                 return RejectedAuthorityApplyResult();
             }
 
-            if (!ValidateClientMaySubmitIntent(client, domain))
+            if (!domain.AuthorizeIntent(client, data.Payload, data.NumBytes))
             {
                 LogAuthorityIntentRejected(clientName, data.DomainId, domain.AuthorityPolicy, DescribeAuthorityRejectionCategory(domain));
                 return RejectedAuthorityApplyResult();

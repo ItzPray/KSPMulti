@@ -155,29 +155,27 @@ namespace ServerPersistentSyncTest
         }
 
         /// <summary>
-        /// Regression gate: AGENTS.md requires every scenario sync domain to inherit the template. The single
-        /// exception is the documented projection allowlist. If someone adds a new direct
-        /// <see cref="IPersistentSyncServerDomain"/> implementation without extending this list, this test
-        /// fails so the reviewer has to either migrate it onto the template or explicitly acknowledge the
-        /// projection exception.
+        /// Regression gate: AGENTS.md requires every persistent-sync server domain to inherit one of the two
+        /// sanctioned templates — <see cref="ScenarioSyncDomainStore{TCanonical}"/> for scenario-owning domains
+        /// or <see cref="ProjectionSyncDomain{TOwner}"/> for pure projections. No domain may implement
+        /// <see cref="IPersistentSyncServerDomain"/> directly. If someone adds a new direct implementor this
+        /// test fails so the reviewer has to migrate it onto one of the templates.
         /// </summary>
         [TestMethod]
-        public void AllServerDomainsInheritTemplateUnlessInProjectionAllowlist()
+        public void AllServerDomainsInheritOneOfTheSanctionedTemplates()
         {
-            var projectionAllowlist = new HashSet<string>(StringComparer.Ordinal)
+            var sanctionedOpenGenericBases = new[]
             {
-                // Pure projection over Technology's canonical; see class XML doc on PartPurchasesPersistentSyncDomainStore.
-                typeof(PartPurchasesPersistentSyncDomainStore).FullName
+                typeof(ScenarioSyncDomainStore<>),
+                typeof(ProjectionSyncDomain<>)
             };
 
-            var templateType = typeof(ScenarioSyncDomainStore<>);
             var serverAssembly = typeof(IPersistentSyncServerDomain).Assembly;
 
             var violators = serverAssembly
                 .GetTypes()
                 .Where(t => !t.IsAbstract && !t.IsInterface && typeof(IPersistentSyncServerDomain).IsAssignableFrom(t))
-                .Where(t => !InheritsFromOpenGeneric(t, templateType))
-                .Where(t => !projectionAllowlist.Contains(t.FullName))
+                .Where(t => !sanctionedOpenGenericBases.Any(b => InheritsFromOpenGeneric(t, b)))
                 .OrderBy(t => t.FullName)
                 .Select(t => t.FullName)
                 .ToList();
@@ -186,9 +184,9 @@ namespace ServerPersistentSyncTest
             {
                 Assert.Fail(
                     "The following types implement IPersistentSyncServerDomain directly without inheriting " +
-                    "ScenarioSyncDomainStore<TCanonical> and are not in the projection allowlist. Migrate them onto " +
-                    "the template or, if they really are pure projections, add them to the allowlist with a doc comment " +
-                    "explaining why they own no scenario state:\n  - " + string.Join("\n  - ", violators));
+                    "ScenarioSyncDomainStore<TCanonical> (for scenario-owning domains) or " +
+                    "ProjectionSyncDomain<TOwner> (for pure projections). Migrate them onto one of these templates:\n  - "
+                    + string.Join("\n  - ", violators));
             }
         }
 
@@ -246,6 +244,8 @@ namespace ServerPersistentSyncTest
             public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
             public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
             protected override string ScenarioName => ProbeScenarioName;
+
+            public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
             protected override Canonical CreateEmpty() => new Canonical(0);
 
