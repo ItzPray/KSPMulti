@@ -264,12 +264,46 @@ namespace Server.System.PersistentSync
             {
                 LunaLog.Debug($"[PersistentSync] snapshot broadcast target=allClients domain={data.DomainId} revision={result.Snapshot.Revision}");
                 MessageQueuer.SendToAllClients<PersistentSyncSrvMsg>(CreateSnapshotMessage(result.Snapshot));
+                return;
             }
-            else if (result.ReplyToOriginClient)
+
+            if (result.ReplyToOriginClient)
             {
                 LunaLog.Debug($"[PersistentSync] snapshot broadcast target=singleClient client={clientName} domain={data.DomainId} revision={result.Snapshot.Revision}");
                 MessageQueuer.SendToClient<PersistentSyncSrvMsg>(client, CreateSnapshotMessage(result.Snapshot));
             }
+
+            if (result.ReplyToProducerClient && data.DomainId == PersistentSyncDomainId.Contracts)
+            {
+                var producerName = LockSystem.LockQuery.ContractLockOwner();
+                if (!string.IsNullOrEmpty(producerName) && !string.Equals(producerName, client?.PlayerName, StringComparison.Ordinal))
+                {
+                    var producerClient = FindClientByPlayerName(producerName);
+                    if (producerClient != null)
+                    {
+                        LunaLog.Debug($"[PersistentSync] snapshot broadcast target=producer client={producerName} domain={data.DomainId} revision={result.Snapshot.Revision} reason=OfferGenerationRequest");
+                        MessageQueuer.SendToClient<PersistentSyncSrvMsg>(producerClient, CreateSnapshotMessage(result.Snapshot));
+                    }
+                }
+            }
+        }
+
+        private static ClientStructure FindClientByPlayerName(string playerName)
+        {
+            if (string.IsNullOrEmpty(playerName))
+            {
+                return null;
+            }
+
+            foreach (var c in ServerContext.Clients.Values)
+            {
+                if (string.Equals(c?.PlayerName, playerName, StringComparison.Ordinal))
+                {
+                    return c;
+                }
+            }
+
+            return null;
         }
 
         public static PersistentSyncDomainApplyResult ApplyServerMutation(PersistentSyncDomainId domainId, byte[] payload, int numBytes, string reason)

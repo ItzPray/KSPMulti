@@ -23,6 +23,9 @@ namespace LmpClient.Systems.ShareContracts
                 System.RequestControlledStockContractRefresh("ContractLockAcquire");
                 System.ApplyStockContractMutationPolicy("ContractLockAcquire");
                 System.ReplenishStockOffersAfterPersistentSnapshotApply("ContractLockAcquire");
+                // Explicit producer-side authority handoff: once we own the contract lock, publish one full reconcile
+                // after the controlled-refresh settle window so the server canonical row set reflects our truth.
+                System.ScheduleProducerFullReconcileAfterLockHandoff("ContractLockAcquire");
             }
         }
 

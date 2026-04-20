@@ -5,7 +5,6 @@ using LmpClient.Extensions;
 using LmpClient.Network;
 using LmpClient.Systems.PersistentSync;
 using LmpCommon.Message.Client;
-using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Interface;
 using LmpCommon.PersistentSync;
 using System;
@@ -31,24 +30,31 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            if (!IsPersistentSyncLiveForContracts())
             {
-                var payload = ContractIntentPayloadSerializer.SerializeCommand(kind, contract.ContractGuid);
-                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(payload, reason);
+                LogPersistentSyncUnavailableSkip(nameof(SendContractCommand), reason);
                 return;
             }
 
-            LunaLog.LogWarning("[PersistentSync] ShareContractsMessageSender using legacy ShareProgress fallback because PersistentSync is not enabled yet.");
-            SendLegacyContractMessage(new[] { contract });
+            var command = BuildContractCommand(kind, contract.ContractGuid);
+            if (command == null)
+            {
+                return;
+            }
+
+            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(command.Serialize(), reason);
         }
 
         public void SendRequestOfferGeneration(string reason)
         {
-            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            if (!IsPersistentSyncLiveForContracts())
             {
-                var payload = ContractIntentPayloadSerializer.SerializeRequestOfferGeneration();
-                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(payload, reason);
+                LogPersistentSyncUnavailableSkip(nameof(SendRequestOfferGeneration), reason);
+                return;
             }
+
+            var command = ContractCommandIntent.RequestOfferGeneration();
+            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(command.Serialize(), reason);
         }
 
         public void SendProducerProposal(ContractIntentPayloadKind kind, Contract contract, string reason)
@@ -60,15 +66,19 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            if (!IsPersistentSyncLiveForContracts())
             {
-                var payload = ContractIntentPayloadSerializer.SerializeProposal(kind, changedSnapshots[0]);
-                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(payload, reason);
+                LogPersistentSyncUnavailableSkip(nameof(SendProducerProposal), reason);
                 return;
             }
 
-            LunaLog.LogWarning("[PersistentSync] ShareContractsMessageSender using legacy ShareProgress fallback because PersistentSync is not enabled yet.");
-            SendLegacyContractMessage(new[] { contract });
+            var proposal = BuildContractProposal(kind, changedSnapshots[0]);
+            if (proposal == null)
+            {
+                return;
+            }
+
+            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.Serialize(), reason);
         }
 
         public void SendFullContractReconcile(string reason)
@@ -78,21 +88,52 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            var canonicalContracts = CreateCanonicalContractSnapshots(
-                ContractSystem.Instance.Contracts.Concat(ContractSystem.Instance.ContractsFinished));
-
-            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
+            if (!IsPersistentSyncLiveForContracts())
             {
-                var knownContracts = canonicalContracts.ToArray();
-                _snapshotChangeTracker.Reset(knownContracts);
-                var payload = ContractIntentPayloadSerializer.SerializeFullReconcile(knownContracts);
-                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(payload, reason);
+                LogPersistentSyncUnavailableSkip(nameof(SendFullContractReconcile), reason);
                 return;
             }
 
-            SendLegacyContractMessage(ContractSystem.Instance.Contracts
-                .Concat(ContractSystem.Instance.ContractsFinished)
-                .ToArray());
+            var canonicalContracts = CreateCanonicalContractSnapshots(
+                ContractSystem.Instance.Contracts.Concat(ContractSystem.Instance.ContractsFinished));
+            var knownContracts = canonicalContracts.ToArray();
+            _snapshotChangeTracker.Reset(knownContracts);
+            var proposal = ContractProducerProposal.FullReconcile(knownContracts);
+            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.Serialize(), reason);
+        }
+
+        private static ContractCommandIntent BuildContractCommand(ContractIntentPayloadKind kind, Guid contractGuid)
+        {
+            switch (kind)
+            {
+                case ContractIntentPayloadKind.AcceptContract:
+                    return ContractCommandIntent.Accept(contractGuid);
+                case ContractIntentPayloadKind.DeclineContract:
+                    return ContractCommandIntent.Decline(contractGuid);
+                case ContractIntentPayloadKind.CancelContract:
+                    return ContractCommandIntent.Cancel(contractGuid);
+                default:
+                    LunaLog.LogError($"[PersistentSync] ShareContractsMessageSender.SendContractCommand: unsupported command kind {kind}");
+                    return null;
+            }
+        }
+
+        private static ContractProducerProposal BuildContractProposal(ContractIntentPayloadKind kind, ContractSnapshotInfo contract)
+        {
+            switch (kind)
+            {
+                case ContractIntentPayloadKind.OfferObserved:
+                    return ContractProducerProposal.OfferObserved(contract);
+                case ContractIntentPayloadKind.ParameterProgressObserved:
+                    return ContractProducerProposal.ParameterProgressObserved(contract);
+                case ContractIntentPayloadKind.ContractCompletedObserved:
+                    return ContractProducerProposal.CompletedObserved(contract);
+                case ContractIntentPayloadKind.ContractFailedObserved:
+                    return ContractProducerProposal.FailedObserved(contract);
+                default:
+                    LunaLog.LogError($"[PersistentSync] ShareContractsMessageSender.SendProducerProposal: unsupported proposal kind {kind}");
+                    return null;
+            }
         }
 
         public void SendFullContractSystemSnapshot(string reason)
@@ -100,35 +141,18 @@ namespace LmpClient.Systems.ShareContracts
             SendFullContractReconcile(reason);
         }
 
-        private void SendLegacyContractMessage(Contract[] contracts)
+        private static bool IsPersistentSyncLiveForContracts()
         {
-            var contractSnapshots = CreateCanonicalContractSnapshots(contracts);
-            var changedSnapshots = _snapshotChangeTracker.FilterChanged(contractSnapshots);
-            if (changedSnapshots.Length == 0)
-            {
-                return;
-            }
+            return PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled;
+        }
 
-            if (PersistentSyncSystem.Singleton != null && PersistentSyncSystem.Singleton.Enabled)
-            {
-                var reason = $"ContractProducer:{string.Join(",", changedSnapshots.Select(c => c.ContractGuid.ToString("N")))}";
-                PersistentSyncSystem.Singleton.MessageSender.SendContractsIntent(changedSnapshots, reason);
-                return;
-            }
-
-            LunaLog.LogWarning("[PersistentSync] ShareContractsMessageSender using legacy ShareProgress fallback because PersistentSync is not enabled yet.");
-
-            // Build the legacy packet only as a transport fallback before PersistentSync is ready.
-            var contractInfos = changedSnapshots.Select(contract => new ContractInfo
-            {
-                ContractGuid = contract.ContractGuid,
-                Data = contract.Data,
-                NumBytes = contract.NumBytes
-            }).ToArray();
-            var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressContractsMsgData>();
-            msgData.Contracts = contractInfos;
-            msgData.ContractCount = contractInfos.Length;
-            System.MessageSender.SendMessage(msgData);
+        private static void LogPersistentSyncUnavailableSkip(string methodName, string reason)
+        {
+            // Plan: contracts domain has a single live path (PersistentSync typed intents). Before PS negotiates
+            // ready with the server we must not emit legacy raw-relay contract messages; skip and rely on the next
+            // canonical snapshot to converge once PS is live.
+            LunaLog.LogWarning(
+                $"[PersistentSync] ShareContractsMessageSender.{methodName} skipped (reason={reason}): PersistentSync is not live for contracts yet; legacy raw-relay contract path is disabled.");
         }
 
         public void ResetKnownContractSnapshots(IEnumerable<ContractSnapshotInfo> contracts)

@@ -92,6 +92,12 @@ namespace LmpClient.Systems.ShareContracts
         private string _persistentSyncBypassUiRefreshCoalesceSignature;
 
         /// <summary>
+        /// Last canonical snapshot signature for which a non-producer client issued <see cref="ContractIntentPayloadKind.RequestOfferGeneration"/>.
+        /// Prevents repeated requests per applied snapshot revision while offer pool remains empty.
+        /// </summary>
+        private string _lastNonProducerOfferGenerationRequestSignature;
+
+        /// <summary>
         /// UI refresh sources that must not call stock <see cref="ContractSystem.RefreshContracts"/> / contract
         /// reload GameEvents once PersistentSync has populated <see cref="ContractSystem"/> from the server snapshot.
         /// Stock refresh rebuilds from local ProgressTracking and can clear synced rows (empty Mission Control).
@@ -886,6 +892,99 @@ namespace LmpClient.Systems.ShareContracts
                 _allowStockContractRefreshWindow = false;
                 ApplyStockContractMutationPolicy(source + ":ReplenishCloseWindow");
             }
+        }
+
+        /// <summary>
+        /// Called by <see cref="PersistentSync.ContractsPersistentSyncClientDomain"/> after a canonical snapshot is
+        /// applied. If this client is NOT the contract lock owner and the snapshot has no offer-pool contracts, send a
+        /// single <see cref="ContractIntentPayloadKind.RequestOfferGeneration"/> intent per revision/state signature so
+        /// the server can route the snapshot to the designated producer to mint offers. Gated on revision signature to
+        /// avoid a busy-loop while canonical state is unchanged.
+        /// </summary>
+        public void NotifyNonProducerContractsSnapshotApplied(string source)
+        {
+            if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
+            {
+                return;
+            }
+
+            var ps = PersistentSyncSystem.Singleton;
+            if (ps == null || !ps.Enabled)
+            {
+                return;
+            }
+
+            if (LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
+            {
+                return;
+            }
+
+            var main = ContractSystem.Instance.Contracts;
+            if (main == null)
+            {
+                return;
+            }
+
+            if (main.Any(IsMissionControlOfferPoolContract))
+            {
+                _lastNonProducerOfferGenerationRequestSignature = null;
+                return;
+            }
+
+            var revision = ps.GetKnownRevision(PersistentSyncDomainId.Contracts);
+            var signature = $"rev={revision}|main={main.Count}|finished={ContractSystem.Instance.ContractsFinished?.Count ?? 0}";
+            if (string.Equals(signature, _lastNonProducerOfferGenerationRequestSignature, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _lastNonProducerOfferGenerationRequestSignature = signature;
+            LunaLog.Log(
+                $"[PersistentSync] contract request-offer-generation sent source={source} signature={signature} " +
+                $"contractLockOwner={LockSystem.LockQuery.ContractLockOwner() ?? "<none>"}");
+            MessageSender.SendRequestOfferGeneration($"NonProducerEmptyOfferPool:{source}");
+        }
+
+        /// <summary>
+        /// Called when THIS client acquires the contract lock. Once the controlled-refresh settle window passes, we
+        /// own producer authority for the canonical contract domain; publish a single explicit producer full-reconcile
+        /// so the server can accept a FullReplace from the rightful authority on transfer (rather than relying only on
+        /// per-proposal convergence).
+        /// </summary>
+        public void ScheduleProducerFullReconcileAfterLockHandoff(string source)
+        {
+            if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
+            {
+                return;
+            }
+
+            if (MainSystem.Singleton == null)
+            {
+                return;
+            }
+
+            MainSystem.Singleton.StartCoroutine(PublishProducerFullReconcileAfterSettleCoroutine(source));
+        }
+
+        private IEnumerator PublishProducerFullReconcileAfterSettleCoroutine(string source)
+        {
+            yield return new WaitForSecondsRealtime(ControlledStockRefreshSettleSeconds);
+            if (!Enabled || ContractSystem.Instance == null || !IsShareSystemApplicableForSession())
+            {
+                yield break;
+            }
+
+            if (!LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
+            {
+                LunaLog.Log($"[PersistentSync] producer full reconcile skipped source={source} reason=lock-no-longer-owned");
+                yield break;
+            }
+
+            LunaLog.Log(
+                $"[PersistentSync] producer full reconcile publish source={source} " +
+                $"mainCount={ContractSystem.Instance.Contracts?.Count ?? 0} " +
+                $"finishedCount={ContractSystem.Instance.ContractsFinished?.Count ?? 0}");
+            MessageSender.SendFullContractReconcile($"ProducerFullReconcile:{source}");
         }
 
         /// <summary>

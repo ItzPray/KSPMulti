@@ -268,11 +268,18 @@ namespace Server.System.PersistentSync
 
         private PersistentSyncDomainApplyResult ApplyOfferGenerationRequest(long? clientKnownRevision)
         {
+            // Canonical snapshot only changes when someone actually mints; this intent is a signal. When the canonical
+            // offer pool is empty we route the snapshot to the current producer (contract lock owner) so their
+            // ContractsPersistentSyncClientDomain.FlushPendingState runs ReplenishStockOffersAfterPersistentSnapshotApply
+            // and mints offers back to the server as OfferObserved proposals. Origin client is re-notified only when
+            // its known revision diverges from canonical, to avoid a feedback echo when state already matches.
+            var offerPoolEmpty = !HasOfferPoolContracts();
             return new PersistentSyncDomainApplyResult
             {
                 Accepted = true,
                 Changed = false,
-                ReplyToOriginClient = !HasOfferPoolContracts() && clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
+                ReplyToOriginClient = clientKnownRevision.HasValue && clientKnownRevision.Value != Revision,
+                ReplyToProducerClient = offerPoolEmpty,
                 Snapshot = GetCurrentSnapshot()
             };
         }
@@ -587,7 +594,7 @@ namespace Server.System.PersistentSync
             {
                 sb.AppendLine("CONTRACT");
                 sb.AppendLine("{");
-                sb.Append(IndentContractData(Encoding.UTF8.GetString(contract.Data, 0, contract.NumBytes)));
+                sb.AppendLine(IndentContractData(Encoding.UTF8.GetString(contract.Data, 0, contract.NumBytes)));
                 sb.AppendLine("}");
             }
 
@@ -702,15 +709,94 @@ namespace Server.System.PersistentSync
                 return null;
             }
 
+            // Client-produced ContractSnapshotInfo.Data is body-only (no CONTRACT wrapper). When we ingest from a
+            // scenario ConfigNode, contractNode.ToString() emits the wrapping "CONTRACT\n{\n ... \n}" header. Strip
+            // it so all canonical in-memory/persisted rows share the same body-only shape, otherwise mutations like
+            // RewriteContractState operate at the wrong node level (they'd touch the root, not the inner CONTRACT).
+            var bodyText = StripContractWrapper(contractNode.ToString());
+            var bodyBytes = Encoding.UTF8.GetBytes(bodyText);
+
             return CanonicalizeRecordData(new ContractSnapshotInfo
             {
                 ContractGuid = contractGuid,
                 ContractState = contractNode.GetValue(StateFieldName)?.Value ?? string.Empty,
                 Placement = DeterminePlacement(contractNode.GetValue(StateFieldName)?.Value ?? string.Empty),
                 Order = order,
-                NumBytes = Encoding.UTF8.GetByteCount(contractNode.ToString()),
-                Data = Encoding.UTF8.GetBytes(contractNode.ToString())
+                NumBytes = bodyBytes.Length,
+                Data = bodyBytes
             });
+        }
+
+        private static string StripContractWrapper(string wrappedText)
+        {
+            if (string.IsNullOrEmpty(wrappedText))
+            {
+                return wrappedText ?? string.Empty;
+            }
+
+            var openBrace = wrappedText.IndexOf('{');
+            if (openBrace < 0)
+            {
+                return wrappedText;
+            }
+
+            // Only strip if the pre-brace header is "CONTRACT" (plus whitespace). Body-only text starts with
+            // "key = value" and has no leading "CONTRACT\n" header.
+            var header = wrappedText.Substring(0, openBrace).Trim();
+            if (!string.Equals(header, ContractNodeName, StringComparison.Ordinal))
+            {
+                return wrappedText;
+            }
+
+            var depth = 0;
+            var closeBrace = -1;
+            for (var i = openBrace; i < wrappedText.Length; i++)
+            {
+                var c = wrappedText[i];
+                if (c == '{')
+                {
+                    depth++;
+                }
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        closeBrace = i;
+                        break;
+                    }
+                }
+            }
+
+            if (closeBrace < 0)
+            {
+                return wrappedText;
+            }
+
+            var bodyRaw = wrappedText.Substring(openBrace + 1, closeBrace - openBrace - 1);
+            var normalized = bodyRaw.Replace("\r\n", "\n");
+            var lines = normalized.Split('\n');
+            var sb = new StringBuilder(normalized.Length);
+            foreach (var line in lines)
+            {
+                // LunaConfigNode indents children with tabs; strip one level so the body is flat (matches
+                // client-produced data shape).
+                var stripped = line;
+                if (stripped.Length > 0 && stripped[0] == '\t')
+                {
+                    stripped = stripped.Substring(1);
+                }
+
+                if (stripped.Length == 0)
+                {
+                    continue;
+                }
+
+                sb.Append(stripped);
+                sb.Append('\n');
+            }
+
+            return sb.ToString();
         }
 
         private static ContractSnapshotPlacement DeterminePlacement(string contractState)
@@ -738,8 +824,14 @@ namespace Server.System.PersistentSync
 
         private static ContractSnapshotInfo CanonicalizeRecordData(ContractSnapshotInfo info)
         {
-            var contractNode = new ConfigNode(Encoding.UTF8.GetString(info.Data, 0, info.NumBytes));
-            var normalizedData = Encoding.UTF8.GetBytes(contractNode.ToString());
+            // info.Data can arrive either wrapped ("CONTRACT { ... }") from scenario ingestion or unwrapped (body
+            // only) from client-sent proposals. Canonicalize to body-only so RewriteContractState and diff/equality
+            // logic always operate at the same node level.
+            var text = Encoding.UTF8.GetString(info.Data, 0, info.NumBytes);
+            var stripped = StripContractWrapper(text);
+            var contractNode = new ConfigNode(stripped);
+            var bodyOnly = StripContractWrapper(contractNode.ToString());
+            var normalizedData = Encoding.UTF8.GetBytes(bodyOnly);
             info.ContractState = contractNode.GetValue(StateFieldName)?.Value ?? info.ContractState ?? string.Empty;
             info.NumBytes = normalizedData.Length;
             info.Data = normalizedData;

@@ -82,6 +82,9 @@ namespace LmpClient.Systems.PersistentSync
                 ShareContractsSystem.Singleton.RefreshContractUiAdapters("PersistentSyncSnapshotApply");
                 ShareContractsSystem.Singleton.CancelPendingControlledStockContractRefresh("PersistentSyncSnapshotApply:PostUi");
                 ShareContractsSystem.Singleton.NotifyAuthoritativeContractsSnapshotApplied("PersistentSyncSnapshotApply");
+                // Non-producers with an empty offer pool ask the server to route this snapshot to the current
+                // producer so stock generation runs once there and new offers flow back as OfferObserved proposals.
+                ShareContractsSystem.Singleton.NotifyNonProducerContractsSnapshotApplied("PersistentSyncSnapshotApply");
             }
             catch (Exception)
             {

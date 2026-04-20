@@ -838,6 +838,228 @@ Tech
             StringAssert.Contains(contractText, "values = 2,0,0,0,0");
         }
 
+        [TestMethod]
+        public void Gate_RequestOfferGeneration_RoutesSnapshotToProducerWhenOfferPoolEmpty()
+        {
+            // Gate: non-producer issues RequestOfferGeneration against canonical state with no offer-pool rows.
+            // Server must not mutate revision (signal-only) and must mark ReplyToProducerClient so the registry
+            // routes the canonical snapshot to the current contract lock owner.
+            var activeContract = CreateContractSnapshotInfo(
+                Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01"),
+                "Active",
+                ContractSnapshotPlacement.Active,
+                0,
+                "Incomplete",
+                "1,0,0,0,0");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(activeContract);
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateScenario("sci", "1");
+            ScenarioStoreSystem.CurrentScenarios["Reputation"] = CreateScenario("rep", "1");
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
+            PersistentSyncRegistry.Initialize(false);
+
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ProducerClient"), false, out _);
+
+            var requestPayload = ContractCommandIntent.RequestOfferGeneration().Serialize();
+            var revisionBefore = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single().Revision;
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
+                CreateClient("RequestorClient"),
+                CreateIntent(PersistentSyncDomainId.Contracts, requestPayload, "RequestOfferGeneration"));
+            var revisionAfter = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single().Revision;
+
+            Assert.IsTrue(result.Accepted, "RequestOfferGeneration must be accepted as a producer-routing signal.");
+            Assert.IsFalse(result.Changed, "RequestOfferGeneration must not mutate canonical state on the server.");
+            Assert.IsTrue(result.ReplyToProducerClient, "Empty offer pool must route the snapshot to the producer client.");
+            Assert.AreEqual(revisionBefore, revisionAfter, "Revision must not advance for a routing-only signal.");
+        }
+
+        [TestMethod]
+        public void Gate_RequestOfferGeneration_DoesNotRouteToProducerWhenOffersExist()
+        {
+            // Gate: when canonical offer pool is non-empty, RequestOfferGeneration must not re-route to the producer
+            // (producer-mint pass is unnecessary; convergence already happened).
+            var offeredContract = CreateContractSnapshotInfo(
+                Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa02"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                0,
+                "Incomplete",
+                "1,0,0,0,0");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(offeredContract);
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateScenario("sci", "1");
+            ScenarioStoreSystem.CurrentScenarios["Reputation"] = CreateScenario("rep", "1");
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
+            PersistentSyncRegistry.Initialize(false);
+
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ProducerClient"), false, out _);
+
+            var requestPayload = ContractCommandIntent.RequestOfferGeneration().Serialize();
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
+                CreateClient("RequestorClient"),
+                CreateIntent(PersistentSyncDomainId.Contracts, requestPayload, "RequestOfferGeneration"));
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsFalse(result.Changed);
+            Assert.IsFalse(result.ReplyToProducerClient, "Non-empty offer pool must not trigger producer-directed signal.");
+        }
+
+        [TestMethod]
+        public void Gate_MissedUpdateRecovery_SnapshotReflectsCanonicalStateAfterMultipleIntents()
+        {
+            // Gate: a client that missed intermediate intents (did not process intent N-1) should receive a canonical
+            // snapshot that reflects the final state after intent N. We simulate this by applying Accept + parameter
+            // progress in sequence and confirming the single snapshot we'd ship to a reconnecting client contains
+            // both the state transition and the latest parameter progress.
+            var offeredContract = CreateContractSnapshotInfo(
+                Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb01"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                0,
+                "Incomplete",
+                "1,0,0,0,0");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(offeredContract);
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateScenario("sci", "1");
+            ScenarioStoreSystem.CurrentScenarios["Reputation"] = CreateScenario("rep", "1");
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
+            PersistentSyncRegistry.Initialize(false);
+
+            var producer = CreateClient("ProducerClient");
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, producer.PlayerName), false, out _);
+
+            var acceptResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
+                CreateClient("OtherClient"),
+                CreateIntent(PersistentSyncDomainId.Contracts, ContractCommandIntent.Accept(offeredContract.ContractGuid).Serialize(), "Accept"));
+            Assert.IsTrue(acceptResult.Accepted);
+            Assert.IsTrue(acceptResult.Changed);
+
+            // Parameter progress proposal emitted by producer (post-Accept). Simulates a later canonical mutation
+            // that a reconnecting client would have missed had it been offline during Accept.
+            var progressedContract = CreateContractSnapshotInfo(
+                offeredContract.ContractGuid,
+                "Active",
+                ContractSnapshotPlacement.Active,
+                -1,
+                "Complete",
+                "1,1,0,0,0");
+            var progressResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
+                producer,
+                CreateIntent(PersistentSyncDomainId.Contracts, ContractProducerProposal.ParameterProgressObserved(progressedContract).Serialize(), "ParamProgress"));
+            Assert.IsTrue(progressResult.Accepted);
+            Assert.IsTrue(progressResult.Changed);
+
+            // Reconnecting-client simulation: fetch snapshot directly. Both canonical transitions must be present.
+            var snapshotForReconnectingClient = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var canonicalContracts = ContractSnapshotPayloadSerializer.Deserialize(snapshotForReconnectingClient.Payload, snapshotForReconnectingClient.NumBytes);
+            var canonicalContract = canonicalContracts.Single(c => c.ContractGuid == offeredContract.ContractGuid);
+
+            Assert.AreEqual("Active", canonicalContract.ContractState);
+            Assert.AreEqual(ContractSnapshotPlacement.Active, canonicalContract.Placement);
+            var contractText = Encoding.UTF8.GetString(canonicalContract.Data, 0, canonicalContract.NumBytes);
+            StringAssert.Contains(contractText, "state = Active");
+            StringAssert.Contains(contractText, "state = Complete"); // parameter state
+            StringAssert.Contains(contractText, "values = 1,1,0,0,0");
+        }
+
+        [TestMethod]
+        public void Gate_ServerRestart_LoadsSameCanonicalStateAsBeforeShutdown()
+        {
+            // Gate: after any sequence of accepted intents, a cold reload of the domain from the persisted scenario
+            // must reproduce the canonical byte-level snapshot (bit-for-bit identical contracts).
+            var offeredContract = CreateContractSnapshotInfo(
+                Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccc01"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                0,
+                "Incomplete",
+                "1,0,0,0,0");
+            var otherOffer = CreateContractSnapshotInfo(
+                Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccc02"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                1,
+                "Incomplete",
+                "2,0,0,0,0");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(offeredContract, otherOffer);
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateScenario("sci", "1");
+            ScenarioStoreSystem.CurrentScenarios["Reputation"] = CreateScenario("rep", "1");
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
+            PersistentSyncRegistry.Initialize(false);
+
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ProducerClient"), false, out _);
+            var acceptResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
+                CreateClient("AnyClient"),
+                CreateIntent(PersistentSyncDomainId.Contracts, ContractCommandIntent.Accept(offeredContract.ContractGuid).Serialize(), "Accept"));
+            var declineResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
+                CreateClient("AnyClient"),
+                CreateIntent(PersistentSyncDomainId.Contracts, ContractCommandIntent.Decline(otherOffer.ContractGuid).Serialize(), "Decline"));
+            Assert.IsTrue(acceptResult.Accepted && acceptResult.Changed);
+            Assert.IsTrue(declineResult.Accepted && declineResult.Changed);
+
+            var liveSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var liveContracts = ContractSnapshotPayloadSerializer.Deserialize(liveSnapshot.Payload, liveSnapshot.NumBytes)
+                .OrderBy(c => c.ContractGuid)
+                .ToList();
+
+            // Simulate server restart: drop the in-memory registry but retain ScenarioStoreSystem (disk-backed).
+            PersistentSyncRegistry.Reset();
+            PersistentSyncRegistry.Initialize(false);
+
+            var reloadedSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var reloadedContracts = ContractSnapshotPayloadSerializer.Deserialize(reloadedSnapshot.Payload, reloadedSnapshot.NumBytes)
+                .OrderBy(c => c.ContractGuid)
+                .ToList();
+
+            Assert.AreEqual(liveContracts.Count, reloadedContracts.Count,
+                "Post-restart canonical contract count must match pre-restart canonical count.");
+            for (var i = 0; i < liveContracts.Count; i++)
+            {
+                Assert.AreEqual(liveContracts[i].ContractGuid, reloadedContracts[i].ContractGuid);
+                Assert.AreEqual(liveContracts[i].ContractState, reloadedContracts[i].ContractState);
+                Assert.AreEqual(liveContracts[i].Placement, reloadedContracts[i].Placement);
+                var before = Encoding.UTF8.GetString(liveContracts[i].Data, 0, liveContracts[i].NumBytes);
+                var after = Encoding.UTF8.GetString(reloadedContracts[i].Data, 0, reloadedContracts[i].NumBytes);
+                Assert.AreEqual(before, after,
+                    $"Contract {liveContracts[i].ContractGuid} body must be byte-identical across restart.");
+            }
+        }
+
+        [TestMethod]
+        public void Gate_TypedFacades_ProduceWireCompatiblePayloads()
+        {
+            // Gate: the public CLR facades ContractCommandIntent / ContractProducerProposal are a functional wrapper
+            // around the intent payload serializer and must produce byte-identical wire payloads.
+            var guid = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddd01");
+            var facadeAccept = ContractCommandIntent.Accept(guid).Serialize();
+            var directAccept = ContractIntentPayloadSerializer.SerializeCommand(ContractIntentPayloadKind.AcceptContract, guid);
+            CollectionAssert.AreEqual(directAccept, facadeAccept);
+
+            var facadeRequest = ContractCommandIntent.RequestOfferGeneration().Serialize();
+            var directRequest = ContractIntentPayloadSerializer.SerializeRequestOfferGeneration();
+            CollectionAssert.AreEqual(directRequest, facadeRequest);
+
+            var contract = CreateContractSnapshotInfo(
+                guid,
+                "Active",
+                ContractSnapshotPlacement.Active,
+                0,
+                "Complete",
+                "1,1,0,0,0");
+            var facadeProposal = ContractProducerProposal.ParameterProgressObserved(contract).Serialize();
+            var directProposal = ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ParameterProgressObserved, contract);
+            CollectionAssert.AreEqual(directProposal, facadeProposal);
+
+            var facadeReconcile = ContractProducerProposal.FullReconcile(new[] { contract }).Serialize();
+            var directReconcile = ContractIntentPayloadSerializer.SerializeFullReconcile(new[] { contract });
+            CollectionAssert.AreEqual(directReconcile, facadeReconcile);
+        }
+
         private sealed class ServerDerivedFundsDecorator : IPersistentSyncServerDomain
         {
             private readonly FundsPersistentSyncDomainStore _inner;
