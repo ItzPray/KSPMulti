@@ -1,4 +1,5 @@
 using Contracts;
+using HarmonyLib;
 using LmpClient.Extensions;
 using LmpClient.Systems.ShareContracts;
 using LmpClient.Systems.ShareExperimentalParts;
@@ -39,6 +40,124 @@ namespace LmpClient.Systems.PersistentSync
             return FlushPendingState();
         }
 
+        /// <summary>
+        /// Pre-populates the Contracts <see cref="ProtoScenarioModule"/> <c>moduleValues</c> directly from the
+        /// currently pending server snapshot, so stock KSP's <c>ContractSystem.OnLoadRoutine</c> (triggered by
+        /// <see cref="HighLogic.CurrentGame"/>.Start()) reads server-authoritative data instead of an empty
+        /// template. Must be called after <see cref="ScenarioSystem.LoadMissingScenarioDataIntoGame"/> and BEFORE
+        /// <c>HighLogic.CurrentGame.Start()</c>.
+        /// <para/>
+        /// With only the <see cref="FlushPendingState"/> deferral in place, stock's OnLoadRoutine still runs once
+        /// against empty <c>moduleValues</c> before we get a chance to apply; Mission Control is empty until the
+        /// deferred snapshot is retried by <c>OnSceneReady</c>. This method closes that window by letting stock
+        /// do the initial load with our data.
+        /// </summary>
+        public bool TryPrePopulateProtoFromPendingSnapshot(string reason)
+        {
+            try
+            {
+                if (_pendingContracts == null || _pendingContracts.Length == 0)
+                {
+                    return false;
+                }
+
+                if (HighLogic.CurrentGame?.scenarios == null)
+                {
+                    return false;
+                }
+
+                var proto = HighLogic.CurrentGame.scenarios
+                    .FirstOrDefault(s => s != null && s.moduleName == "ContractSystem");
+                if (proto == null)
+                {
+                    LunaLog.LogWarning(
+                        $"[PersistentSync] Contracts proto pre-populate skipped reason={reason}: no ContractSystem ProtoScenarioModule");
+                    return false;
+                }
+
+                var moduleValues = new ConfigNode();
+                // Stock OnLoad tolerates a missing WEIGHTS node (LoadContractWeights null-checks each lookup).
+                var contractsContainer = moduleValues.AddNode("CONTRACTS");
+
+                var dedupedContracts = DedupeContractsByGuidPreserveOrder(_pendingContracts);
+                var offerCount = 0;
+                var finishedCount = 0;
+                var parseFailed = 0;
+                foreach (var info in dedupedContracts)
+                {
+                    var contractNode = TryParseContractConfigNode(info);
+                    if (contractNode == null)
+                    {
+                        parseFailed++;
+                        continue;
+                    }
+
+                    var placement = ShouldPlaceInContractsFinishedFromSnapshot(contractNode, info);
+                    var childName = placement ? "CONTRACT_FINISHED" : "CONTRACT";
+                    var child = contractsContainer.AddNode(childName);
+                    contractNode.CopyTo(child);
+                    if (placement) finishedCount++; else offerCount++;
+                }
+
+                moduleValues.AddValue("update", "0");
+                moduleValues.AddValue("version", "-1");
+
+                Traverse.Create(proto).Field<ConfigNode>("moduleValues").Value = moduleValues;
+
+                LunaLog.Log(
+                    $"[PersistentSync] Contracts proto pre-populated reason={reason} " +
+                    $"offerNodes={offerCount} finishedNodes={finishedCount} parseFailed={parseFailed} wireRows={_pendingContracts.Length}");
+                return true;
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[PersistentSync] Contracts proto pre-populate failed reason={reason}: {e}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Mirrors <see cref="ShouldPlaceInContractsFinished"/> but operates on the raw snapshot ConfigNode + info
+        /// (no live Contract instance yet). Decides whether this contract should appear under CONTRACT_FINISHED
+        /// (archive) or CONTRACT (main list) inside <c>ProtoScenarioModule.moduleValues</c>.
+        /// </summary>
+        private static bool ShouldPlaceInContractsFinishedFromSnapshot(ConfigNode contractNode, ContractSnapshotInfo info)
+        {
+            if (info != null && info.Placement == ContractSnapshotPlacement.Finished)
+            {
+                return true;
+            }
+
+            var stateValue = contractNode?.GetValue("state");
+            if (string.IsNullOrEmpty(stateValue))
+            {
+                stateValue = info?.ContractState;
+            }
+
+            if (string.IsNullOrEmpty(stateValue))
+            {
+                return false;
+            }
+
+            if (!Enum.TryParse(stateValue.Trim(), ignoreCase: true, out Contract.State state))
+            {
+                return false;
+            }
+
+            switch (state)
+            {
+                case Contract.State.Completed:
+                case Contract.State.Failed:
+                case Contract.State.Cancelled:
+                case Contract.State.DeadlineExpired:
+                case Contract.State.Declined:
+                case Contract.State.Withdrawn:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         public PersistentSyncApplyOutcome FlushPendingState()
         {
             if (_pendingContracts == null)
@@ -48,6 +167,19 @@ namespace LmpClient.Systems.PersistentSync
 
             if (ContractSystem.Instance == null)
             {
+                return PersistentSyncApplyOutcome.Deferred;
+            }
+
+            // ContractSystem.OnLoadRoutine is a coroutine that yields one frame, then clears the live `contracts`
+            // list early, then repopulates from the gameNode captured at OnLoad time. If we populate
+            // ContractSystem.Instance.Contracts BEFORE that routine finishes, the routine will clear our work when
+            // it resumes. Stock sets ContractSystem.loaded=true at the end of OnLoadRoutine and =false in OnAwake;
+            // deferring until loaded==true guarantees our snapshot survives scene transitions.
+            if (!ContractSystem.loaded)
+            {
+                LunaLog.Log(
+                    "[PersistentSync] Contracts snapshot deferred: ContractSystem.loaded=false (OnLoadRoutine has " +
+                    "not finished; applying now would be wiped when the coroutine resumes and clears the list)");
                 return PersistentSyncApplyOutcome.Deferred;
             }
 

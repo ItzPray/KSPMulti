@@ -39,10 +39,15 @@ namespace LmpClient.Systems.PersistentSync
                 {
                     try
                     {
-                        var contractNodes = saved.GetNodes("CONTRACT");
+                        // ContractSystem.OnSave nests offers under gameNode.AddNode("CONTRACTS"); a root-level
+                        // GetNodes("CONTRACT") therefore always returns 0 and was misleading past diagnostics.
+                        var contractsContainer = saved.GetNode("CONTRACTS");
+                        var offerNodes = contractsContainer?.GetNodes("CONTRACT");
+                        var finishedNodes = contractsContainer?.GetNodes("CONTRACT_FINISHED");
                         LunaLog.Log(
                             $"[PersistentSync] scenario proto mirror ok module={moduleName} reason={reason} " +
-                            $"CONTRACT_nodes={contractNodes?.Length ?? 0}");
+                            $"CONTRACT_nodes={offerNodes?.Length ?? 0} " +
+                            $"CONTRACT_FINISHED_nodes={finishedNodes?.Length ?? 0}");
                     }
                     catch (System.Exception shapeEx)
                     {

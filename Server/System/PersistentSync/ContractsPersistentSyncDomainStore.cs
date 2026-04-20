@@ -46,6 +46,22 @@ namespace Server.System.PersistentSync
         private const string TitleFieldName = "title";
         private const string LmpOfferTitleFieldName = "lmpOfferTitle";
 
+        /// <summary>
+        /// Hard ceiling on the total number of <see cref="ContractSnapshotPlacement.Current"/> (offered) records
+        /// retained in canonical state. Chosen well above stock's per-client tier caps (~15) so a multi-client
+        /// session can legitimately accumulate offers across prestige tiers, while still keeping snapshot payloads
+        /// bounded (previous uncapped behavior produced ~950 rows / ~1.8 MB payloads that re-broadcast on every
+        /// observation). When exceeded, the oldest offers by <c>Order</c> are evicted.
+        /// </summary>
+        private const int MaxOfferedPoolSize = 60;
+
+        /// <summary>
+        /// Per-contract-type ceiling on offered rows. Stock offers 1-2 of each type simultaneously; 3 leaves a
+        /// little slack for in-flight intents and avoids a single template (e.g. "Escape the atmosphere!")
+        /// dominating the pool when time-warp generation bursts produce a new GUID every tick.
+        /// </summary>
+        private const int MaxOfferedPerContractType = 3;
+
         public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
 
         /// <summary>
@@ -526,7 +542,90 @@ namespace Server.System.PersistentSync
             }
 
             map[normalizedRecord.ContractGuid] = normalizedRecord;
+            EnforceOfferedPoolCap(map, normalizedRecord);
             return true;
+        }
+
+        /// <summary>
+        /// Evicts surplus offered rows when inserting <paramref name="newlyInserted"/> caused the offered pool to
+        /// exceed <see cref="MaxOfferedPoolSize"/> or <see cref="MaxOfferedPerContractType"/>. Evictions are always
+        /// oldest-first by <c>Order</c> and only touch offered (<see cref="ContractSnapshotPlacement.Current"/>)
+        /// rows; active/finished/declined records are never evicted so accepted missions and history are preserved.
+        /// The newly-inserted record itself is never evicted even if it is the oldest offered row, so a valid
+        /// observation never silently no-ops due to caps alone.
+        /// </summary>
+        private static void EnforceOfferedPoolCap(Dictionary<Guid, ContractSnapshotInfo> map, ContractSnapshotInfo newlyInserted)
+        {
+            if (newlyInserted == null || !IsOfferPoolContract(newlyInserted))
+            {
+                return;
+            }
+
+            var newGuid = newlyInserted.ContractGuid;
+
+            if (TryBuildContractIdentityKey(newlyInserted, out var insertedTypeKey))
+            {
+                EvictOldestOfferedMatching(
+                    map,
+                    newGuid,
+                    candidate =>
+                        TryBuildContractIdentityKey(candidate, out var existingKey) &&
+                        string.Equals(existingKey, insertedTypeKey, StringComparison.Ordinal),
+                    MaxOfferedPerContractType,
+                    "per-type cap");
+            }
+
+            EvictOldestOfferedMatching(
+                map,
+                newGuid,
+                _ => true,
+                MaxOfferedPoolSize,
+                "total cap");
+        }
+
+        private static void EvictOldestOfferedMatching(
+            Dictionary<Guid, ContractSnapshotInfo> map,
+            Guid protectedGuid,
+            Func<ContractSnapshotInfo, bool> selector,
+            int keepCount,
+            string reason)
+        {
+            if (keepCount <= 0)
+            {
+                return;
+            }
+
+            var matching = map.Values.Where(IsOfferPoolContract).Where(selector).ToList();
+            if (matching.Count <= keepCount)
+            {
+                return;
+            }
+
+            // Order ascending (smallest Order = oldest). Protect the record that was just inserted so the caller
+            // always sees their observation land even when it is technically the "oldest" record among the matching
+            // set (e.g. Order==0 on a reset pool).
+            matching.Sort((left, right) => left.Order.CompareTo(right.Order));
+
+            var toRemove = matching.Count - keepCount;
+            var removedGuids = new List<Guid>(toRemove);
+            foreach (var candidate in matching)
+            {
+                if (removedGuids.Count >= toRemove) break;
+                if (candidate.ContractGuid == protectedGuid) continue;
+                removedGuids.Add(candidate.ContractGuid);
+            }
+
+            foreach (var evictGuid in removedGuids)
+            {
+                map.Remove(evictGuid);
+            }
+
+            if (removedGuids.Count > 0)
+            {
+                LunaLog.Debug(
+                    $"[PersistentSync] Contracts offered pool evicted {removedGuids.Count} row(s) reason={reason} " +
+                    $"totalOfferedAfter={map.Values.Count(IsOfferPoolContract)} protectedGuid={protectedGuid}");
+            }
         }
 
         private static ContractSnapshotInfo NormalizeRecord(ContractSnapshotInfo incomingRecord, int nextOrder)

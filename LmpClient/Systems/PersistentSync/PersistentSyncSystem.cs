@@ -164,6 +164,29 @@ namespace LmpClient.Systems.PersistentSync
             FlushPendingState();
         }
 
+        /// <summary>
+        /// Called by <see cref="MainSystem.StartGameNow"/> after <c>LoadMissingScenarioDataIntoGame</c> and before
+        /// <c>HighLogic.CurrentGame.Start()</c>. Pre-populates the Contracts <see cref="ProtoScenarioModule"/>
+        /// <c>moduleValues</c> from the currently-buffered server snapshot so stock's <c>OnLoadRoutine</c> loads the
+        /// authoritative contract list itself — no race with stock's early <c>contracts.Clear()</c> in that coroutine,
+        /// and no brief empty Mission Control between <c>Start()</c> and the deferred retry.
+        /// </summary>
+        public bool TryPrePopulateContractsProtoBeforeGameStart(string reason)
+        {
+            if (!Enabled)
+            {
+                return false;
+            }
+
+            if (!Domains.TryGetValue(PersistentSyncDomainId.Contracts, out var domainObj) ||
+                !(domainObj is ContractsPersistentSyncClientDomain contractsDomain))
+            {
+                return false;
+            }
+
+            return contractsDomain.TryPrePopulateProtoFromPendingSnapshot(reason);
+        }
+
         private void OnSceneReady(GameScenes data)
         {
             NetworkSystem.BumpPersistentSyncJoinActivity();

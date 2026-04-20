@@ -1186,6 +1186,30 @@ namespace LmpClient.Systems.ShareContracts
             return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.Contracts);
         }
 
+        /// <summary>
+        /// True once PersistentSync holds the authoritative Contracts snapshot for this session. Unlike
+        /// <see cref="ShouldBypassStockContractSystemRefreshForPersistentContracts"/>, this predicate is
+        /// <b>not</b> silenced by <see cref="_allowStockContractRefreshWindow"/>: the controlled refresh window
+        /// is meant for offer <i>generation</i>, not for stock to withdraw server-authoritative offers down to
+        /// local tier caps. Used by
+        /// <see cref="Harmony.ContractSystem_WithdrawSurplusContractsPersistentSyncGuard"/>.
+        /// </summary>
+        public bool IsPersistentSyncAuthoritativeForContracts()
+        {
+            if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
+            {
+                return false;
+            }
+
+            var ps = PersistentSyncSystem.Singleton;
+            if (ps == null || !ps.Enabled)
+            {
+                return false;
+            }
+
+            return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.Contracts);
+        }
+
         private static void RefreshContractLists(string source)
         {
             if (ContractSystem.Instance == null)
