@@ -13,7 +13,24 @@ namespace LmpClient.Systems.ShareProgress
         where TS : class, IMessageSender, new()
         where TH : class, IMessageHandler, new()
     {
-        public bool IgnoreEvents { get; protected set; }
+        /// <summary>
+        /// Reentrant suppression state backing <see cref="IgnoreEvents"/>. Uses a depth counter, not a
+        /// boolean, so nested Start/Stop pairs from overlapping apply scopes (e.g. a persistent-sync
+        /// snapshot apply that internally triggers a second apply via stock callbacks) cannot drop a
+        /// suppression prematurely or leave one stuck forever — concrete bug class observed when a
+        /// contract completion ran while Achievements snapshots were being applied. Logic lives in
+        /// <see cref="ReentrantEventSuppressor"/> (LmpCommon) so its semantics are covered by
+        /// <c>LmpCommonTest.ReentrantEventSuppressorTests</c>; this class only owns the Save/Restore
+        /// callbacks and the unbalanced-Stop diagnostic.
+        /// </summary>
+        private ReentrantEventSuppressor _suppressor;
+
+        /// <summary>
+        /// True while any code frame on this system is inside a <see cref="StartIgnoringEvents"/>/
+        /// <see cref="StopIgnoringEvents"/> pair. Read by event handlers to suppress echoing server-applied
+        /// state back as fresh client intents.
+        /// </summary>
+        public bool IgnoreEvents => _suppressor.IsActive;
 
         private Queue<Action> _actionQueue;
 
@@ -43,7 +60,7 @@ namespace LmpClient.Systems.ShareProgress
                 : CurrentGameModeIsRelevant;
             if (!applicable) return;
 
-            IgnoreEvents = false;
+            _suppressor.Reset();
             _actionQueue = new Queue<Action>();
 
             SetupRoutine(new RoutineDefinition(1000, RoutineExecution.Update, RunQueue));
@@ -71,27 +88,35 @@ namespace LmpClient.Systems.ShareProgress
         }
 
         /// <summary>
-        /// Start ignoring the incoming ksp events.
-        /// Only call this if you are sure ShareSystemReady() returns true.
-        /// For example in an QueueAction().
+        /// Start ignoring the incoming ksp events. Reentrant: calls nest with a matching
+        /// <see cref="StopIgnoringEvents"/>. <see cref="SaveState"/> runs only on the outermost Start so
+        /// nested scopes observe a single captured baseline rather than overwriting it with intermediate
+        /// values. Only call this if you are sure ShareSystemReady() returns true. For example in a QueueAction().
         /// </summary>
         public void StartIgnoringEvents()
         {
-            SaveState();
-            IgnoreEvents = true;
+            _suppressor.Start(SaveState);
         }
 
         /// <summary>
-        /// Stop ignoring the incoming ksp events.
-        /// Only call this if you are sure ShareSystemReady() returns true.
-        /// For example in an QueueAction().
+        /// Stop ignoring the incoming ksp events. Reentrant: matching inverse of
+        /// <see cref="StartIgnoringEvents"/>. <see cref="RestoreState"/> runs only on the outermost Stop
+        /// (the Stop that drops depth from 1 to 0) and only when that outermost Stop passes
+        /// <paramref name="restoreOldValue"/>=true. Inner Stops' <paramref name="restoreOldValue"/> is a
+        /// no-op — they cannot roll back state while an outer scope is still active, because the outer
+        /// scope's caller may have changed state intentionally while suppressed.
+        /// Only call this if you are sure ShareSystemReady() returns true. For example in a QueueAction().
         /// </summary>
         public void StopIgnoringEvents(bool restoreOldValue = false)
         {
-            if (restoreOldValue)
-                RestoreState();
-
-            IgnoreEvents = false;
+            // RestoreState runs BEFORE depth drops to zero so events fired from inside RestoreState
+            // (e.g. Reputation.Instance.SetReputation → OnReputationChanged) are still suppressed by
+            // <see cref="IgnoreEvents"/> — matches legacy "restore under suppression" behavior that the
+            // bool-flag implementation provided implicitly. Logic lives in <see cref="ReentrantEventSuppressor"/>.
+            if (!_suppressor.Stop(RestoreState, restoreOldValue))
+            {
+                LunaLog.LogWarning($"[LMP] {SystemName}.StopIgnoringEvents called with depth=0; ignoring unbalanced Stop.");
+            }
         }
 
         /// <summary>

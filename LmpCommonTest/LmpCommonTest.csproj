@@ -70,6 +70,7 @@
     <Compile Include="PersistentSyncReconcilerStateTests.cs" />
     <Compile Include="PersistentSyncSerializationTests.cs" />
     <Compile Include="ScenarioSyncApplyScopeTests.cs" />
+    <Compile Include="ReentrantEventSuppressorTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
