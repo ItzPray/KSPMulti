@@ -125,6 +125,30 @@ namespace LmpClient.VesselUtilities
                 return true;
             }
 
+            // Second client can acquire the update lock in VesselLoaded before the pilot's control lock row exists
+            // locally. Without this branch, the next check returns false ("we own update") and we ignore the pilot's
+            // stream — same class of bug as reversed HUD / wrong FlightIntegrator on the other player's craft.
+            // Only applies when nobody has a control lock yet, the vessel is loaded and controllable, not our
+            // ActiveVessel, and looks in-flight (debris/stations on the ground still use the normal update-lock path).
+            if (LockSystem.LockQuery.UpdateLockBelongsToPlayer(vesselId, SettingsSystem.CurrentSettings.PlayerName) &&
+                !LockSystem.LockQuery.ControlLockExists(vesselId) &&
+                FlightGlobals.ActiveVessel != null &&
+                vesselId != FlightGlobals.ActiveVessel.id)
+            {
+                var v = FlightGlobals.FindVessel(vesselId);
+                if (v != null && v.loaded && v.IsControllable)
+                {
+                    switch (v.situation)
+                    {
+                        case Vessel.Situations.FLYING:
+                        case Vessel.Situations.ORBITING:
+                        case Vessel.Situations.SUB_ORBITAL:
+                        case Vessel.Situations.ESCAPING:
+                            return true;
+                    }
+                }
+            }
+
             //Ignore vessel updates for our own updated vessels
             if (LockSystem.LockQuery.UpdateLockBelongsToPlayer(vesselId, SettingsSystem.CurrentSettings.PlayerName))
                 return false;

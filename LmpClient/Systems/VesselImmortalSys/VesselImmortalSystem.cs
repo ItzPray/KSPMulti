@@ -3,6 +3,8 @@ using LmpClient.Events;
 using LmpClient.Extensions;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Systems.VesselRemoveSys;
+using LmpClient.VesselUtilities;
 
 namespace LmpClient.Systems.VesselImmortalSys
 {
@@ -75,22 +77,25 @@ namespace LmpClient.Systems.VesselImmortalSys
         {
             if (vessel == null) return;
 
-            // Another player is flying this vessel — always treat it as remote for physics, even when
-            // UpdateLockExists is false locally (handoff gap or lock list ordering). Otherwise the
-            // "!UpdateLockExists" branch marks the vessel as "ours" (mortal), FlightIntegrator runs,
-            // and orbit/interpolation diverge so targeting / name-distance HUD no longer lines up.
-            if (LockSystem.LockQuery.ControlLockExists(vessel.id) &&
-                !LockSystem.LockQuery.ControlLockBelongsToPlayer(vessel.id, SettingsSystem.CurrentSettings.PlayerName))
+            if (VesselRemoveSystem.Singleton.VesselWillBeKilled(vessel.id))
             {
                 vessel.SetImmortal(true);
                 return;
             }
 
-            var isOurs = LockSystem.LockQuery.ControlLockBelongsToPlayer(vessel.id, SettingsSystem.CurrentSettings.PlayerName) ||
-                         LockSystem.LockQuery.UpdateLockBelongsToPlayer(vessel.id, SettingsSystem.CurrentSettings.PlayerName) ||
-                         !LockSystem.LockQuery.UpdateLockExists(vessel.id);
+            // Always run full local physics on our own active vessel. If lock rows are briefly missing,
+            // DoVesselChecks can fall through to "apply remote stream" and would incorrectly set immortal and
+            // disable FlightIntegrator (broken engine plumes / smoke).
+            if (FlightGlobals.ActiveVessel != null && vessel.id == FlightGlobals.ActiveVessel.id && !VesselCommon.IsSpectating)
+            {
+                vessel.SetImmortal(false);
+                return;
+            }
 
-            vessel.SetImmortal(!isOurs);
+            // Align with VesselCommon.DoVesselChecks: whenever we consume another player's streamed state for this
+            // vessel id, skip local FlightIntegrator so orbit/interpolation/HUD stay consistent. Includes the
+            // "another player has control" case and the stale-update-lock + missing control row case fixed there.
+            vessel.SetImmortal(VesselCommon.DoVesselChecks(vessel.id));
         }
 
         #endregion
