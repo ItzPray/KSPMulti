@@ -946,6 +946,51 @@ Tech
             StringAssert.Contains(contractText, "values = 2,0,0,0,0");
         }
 
+        /// <summary>
+        /// Active mission progress must apply from clients who do not hold the contract lock (flying player vs MC lock owner).
+        /// </summary>
+        [TestMethod]
+        public void ApplyClientIntentWithAuthority_ContractsParameterProgressNonLockOwner_ActiveContract_AcceptsAndMutates()
+        {
+            var existingContract = CreateContractSnapshotInfo(
+                Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                "Active",
+                ContractSnapshotPlacement.Active,
+                0,
+                "Incomplete",
+                "1,0,0,0,0");
+            var changedContract = CreateContractSnapshotInfo(
+                existingContract.ContractGuid,
+                "Active",
+                ContractSnapshotPlacement.Active,
+                -1,
+                "Complete",
+                "1,1,0,0,0");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(existingContract);
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateScenario("sci", "1");
+            ScenarioStoreSystem.CurrentScenarios["Reputation"] = CreateScenario("rep", "1");
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
+            PersistentSyncRegistry.Initialize(false);
+
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "LockHolderNotFlying"), false, out _);
+
+            var payload = ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ParameterProgressObserved, changedContract);
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
+                CreateClient("FlyingClient"),
+                CreateIntent(PersistentSyncDomainId.Contracts, payload, "Parameter progress from non-lock-holder"));
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+            Assert.AreEqual(1L, result.Snapshot.Revision);
+
+            var updatedContracts = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var updatedContract = updatedContracts.Single(c => c.ContractGuid == existingContract.ContractGuid);
+            var updatedNode = new ConfigNode(Encoding.UTF8.GetString(updatedContract.Data, 0, updatedContract.NumBytes));
+            Assert.AreEqual("Complete", updatedNode.GetNode("PARAM").Value.GetValue("state").Value);
+        }
+
         [TestMethod]
         public void Gate_RequestOfferGeneration_RoutesSnapshotToProducerWhenOfferPoolEmpty()
         {

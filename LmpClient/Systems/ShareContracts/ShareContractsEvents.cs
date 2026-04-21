@@ -81,13 +81,13 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (System.IgnoreEvents) return;
 
-            if (LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
-            {
-                System.MessageSender.SendProducerProposal(
-                    ContractIntentPayloadKind.ContractCompletedObserved,
-                    contract,
-                    $"ContractProposal:Completed:{contract?.ContractGuid:N}");
-            }
+            // Do not gate on contract-lock ownership: the flying client completes Active work while the lock
+            // holder is often another player (Mission Control / offer generation). Server ReduceObservedActive
+            // only merges when the canonical row is Active.
+            System.MessageSender.SendProducerProposal(
+                ContractIntentPayloadKind.ContractCompletedObserved,
+                contract,
+                $"ContractProposal:Completed:{contract?.ContractGuid:N}");
 
             LunaLog.Log($"Contract completed: {contract.ContractGuid}");
         }
@@ -119,13 +119,10 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (System.IgnoreEvents) return;
 
-            if (LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
-            {
-                System.MessageSender.SendProducerProposal(
-                    ContractIntentPayloadKind.ContractFailedObserved,
-                    contract,
-                    $"ContractProposal:Failed:{contract?.ContractGuid:N}");
-            }
+            System.MessageSender.SendProducerProposal(
+                ContractIntentPayloadKind.ContractFailedObserved,
+                contract,
+                $"ContractProposal:Failed:{contract?.ContractGuid:N}");
 
             LunaLog.Log($"Contract failed: {contract.ContractGuid}");
         }
@@ -216,13 +213,10 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
-            {
-                System.MessageSender.SendProducerProposal(
-                    ContractIntentPayloadKind.ParameterProgressObserved,
-                    contract,
-                    $"ContractProposal:Parameter:{contract.ContractGuid:N}");
-            }
+            System.MessageSender.SendProducerProposal(
+                ContractIntentPayloadKind.ParameterProgressObserved,
+                contract,
+                $"ContractProposal:Parameter:{contract.ContractGuid:N}");
 
             System.InvalidatePersistentSyncBypassUiRefreshCoalesce();
         }

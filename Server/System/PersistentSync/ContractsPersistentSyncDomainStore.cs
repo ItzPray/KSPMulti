@@ -20,8 +20,11 @@ namespace Server.System.PersistentSync
     /// Contracts has mixed authority per intent kind:
     /// <list type="bullet">
     /// <item><description>Player commands (Accept/Decline/Cancel/RequestOfferGeneration) — any client.</description></item>
-    /// <item><description>Producer-only observations (OfferObserved/ParameterProgressObserved/Completed/Failed/FullReconcile)
-    /// — only the current contract lock owner.</description></item>
+    /// <item><description>Producer-only observations for the <b>offer pool</b> (<see cref="ContractIntentPayloadKind.OfferObserved"/>)
+    /// and <see cref="ContractIntentPayloadKind.FullReconcile"/> — only the current contract lock owner.</description></item>
+    /// <item><description>In-sim Active contract observations (<see cref="ContractIntentPayloadKind.ParameterProgressObserved"/>,
+    /// <see cref="ContractIntentPayloadKind.ContractCompletedObserved"/>, <see cref="ContractIntentPayloadKind.ContractFailedObserved"/>)
+    /// — any client; <see cref="ReduceObservedActive"/> rejects unless the canonical row is Active so offer-pool spam cannot apply.</description></item>
     /// </list>
     /// Per-intent dispatch happens in <see cref="AuthorizeIntent"/>, called by the registry before the reducer
     /// ever sees the payload. The reducer itself does not perform authority checks; rule: &quot;No domain may do its
@@ -67,8 +70,8 @@ namespace Server.System.PersistentSync
         /// <summary>
         /// Floor policy advertised to clients and the registry's default path. Real gating happens in
         /// <see cref="AuthorizeIntent"/> because Contracts has mixed per-intent authority. Advertising
-        /// <see cref="PersistentAuthorityPolicy.AnyClientIntent"/> keeps player commands responsive; producer-only
-        /// intents are rejected in <see cref="AuthorizeIntent"/> before reaching the reducer.
+        /// <see cref="PersistentAuthorityPolicy.AnyClientIntent"/> keeps player commands responsive; offer-pool
+        /// producer intents and full reconcile are rejected for non–lock-holders in <see cref="AuthorizeIntent"/>.
         /// </summary>
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ContractSystem";
@@ -84,10 +87,13 @@ namespace Server.System.PersistentSync
                     case ContractIntentPayloadKind.CancelContract:
                     case ContractIntentPayloadKind.RequestOfferGeneration:
                         return true;
-                    case ContractIntentPayloadKind.OfferObserved:
                     case ContractIntentPayloadKind.ParameterProgressObserved:
                     case ContractIntentPayloadKind.ContractCompletedObserved:
                     case ContractIntentPayloadKind.ContractFailedObserved:
+                        // Flying player often does not hold the contract lock (lock owner = offer generation). Reducer
+                        // still requires canonical Active target — see ReduceObservedActive.
+                        return true;
+                    case ContractIntentPayloadKind.OfferObserved:
                     case ContractIntentPayloadKind.FullReconcile:
                         return ClientOwnsProducerAuthority(client);
                     default:
