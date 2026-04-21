@@ -149,11 +149,6 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (System.IgnoreEvents)
-            {
-                return;
-            }
-
             if (contract.GetType() == typeof(RecoverAsset))
             {
                 //We don't support rescue contracts. See: https://github.com/LunaMultiplayer/LunaMultiplayer/issues/226#issuecomment-431831526
@@ -162,7 +157,38 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
+            // Title-based dedup MUST run even while IgnoreEvents is true. Background: the Contracts
+            // PersistentSync client domain wraps its entire snapshot apply in StartIgnoringEvents to
+            // stop server-applied state from echoing back as fresh client intents. That scope ALSO
+            // contains our controlled ReplenishStockOffersAfterPersistentSnapshotApply → stock
+            // RefreshContracts call, whose explicit purpose is to mint NEW progression-unlocked
+            // offers on the client. Any contract stock generates during that call fires
+            // Contract.onOffered while IgnoreEvents is true. If we early-return on IgnoreEvents
+            // before this check, fresh-GUID duplicates of Finished rows (canonical repro:
+            // "Launch our first vessel!" regenerated after the starter completion, because the
+            // order in which PersistentSync reapplies Achievements vs Contracts vs when stock's
+            // generator re-checks ProgressTracking.FirstLaunch.IsComplete is not tight enough to
+            // always block the regen) slip into ContractSystem.Instance.Contracts in Offered state
+            // and are then harvested by the next ProducerFullReconcile — the user sees the just-
+            // completed mission appear back in the Available list after reconnect. Running the
+            // dedup always keeps local state consistent with the server's canonical set and is
+            // independent of whether the offer will be published this frame or later.
             if (TrySuppressDuplicateOfferByTitle(contract))
+            {
+                return;
+            }
+
+            // IgnoreEvents suppresses "server-applied state echoing back as client intent" events.
+            // Offers minted by our own controlled RefreshContracts call (gated by
+            // ShareContractsSystem.IsInsideControlledStockContractRefresh) are NOT echoes: the proto
+            // mirror and ReplaceContractsFromSnapshot paths assign state directly without firing
+            // onOffered, so an onOffered observed while IsInsideControlledStockContractRefresh is
+            // true must have come from stock generating a brand-new contract. Those need to reach
+            // the server — otherwise they stay local-only, get wiped whenever the next snapshot
+            // lands, and the user observes "new progression missions I saw after completing the
+            // first mission all disappear after reconnect" because the client never told the
+            // server they existed.
+            if (System.IgnoreEvents && !System.IsInsideControlledStockContractRefresh)
             {
                 return;
             }

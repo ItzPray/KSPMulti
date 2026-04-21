@@ -69,6 +69,37 @@ namespace LmpClient.Harmony
         /// </summary>
         public static bool HasObservedOnLoad;
 
+        /// <summary>
+        /// Unity frames that stock <c>ContractSystem.OnLoadRoutine</c> needs to complete after <c>OnLoad</c>
+        /// fires. The coroutine yields one frame, then runs to completion the next frame; we conservatively
+        /// allow a small window (4 frames) before treating the live <see cref="ContractSystem.Instance"/>
+        /// lists as stable. Kept here (rather than private to any single consumer) so every PersistentSync
+        /// subsystem that races this coroutine uses the same invariant — see
+        /// <see cref="LmpClient.Systems.PersistentSync.ContractsPersistentSyncClientDomain.FlushPendingState"/>
+        /// and <see cref="LmpClient.Systems.ShareContracts.ShareContractsSystem.ReplenishStockOffersAfterPersistentSnapshotApply"/>.
+        /// </summary>
+        public const int OnLoadCoroutineCompletionWindowFrames = 4;
+
+        /// <summary>
+        /// True while stock's <c>ContractSystem.OnLoadRoutine</c> is (or may still be) mid-flight: we have
+        /// observed an <c>OnLoad</c> call this session and the Unity frame count has not yet advanced past
+        /// the completion window. During this window <see cref="ContractSystem.Instance"/>'s
+        /// <c>Contracts</c> / <c>ContractsFinished</c> lists are either cleared (pre-repopulate) or in the
+        /// middle of being rebuilt from the persisted <c>gameNode</c>, so any consumer that reads them and
+        /// acts on "empty = needs regeneration" will produce false-positive contract generation that
+        /// pollutes the authoritative server state. Callers must short-circuit while this returns true.
+        /// </summary>
+        public static bool IsOnLoadCoroutineWithinCompletionWindow()
+        {
+            if (!HasObservedOnLoad)
+            {
+                return false;
+            }
+
+            var framesSinceOnLoad = Time.frameCount - LastOnLoadFrame;
+            return framesSinceOnLoad >= 0 && framesSinceOnLoad < OnLoadCoroutineCompletionWindowFrames;
+        }
+
         [HarmonyPrefix]
         private static void Prefix(ContractSystem __instance, ConfigNode gameNode)
         {

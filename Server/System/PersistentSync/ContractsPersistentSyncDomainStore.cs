@@ -674,6 +674,11 @@ namespace Server.System.PersistentSync
                 return false;
             }
 
+            if (ShouldRejectIncomingOfferedDuplicateOfCompleted(map, normalizedRecord))
+            {
+                return false;
+            }
+
             RemoveOlderOfferedDuplicatesOf(map, normalizedRecord);
 
             if (map.TryGetValue(normalizedRecord.ContractGuid, out var existingRecord))
@@ -950,6 +955,43 @@ namespace Server.System.PersistentSync
                 if (kv.Key == incoming.ContractGuid) continue;
                 if (kv.Value.Placement != ContractSnapshotPlacement.Active) continue;
                 if (!TryBuildContractIdentityKey(kv.Value, out var existingKey) || existingKey != key) continue;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Defense-in-depth against a client regenerating a fresh-GUID offer for a contract the server has
+        /// already recorded as <c>Completed</c>. Stock KSP's ContractGenerator should never emit such an
+        /// offer (progression achievements like <c>FirstLaunch</c> gate their own re-offer via
+        /// <c>MeetRequirements</c>), but it can happen when a reconnecting client runs
+        /// <c>ContractSystem.RefreshContracts</c> against a transiently-cleared local
+        /// <c>ContractSystem.Instance</c> (post-<c>OnAwake</c>, before the PersistentSync Contracts snapshot
+        /// has applied). The client-side gate in
+        /// <c>ShareContractsSystem.ReplenishStockOffersAfterPersistentSnapshotApply</c> closes that window,
+        /// but this guard ensures a racing client can't permanently corrupt canonical state with a "duplicate
+        /// completed contract appears in Available" row even if the client-side gate is bypassed.
+        ///
+        /// Only rows whose canonical state is <c>Completed</c> qualify for rejection here. Other finished
+        /// states (<c>Declined</c>, <c>Cancelled</c>, <c>Failed</c>, <c>DeadlineExpired</c>, <c>Withdrawn</c>)
+        /// represent outcomes where stock legitimately re-offers the same template later, so rejecting those
+        /// would break normal gameplay progression.
+        /// </summary>
+        private static bool ShouldRejectIncomingOfferedDuplicateOfCompleted(Dictionary<Guid, ContractSnapshotInfo> map, ContractSnapshotInfo incoming)
+        {
+            if (!TryBuildOfferedDedupKey(incoming, out var key)) return false;
+
+            foreach (var kv in map)
+            {
+                if (kv.Key == incoming.ContractGuid) continue;
+                if (kv.Value.Placement != ContractSnapshotPlacement.Finished) continue;
+                if (!string.Equals(kv.Value.ContractState?.Trim(), "Completed", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!TryBuildContractIdentityKey(kv.Value, out var existingKey) || existingKey != key) continue;
+
+                LunaLog.Debug(
+                    $"[PersistentSync] Contracts rejected offered duplicate of completed row: " +
+                    $"incomingGuid={incoming.ContractGuid} existingCompletedGuid={kv.Key} identityKey={key}");
                 return true;
             }
 

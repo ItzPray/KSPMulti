@@ -19,19 +19,28 @@ namespace LmpClient.Systems.PersistentSync
     {
         private const string LmpOfferTitleFieldName = "lmpOfferTitle";
 
-        /// <summary>
-        /// Number of Unity frames to wait after an observed stock <c>ContractSystem.OnLoad</c> call before we
-        /// apply a PersistentSync snapshot. Stock <c>OnLoadRoutine</c> yields exactly one frame, then runs to
-        /// completion (clearing <c>ContractSystem.Instance.Contracts</c> and repopulating from the captured
-        /// gameNode). If our apply lands inside that window, the coroutine's resume wipes it; if we wait past
-        /// the window the coroutine is guaranteed done and apply is safe.
-        /// A small safety margin (more than the single observed yield) absorbs frame-skipping under load.
-        /// </summary>
-        private const int OnLoadCoroutineCompletionWindowFrames = 4;
-
         private ContractSnapshotInfo[] _pendingContracts;
 
         public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
+
+        /// <summary>
+        /// True while a Contracts snapshot has been received from the server but has not yet successfully
+        /// applied. The reconciler's retry loop calls <see cref="FlushPendingState"/> repeatedly until the
+        /// OnLoad frame-window gate clears and the apply succeeds; between those moments the pending
+        /// snapshot is authoritative — any stock mutation that observes the live
+        /// <see cref="ContractSystem.Instance"/> in its cleared (post-OnAwake) / half-loaded state will
+        /// generate offers from an empty progression view and our PersistentSync pipeline will publish
+        /// those offers to the server <b>before</b> the snapshot wipes them out locally. The server has
+        /// no way to reject them (offers that "happen to share a type+title with a Finished row" are not
+        /// caught by the offered-duplicate-of-Active guard), so they land as duplicates alongside the
+        /// legitimate Finished records.
+        ///
+        /// Callers such as <see cref="ShareContracts.ShareContractsSystem.ReplenishStockOffersAfterPersistentSnapshotApply"/>
+        /// must consult this flag and short-circuit when it is true; running stock
+        /// <c>RefreshContracts</c> during this window is the root cause of post-reconnect "duplicate
+        /// completed contract appears in Available" reports.
+        /// </summary>
+        public bool HasPendingSnapshot => _pendingContracts != null;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
@@ -70,19 +79,16 @@ namespace LmpClient.Systems.PersistentSync
             // gate on static ContractSystem.loaded was fundamentally unreliable — stock's OnAwake resets it to
             // false on every scenario-runner rebuild, and the coroutine only sets it to true on the non-early-exit
             // path, so the gate could stay false permanently while ContractSystem.Instance was fully alive.
-            // If OnLoad has never been observed this session, LastOnLoadFrame sits at int.MinValue/2 so the delta
-            // is always large and apply proceeds immediately (no coroutine to race).
-            if (ContractSystem_OnLoad_EnsureContractsNode.HasObservedOnLoad)
+            // The helper is shared with ShareContractsSystem so both the snapshot apply path and the stock-refresh
+            // gate use the same invariant — see ContractSystem_OnLoad_EnsureContractsNode.IsOnLoadCoroutineWithinCompletionWindow.
+            if (ContractSystem_OnLoad_EnsureContractsNode.IsOnLoadCoroutineWithinCompletionWindow())
             {
                 var framesSinceOnLoad = Time.frameCount - ContractSystem_OnLoad_EnsureContractsNode.LastOnLoadFrame;
-                if (framesSinceOnLoad >= 0 && framesSinceOnLoad < OnLoadCoroutineCompletionWindowFrames)
-                {
-                    LunaLog.Log(
-                        $"[PersistentSync] Contracts snapshot deferred: OnLoad ran {framesSinceOnLoad} frame(s) ago " +
-                        $"(completion window={OnLoadCoroutineCompletionWindowFrames} frames); waiting for OnLoadRoutine " +
-                        "coroutine to finish clearing+repopulating the list");
-                    return PersistentSyncApplyOutcome.Deferred;
-                }
+                LunaLog.Log(
+                    $"[PersistentSync] Contracts snapshot deferred: OnLoad ran {framesSinceOnLoad} frame(s) ago " +
+                    $"(completion window={ContractSystem_OnLoad_EnsureContractsNode.OnLoadCoroutineCompletionWindowFrames} frames); " +
+                    "waiting for OnLoadRoutine coroutine to finish clearing+repopulating the list");
+                return PersistentSyncApplyOutcome.Deferred;
             }
 
             ShareContractsSystem.Singleton.StartIgnoringEvents();
@@ -90,6 +96,16 @@ namespace LmpClient.Systems.PersistentSync
             ShareScienceSystem.Singleton.StartIgnoringEvents();
             ShareReputationSystem.Singleton.StartIgnoringEvents();
             ShareExperimentalPartsSystem.Singleton.StartIgnoringEvents();
+
+            // Keep a reference so we can restore _pendingContracts if the apply throws BEFORE ReplaceContractsFromSnapshot
+            // succeeds — that branch leaves the live ContractSystem untouched, so the reconciler must still see a
+            // pending snapshot and retry on the next FlushPendingState tick. Once the authoritative replace returns,
+            // we clear _pendingContracts (so the HasPendingSnapshot gate opens for downstream replenish/UI calls) and
+            // DO NOT restore it on later exceptions — those post-replace steps are cosmetic (UI rebind, notifications)
+            // and re-running them via a retry would re-enter ReplaceContractsFromSnapshot with fresh Guid tracking
+            // that is no longer needed.
+            var pendingForRestore = _pendingContracts;
+            var replaceCompleted = false;
 
             try
             {
@@ -117,6 +133,20 @@ namespace LmpClient.Systems.PersistentSync
                     "ContractSystem",
                     "PersistentSyncSnapshotApply:Contracts");
 
+                // Clear the pending snapshot marker BEFORE calling ReplenishStockOffers below. The ContractSystem
+                // has now been authoritatively replaced from the server snapshot, so downstream mutation paths
+                // (including the Replenish call on the next line, which may invoke stock RefreshContracts) are
+                // allowed to run. Leaving _pendingContracts set here would cause the HasPendingSnapshot gate in
+                // <see cref="ShareContracts.ShareContractsSystem.ReplenishStockOffersAfterPersistentSnapshotApply"/>
+                // to treat our own in-apply call as "snapshot pending" and short-circuit, which would skip the
+                // controlled refresh this code path is specifically here to perform when the incoming snapshot
+                // carried zero offer-pool contracts. The gate's purpose is to block stock refreshes triggered
+                // by OTHER paths (ContractLockAcquire, LevelLoaded, etc.) while a snapshot is queued but not
+                // yet merged into the live ContractSystem — that race is closed as soon as ReplaceContractsFromSnapshot
+                // returns, because from that instant the live game state IS the server's canonical state.
+                _pendingContracts = null;
+                replaceCompleted = true;
+
                 ShareContractsSystem.Singleton.ReplenishStockOffersAfterPersistentSnapshotApply("PersistentSyncSnapshotApply");
                 ShareContractsSystem.LogMcUiContractInventory("PersistentSyncSnapshotApply:afterReplaceContractsFromSnapshot");
                 // Keep ShareContractsSystem ignoring events through UI refresh. RefreshContractUiAdapters uses
@@ -131,6 +161,16 @@ namespace LmpClient.Systems.PersistentSync
             }
             catch (Exception)
             {
+                // Before ReplaceContractsFromSnapshot completed the live game state was unchanged, so the
+                // reconciler must treat the snapshot as still-pending and retry on the next flush tick. Once
+                // the replace committed we leave _pendingContracts cleared and accept the loss of the purely
+                // cosmetic post-replace steps (UI rebind, notifications) for this revision — the authoritative
+                // contract data is already in ContractSystem.Instance and will be picked up by the regular
+                // Mission Control / ContractsApp refresh paths.
+                if (!replaceCompleted)
+                {
+                    _pendingContracts = pendingForRestore;
+                }
                 return PersistentSyncApplyOutcome.Rejected;
             }
             finally
@@ -142,7 +182,9 @@ namespace LmpClient.Systems.PersistentSync
                 ShareContractsSystem.Singleton.StopIgnoringEvents();
             }
 
-            _pendingContracts = null;
+            // _pendingContracts was cleared inside the try block immediately after ReplaceContractsFromSnapshot
+            // completed so the HasPendingSnapshot gate opens before we invoke ReplenishStockOffers. See the
+            // comment at that clear site for the full rationale.
             return PersistentSyncApplyOutcome.Applied;
         }
 

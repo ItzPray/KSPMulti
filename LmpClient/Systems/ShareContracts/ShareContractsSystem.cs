@@ -3,6 +3,7 @@ using KSP.UI.Screens;
 using LmpClient;
 using LmpClient.Base;
 using LmpClient.Events;
+using LmpClient.Harmony;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
@@ -48,6 +49,40 @@ namespace LmpClient.Systems.ShareContracts
         private Coroutine _clearAwaitingAuthoritativeSnapshotCoroutine;
 
         private Coroutine _pendingControlledStockRefreshCoroutine;
+
+        /// <summary>
+        /// Coroutine that re-attempts <see cref="ReplenishStockOffersAfterPersistentSnapshotApply"/> once both
+        /// the stock <c>ContractSystem.OnLoadRoutine</c> completion window and any pending PersistentSync
+        /// snapshot apply have cleared. Reused so multiple rapid Replenish calls (LevelLoaded, lock acquire,
+        /// snapshot apply) during the same transition coalesce into a single deferred run instead of
+        /// stacking. See <see cref="TryDeferReplenishStockOffersUntilSafe"/>.
+        /// </summary>
+        private Coroutine _pendingReplenishAfterOnLoadCoroutine;
+
+        /// <summary>
+        /// Most recent <c>source</c> that requested a deferred Replenish pass. The deferred coroutine
+        /// forwards this string when it finally runs so the log trail shows the original caller (e.g.
+        /// LevelLoaded:PostTransientPreUi) rather than the coroutine itself.
+        /// </summary>
+        private string _pendingReplenishAfterOnLoadSource;
+
+        /// <summary>
+        /// Upper bound on how long the Replenish retry coroutine polls for the gate to clear. Far above
+        /// the expected <c>OnLoadCoroutineCompletionWindowFrames</c> delay (a few frames) and above the
+        /// FlushPendingState deferral loop, so the normal path always resolves inside the window. If the
+        /// gate still hasn't cleared after this timeout, something is keeping the domain in "pending
+        /// snapshot" state indefinitely and we abandon the deferred pass with a loud log rather than
+        /// spinning forever.
+        /// </summary>
+        private const float PendingReplenishMaxWaitSeconds = 30f;
+
+        /// <summary>
+        /// Poll interval for <see cref="PendingReplenishAfterOnLoadWindowCoroutine"/>. Short enough to
+        /// re-check on the same frame-group as the coroutine completion window (4 frames at 60 Hz
+        /// ≈ 67ms), which means the deferred Replenish typically fires the frame right after
+        /// <c>OnLoadRoutine</c> finishes.
+        /// </summary>
+        private const float PendingReplenishPollSeconds = 0.05f;
 
         private bool _suppressStockContractRefreshForTimeJump;
 
@@ -191,6 +226,13 @@ namespace LmpClient.Systems.ShareContracts
                 MainSystem.Singleton.StopCoroutine(_pendingControlledStockRefreshCoroutine);
                 _pendingControlledStockRefreshCoroutine = null;
             }
+
+            if (_pendingReplenishAfterOnLoadCoroutine != null && MainSystem.Singleton != null)
+            {
+                MainSystem.Singleton.StopCoroutine(_pendingReplenishAfterOnLoadCoroutine);
+                _pendingReplenishAfterOnLoadCoroutine = null;
+            }
+            _pendingReplenishAfterOnLoadSource = null;
 
             base.OnDisabled();
 
@@ -479,6 +521,23 @@ namespace LmpClient.Systems.ShareContracts
             RequestControlledStockContractRefresh(source);
         }
 
+        /// <summary>
+        /// True for the exact duration of an LMP-controlled <c>ContractSystem.RefreshContracts</c> call
+        /// (opened by <see cref="ReplenishStockOffersAfterPersistentSnapshotApply"/> via
+        /// <see cref="_allowStockContractRefreshWindow"/>). The PersistentSync Contracts domain wraps the
+        /// entire snapshot apply in <see cref="StartIgnoringEvents"/>/<see cref="StopIgnoringEvents"/> to
+        /// stop server-applied state from echoing back as fresh client intents; that scope also contains
+        /// our controlled Replenish call, whose whole purpose is to mint NEW progression-unlocked offers
+        /// on the client that the server has not seen yet. Those freshly generated contracts fire
+        /// <c>Contract.onOffered</c> inside the IgnoreEvents scope but are NOT echoes of the snapshot —
+        /// the handler needs a way to tell them apart from snapshot-restoration events so it can run the
+        /// title-based dedup (kills duplicates of Finished/Active rows) and publish <c>OfferObserved</c>
+        /// intents. Both <c>ReplaceContractsFromSnapshot</c> (state-restore path) and the proto mirror
+        /// step assign state directly and do NOT fire <c>onOffered</c>, so this window is a precise
+        /// signal that the current <c>onOffered</c> came from stock generating a brand-new contract.
+        /// </summary>
+        public bool IsInsideControlledStockContractRefresh => _allowStockContractRefreshWindow;
+
         public void RequestControlledStockContractRefresh(string source)
         {
             if (!IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
@@ -615,6 +674,25 @@ namespace LmpClient.Systems.ShareContracts
             if (!IsGameClockApproximatelyOneX())
             {
                 return $"clock-not-1x(rateIndex={TimeWarp.CurrentRateIndex},rate={TimeWarp.CurrentRate:0.00})";
+            }
+
+            // CRITICAL: The same two transient windows that make the Replenish entry point unsafe also make
+            // TryRunPostTransientStockRefresh's direct RefreshContracts() fallback unsafe. On reconnect, the
+            // server-authoritative Contracts snapshot lands in the domain's pending buffer while OnLoad is
+            // still clearing/repopulating ContractSystem.Instance.Contracts. If the wait coroutine picks
+            // that exact window to consider "block reason empty", TryRunPostTransientStockRefresh takes its
+            // ELSE branch (HasInitialSnapshot is still false because MarkApplied has not yet run), opens the
+            // _allowStockContractRefreshWindow, and calls stock RefreshContracts against a momentarily-empty
+            // local pool. Stock then mints fresh-GUID duplicates of every starter contract the snapshot was
+            // about to deliver; the OfferObserved intents race ahead of the snapshot apply, the server keeps
+            // the ones whose titles aren't in the Finished set, and the canonical state is permanently
+            // polluted with duplicates of completed and already-active rows. IsReplenishGateBlocked encodes
+            // the full "snapshot not yet applied / OnLoad coroutine still repopulating" invariant — reusing
+            // it here keeps the two entry points gated by the same condition so the wait coroutine simply
+            // polls past this window and fires once the snapshot has been applied.
+            if (IsReplenishGateBlocked(out var replenishBlockReason))
+            {
+                return replenishBlockReason;
             }
 
             return string.Empty;
@@ -862,21 +940,70 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
+            // Two independent windows in which the live ContractSystem.Instance.Contracts list is a
+            // false-positive "offer pool empty" reading. In EITHER window, running stock RefreshContracts
+            // right now would regenerate starter offers (including titles the server holds as Finished —
+            // "Launch our first vessel!" is the canonical repro) from the client's cleared local progression.
+            // ShareContracts would then publish those fresh-GUID offers as OfferObserved intents BEFORE the
+            // authoritative state converges on the live ContractSystem. The intent storm it produces (several
+            // offers per scene transition every time the user enters SpaceCenter after a mission) is the
+            // trigger for the first-mission-after-fresh-deploy main-thread freeze: it overlaps with the heavy
+            // scene-transition workload (mod initialization, Kopernicus/Parallax/Scatterer, ContractsFinished
+            // reconciliation) and tips the main thread over.
+            //
+            // IMPORTANT: we must not just drop the call. The legitimate mid-game use of Replenish is to mint
+            // new offer-pool contracts after progression advances (e.g. completing the starter missions
+            // unlocks the next tier of available contracts). Stock's own offer generation is gated through
+            // <see cref="ApplyStockContractMutationPolicy"/> / <see cref="_allowStockContractRefreshWindow"/>,
+            // so Replenish is the only path that actually mints those new offers on the client. If we drop
+            // it during scene transitions the user gets stuck with exactly their current offer pool and
+            // progression never surfaces new work. Instead, defer the call onto a coroutine that re-runs it
+            // once both gates have cleared.
+            //
+            // Window 1 — snapshot in buffer, not yet applied. The reconciler is holding a freshly-received
+            // server snapshot in a "Deferred" state while stock's OnLoadRoutine coroutine completes; see
+            // <see cref="ContractsPersistentSyncClientDomain.FlushPendingState"/>. During this window the
+            // snapshot IS the authoritative state but has not yet been merged into the live ContractSystem.
+            //
+            // Window 2 — stock OnLoadRoutine still mid-clear/repopulate. OnAwake has wiped Contracts and
+            // ContractsFinished; the coroutine yields one frame and then runs to completion, rebuilding both
+            // lists from the gameNode captured at OnLoad time. A RefreshContracts call anywhere inside that
+            // window sees mainCount==0 on a list that is about to be repopulated from the persisted save.
+            // Matches the gate used in <see cref="ContractsPersistentSyncClientDomain.FlushPendingState"/> so
+            // both the snapshot apply path and the stock-refresh path respect the same coroutine boundary.
+            if (IsReplenishGateBlocked(out var blockReason))
+            {
+                TryDeferReplenishStockOffersUntilSafe(source, blockReason);
+                return;
+            }
+
             var main = ContractSystem.Instance.Contracts;
             if (main == null)
             {
                 return;
             }
 
+            // Always run stock RefreshContracts inside the controlled window. Stock's implementation iterates
+            // over each prestige level and only ADDS contracts until the per-prestige cap (ContractSystem's
+            // maxContracts[level]) is reached — it does not remove or replace existing offers. So calling this
+            // when the pool is already partially full is a cheap no-op for prestige levels at cap and an
+            // "append up to cap" for levels below it. This is exactly what we need for mid-game progression:
+            // completing a starter contract advances ProgressTracking, which unlocks higher-prestige contract
+            // types on the next generator pass; without this call, our gate on generateContractIterations=0
+            // prevents stock's own Update-driven generator from ever minting the newly-unlocked contracts, and
+            // the user gets permanently stuck with whatever offer mix was present at the last empty-pool refill.
+            //
+            // A previous short-circuit returned here when offeredLikeCount > 0 to avoid redundant refresh
+            // calls, but that also blocked the progression-unlock refill. The snapshot/OnLoad-window guards
+            // above already cover the original concern (running RefreshContracts on a cleared/half-loaded
+            // list and inflating duplicate starter offers), so the old "pool already has something"
+            // short-circuit is not needed for safety and is actively harmful for gameplay progression.
             var offeredLikeCount = main.Count(IsMissionControlOfferPoolContract);
-            if (offeredLikeCount > 0)
-            {
-                return;
-            }
-
             LunaLog.Log(
-                $"[PersistentSync] ReplenishStockOffers: no offer-pool contracts after snapshot; controlled RefreshContracts " +
-                $"source={source} mainCount={main.Count} activeCount={main.Count(c => c != null && c.ContractState == Contract.State.Active)}");
+                $"[PersistentSync] ReplenishStockOffers: controlled RefreshContracts source={source} " +
+                $"mainCount={main.Count} activeCount={main.Count(c => c != null && c.ContractState == Contract.State.Active)} " +
+                $"offerPoolLikeCount={offeredLikeCount} (stock will append up to per-prestige caps; " +
+                $"no-op for levels already at cap)");
             try
             {
                 _allowStockContractRefreshWindow = true;
@@ -892,6 +1019,106 @@ namespace LmpClient.Systems.ShareContracts
                 _allowStockContractRefreshWindow = false;
                 ApplyStockContractMutationPolicy(source + ":ReplenishCloseWindow");
             }
+        }
+
+        /// <summary>
+        /// Returns true when <see cref="ReplenishStockOffersAfterPersistentSnapshotApply"/> must not run its
+        /// inner <c>RefreshContracts</c> right now because the live <see cref="ContractSystem.Instance"/> is
+        /// in a transient state where "offer pool empty" is a false positive. See the two-windows comment at
+        /// the call site for the full rationale. Sets <paramref name="reason"/> to a short tag describing
+        /// which window fired so log lines remain distinguishable.
+        /// </summary>
+        private bool IsReplenishGateBlocked(out string reason)
+        {
+            if (PersistentSyncSystem.Singleton != null &&
+                PersistentSyncSystem.Singleton.Domains.TryGetValue(PersistentSyncDomainId.Contracts, out var contractsDomain) &&
+                contractsDomain is ContractsPersistentSyncClientDomain contractsClientDomain &&
+                contractsClientDomain.HasPendingSnapshot)
+            {
+                reason = "contracts-snapshot-pending-apply";
+                return true;
+            }
+
+            if (ContractSystem_OnLoad_EnsureContractsNode.IsOnLoadCoroutineWithinCompletionWindow())
+            {
+                var framesSinceOnLoad = Time.frameCount - ContractSystem_OnLoad_EnsureContractsNode.LastOnLoadFrame;
+                reason =
+                    $"on-load-coroutine-in-window({framesSinceOnLoad}/" +
+                    $"{ContractSystem_OnLoad_EnsureContractsNode.OnLoadCoroutineCompletionWindowFrames})";
+                return true;
+            }
+
+            reason = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Schedules (or extends) a single coroutine that polls the Replenish gate until it opens and then
+        /// re-invokes <see cref="ReplenishStockOffersAfterPersistentSnapshotApply"/> with the most recent
+        /// <paramref name="source"/>. Calls that land inside the blocked window collapse into this one
+        /// deferred run so we do not stack retries per LevelLoaded / LockAcquire / snapshot tick.
+        /// </summary>
+        private void TryDeferReplenishStockOffersUntilSafe(string source, string blockReason)
+        {
+            _pendingReplenishAfterOnLoadSource = source;
+
+            if (_pendingReplenishAfterOnLoadCoroutine != null || MainSystem.Singleton == null)
+            {
+                // Already waiting — next tick of the coroutine will pick up the latest source string.
+                LunaLog.Log(
+                    $"[PersistentSync] ReplenishStockOffers deferred (retry already queued): source={source} " +
+                    $"reason={blockReason}");
+                return;
+            }
+
+            LunaLog.Log(
+                $"[PersistentSync] ReplenishStockOffers deferred: source={source} reason={blockReason} " +
+                $"retryPoll={PendingReplenishPollSeconds:0.##}s maxWait={PendingReplenishMaxWaitSeconds:0}s");
+
+            _pendingReplenishAfterOnLoadCoroutine =
+                MainSystem.Singleton.StartCoroutine(PendingReplenishAfterOnLoadWindowCoroutine());
+        }
+
+        private IEnumerator PendingReplenishAfterOnLoadWindowCoroutine()
+        {
+            var waited = 0f;
+            while (waited < PendingReplenishMaxWaitSeconds)
+            {
+                if (!Enabled || !IsShareSystemApplicableForSession() || ContractSystem.Instance == null)
+                {
+                    LunaLog.Log(
+                        $"[PersistentSync] ReplenishStockOffers retry abort: enabled={Enabled} " +
+                        $"applicable={IsShareSystemApplicableForSession()} " +
+                        $"contractSystem={(ContractSystem.Instance != null)}");
+                    _pendingReplenishAfterOnLoadCoroutine = null;
+                    _pendingReplenishAfterOnLoadSource = null;
+                    yield break;
+                }
+
+                if (!IsReplenishGateBlocked(out _))
+                {
+                    var source = _pendingReplenishAfterOnLoadSource ?? "DeferredReplenish";
+                    _pendingReplenishAfterOnLoadCoroutine = null;
+                    _pendingReplenishAfterOnLoadSource = null;
+
+                    LunaLog.Log(
+                        $"[PersistentSync] ReplenishStockOffers retry fired: source={source} waitedSeconds={waited:0.##}");
+                    // Re-enter the public entry point so lock ownership and UI-hook side effects match a
+                    // normal call. The gate is clear now so the inner RefreshContracts path will run.
+                    ReplenishStockOffersAfterPersistentSnapshotApply(source + ":DeferredRetry");
+                    yield break;
+                }
+
+                yield return new WaitForSecondsRealtime(PendingReplenishPollSeconds);
+                waited += PendingReplenishPollSeconds;
+            }
+
+            LunaLog.LogWarning(
+                $"[PersistentSync] ReplenishStockOffers retry timeout after {PendingReplenishMaxWaitSeconds:0}s " +
+                $"source={_pendingReplenishAfterOnLoadSource ?? "<none>"}; abandoning deferred pass " +
+                "(gate never cleared)");
+            _pendingReplenishAfterOnLoadCoroutine = null;
+            _pendingReplenishAfterOnLoadSource = null;
         }
 
         /// <summary>

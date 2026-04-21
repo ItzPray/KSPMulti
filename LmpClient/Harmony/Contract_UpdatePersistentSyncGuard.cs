@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Contracts;
 using HarmonyLib;
 using LmpClient.Systems.ShareContracts;
@@ -45,11 +46,17 @@ namespace LmpClient.Harmony
     [HarmonyPatch(typeof(Contract), nameof(Contract.Update))]
     public class Contract_UpdatePersistentSyncGuard
     {
-        private const float SuppressLogThrottleSeconds = 5f;
+        // Aggregate throttle window (seconds). Stock ContractSystem.UpdateDaemon calls Contract.Update on every
+        // Offered row every frame, so a naive "log on each suppression" produced ~1500 lines/sec with 25 server-
+        // known offers (176k lines in under two minutes in production). Flood that via LunaLog → disk IO → the
+        // Unity main thread stalls during scene transitions. Log at most once per window with aggregate stats.
+        private const float SuppressLogWindowSeconds = 10f;
 
-        private static Guid _lastSuppressedGuid;
+        private static float _windowStartRealtime = -1f;
 
-        private static float _lastSuppressedRealtime = -999f;
+        private static int _windowSuppressedCount;
+
+        private static readonly HashSet<Guid> _windowSuppressedGuids = new HashSet<Guid>();
 
         [HarmonyPrefix]
         private static bool Prefix(Contract __instance)
@@ -90,18 +97,35 @@ namespace LmpClient.Harmony
                 return true;
             }
 
+            LogSuppressionThrottled(__instance);
+            return false;
+        }
+
+        private static void LogSuppressionThrottled(Contract contract)
+        {
             var now = Time.realtimeSinceStartup;
-            if (__instance.ContractGuid != _lastSuppressedGuid || now - _lastSuppressedRealtime >= SuppressLogThrottleSeconds)
+            if (_windowStartRealtime < 0f)
             {
-                _lastSuppressedGuid = __instance.ContractGuid;
-                _lastSuppressedRealtime = now;
-                LunaLog.Log(
-                    $"[PersistentSync] Contract.Update suppressed for offered server-known row " +
-                    $"(would silently SetState(OfferExpired) and UpdateContracts would drop the row without logging) " +
-                    $"guid={__instance.ContractGuid} title={__instance.Title}");
+                _windowStartRealtime = now;
             }
 
-            return false;
+            _windowSuppressedCount++;
+            _windowSuppressedGuids.Add(contract.ContractGuid);
+
+            if (now - _windowStartRealtime < SuppressLogWindowSeconds)
+            {
+                return;
+            }
+
+            LunaLog.Log(
+                $"[PersistentSync] Contract.Update suppressed for {_windowSuppressedGuids.Count} server-known offered row(s) " +
+                $"(stock would silently SetState(OfferExpired) and UpdateContracts would drop them without logging): " +
+                $"{_windowSuppressedCount} calls in last {SuppressLogWindowSeconds:0.#}s, " +
+                $"sample guid={contract.ContractGuid} title={contract.Title}");
+
+            _windowStartRealtime = now;
+            _windowSuppressedCount = 0;
+            _windowSuppressedGuids.Clear();
         }
     }
 }
