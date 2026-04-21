@@ -373,9 +373,14 @@ CONTRACTS
         }
 
         [TestMethod]
-        public void ContractsDomainFullReplacePrunesStaleOfferedContracts()
+        public void ContractsDomainFullReplacePreservesCanonicalOfferedRowsOmittedByProducer()
         {
-            var staleOffer = CreateContractSnapshotInfoWithTitle(
+            // Producer reconcile is an upsert, not a wipe. Canonical offered rows whose GUIDs are missing from an
+            // incoming FullReplace payload must be preserved: a reconnecting client whose local stock ContractSystem
+            // has transiently withdrawn offers (expired deadlines at UT jump, per-tier offer caps, controlled refresh
+            // mid-apply) otherwise erases the server-authoritative offer pool. Offers are retired only by explicit
+            // state transitions, never by omission.
+            var canonicalOffer = CreateContractSnapshotInfoWithTitle(
                 Guid.Parse("77777777-7777-7777-7777-777777777771"),
                 "Offered",
                 ContractSnapshotPlacement.Current,
@@ -397,7 +402,7 @@ CONTRACTS
                 "ExplorationContract",
                 "Orbit Kerbin!");
 
-            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(staleOffer, currentActive, currentFinished);
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(canonicalOffer, currentActive, currentFinished);
             var store = new ContractsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
@@ -408,13 +413,50 @@ CONTRACTS
             var result = store.ApplyClientIntent(CreateClient("ContractOwner"), CreateIntent(PersistentSyncDomainId.Contracts, fullReplacePayload, "ContractInventoryFull:Test"));
 
             Assert.IsTrue(result.Accepted);
-            Assert.IsTrue(result.Changed);
 
             var snapshot = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
-            Assert.AreEqual(2, snapshot.Count);
-            Assert.IsFalse(snapshot.Any(c => c.ContractGuid == staleOffer.ContractGuid), "Full replace should prune missing stale offers.");
+            Assert.AreEqual(3, snapshot.Count, "Canonical offered rows must be preserved through a producer FullReplace that omits them.");
+            Assert.IsTrue(snapshot.Any(c => c.ContractGuid == canonicalOffer.ContractGuid), "Offered canonical row must survive an omission-based FullReplace.");
             Assert.IsTrue(snapshot.Any(c => c.ContractGuid == currentActive.ContractGuid));
             Assert.IsTrue(snapshot.Any(c => c.ContractGuid == currentFinished.ContractGuid));
+        }
+
+        [TestMethod]
+        public void ContractsDomainFullReplaceRetiresOfferWhenProducerPublishesForwardTransition()
+        {
+            // Offers are retired by explicit state transition. When the producer publishes a forward transition
+            // (e.g. Offered -> Withdrawn) for a canonical offered row, the incoming record replaces the canonical
+            // row so the retirement is visible in the next broadcast.
+            var canonicalOffer = CreateContractSnapshotInfoWithTitle(
+                Guid.Parse("88888888-8888-8888-8888-888888888881"),
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                0,
+                "SurveyContract",
+                "Conduct a focused observational survey of Kerbin.");
+            var retiredOffer = CreateContractSnapshotInfoWithTitle(
+                canonicalOffer.ContractGuid,
+                "Withdrawn",
+                ContractSnapshotPlacement.Finished,
+                0,
+                "SurveyContract",
+                "Conduct a focused observational survey of Kerbin.");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(canonicalOffer);
+            var store = new ContractsPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var fullReplacePayload = ContractSnapshotPayloadSerializer.Serialize(
+                ContractSnapshotPayloadMode.FullReplace,
+                new[] { retiredOffer });
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
+            var result = store.ApplyClientIntent(CreateClient("ContractOwner"), CreateIntent(PersistentSyncDomainId.Contracts, fullReplacePayload, "ContractInventoryFull:Test"));
+
+            Assert.IsTrue(result.Accepted);
+            var snapshot = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var row = snapshot.SingleOrDefault(c => c.ContractGuid == canonicalOffer.ContractGuid);
+            Assert.IsNotNull(row, "Retired offer must remain in the snapshot as a Finished row.");
+            Assert.AreEqual("Withdrawn", row.ContractState);
         }
 
         [TestMethod]

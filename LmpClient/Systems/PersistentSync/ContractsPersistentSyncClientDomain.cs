@@ -141,24 +141,63 @@ namespace LmpClient.Systems.PersistentSync
         {
             contracts = DedupeContractsByGuidPreserveOrder(contracts);
 
-            foreach (var contract in ContractSystem.Instance.Contracts.ToArray())
+            // Index the live contracts by GUID so we can preserve whichever instances already match the incoming
+            // snapshot state. Re-loading a live Contract through Contract.Load is not idempotent for subclasses
+            // whose OnLoad re-resolves runtime references captured at Accept time — VesselRepairContract resolves
+            // ProtoVessel / ProtoPartSnapshot indices, RecoverAsset / GrandTour / CollectScience hold Kerbal and
+            // Part rosters, etc. A full serialize -> Load round-trip on an Active contract can leave those
+            // indices pointing at a vessel snapshot that no longer matches the live game state, which then trips
+            // Contract.Fail() during the next scene transition (e.g. SPACECENTER -> TRACKSTATION). Preserving
+            // the live instance when its GUID and state already agree with the snapshot keeps stock's in-memory
+            // bindings intact, mirroring how stock itself no-ops when ContractSystem.Load sees an identical row.
+            var liveByGuid = new Dictionary<Guid, Contract>();
+            foreach (var contract in ContractSystem.Instance.Contracts)
             {
-                contract.Unregister();
+                if (contract != null && contract.ContractGuid != Guid.Empty && !liveByGuid.ContainsKey(contract.ContractGuid))
+                {
+                    liveByGuid[contract.ContractGuid] = contract;
+                }
+            }
+            foreach (var contract in ContractSystem.Instance.ContractsFinished)
+            {
+                if (contract != null && contract.ContractGuid != Guid.Empty && !liveByGuid.ContainsKey(contract.ContractGuid))
+                {
+                    liveByGuid[contract.ContractGuid] = contract;
+                }
             }
 
-            foreach (var contract in ContractSystem.Instance.ContractsFinished.ToArray())
-            {
-                contract.Unregister();
-            }
-
-            ContractSystem.Instance.Contracts.Clear();
-            ContractSystem.Instance.ContractsFinished.Clear();
-
+            var incomingGuids = new HashSet<Guid>();
+            var newMain = new List<Contract>();
+            var newFinished = new List<Contract>();
             var wireRows = contracts?.Length ?? 0;
             var materialized = 0;
+            var preserved = 0;
             var skippedNull = 0;
+
             foreach (var contractInfo in contracts ?? Array.Empty<ContractSnapshotInfo>())
             {
+                if (contractInfo == null || contractInfo.ContractGuid == Guid.Empty)
+                {
+                    continue;
+                }
+
+                incomingGuids.Add(contractInfo.ContractGuid);
+
+                if (liveByGuid.TryGetValue(contractInfo.ContractGuid, out var liveContract) &&
+                    TryReuseLiveContract(liveContract, contractInfo, newMain, newFinished))
+                {
+                    preserved++;
+                    continue;
+                }
+
+                // State mismatch or GUID not live: drop the previous live subscription (if any) and re-materialize
+                // from the snapshot so Accept/Decline/Complete/Fail transitions propagate to stock KSP's scorers.
+                if (liveContract != null)
+                {
+                    try { liveContract.Unregister(); }
+                    catch (Exception e) { LunaLog.LogWarning($"[PersistentSync] contract Unregister before re-materialize failed guid={liveContract.ContractGuid}: {e.Message}"); }
+                }
+
                 var contract = DeserializeContract(contractInfo);
                 if (contract == null)
                 {
@@ -172,13 +211,13 @@ namespace LmpClient.Systems.PersistentSync
                 if (ShouldPlaceInContractsFinished(contract))
                 {
                     contract.Unregister();
-                    ContractSystem.Instance.ContractsFinished.Add(contract);
+                    newFinished.Add(contract);
                 }
                 // Active: trust snapshot metadata when Contract.Load still leaves Offered/Available — otherwise MC
                 // lists active contracts under "available" until some unrelated Accept forces a full refresh.
                 else if (IsSnapshotOrRuntimeActive(contract, contractInfo))
                 {
-                    ContractSystem.Instance.Contracts.Add(contract);
+                    newMain.Add(contract);
                     if (NeedsAcceptToRestoreActiveFromSnapshot(contract, contractInfo))
                     {
                         try
@@ -195,7 +234,7 @@ namespace LmpClient.Systems.PersistentSync
                 }
                 else
                 {
-                    ContractSystem.Instance.Contracts.Add(contract);
+                    newMain.Add(contract);
                     try
                     {
                         contract.Register();
@@ -207,11 +246,86 @@ namespace LmpClient.Systems.PersistentSync
                 }
             }
 
-            if (wireRows > 0 && materialized == 0)
+            // Any live contracts whose GUIDs no longer appear in the snapshot must be dropped; the server is the
+            // source of truth for membership and a missing GUID here means the row was retired.
+            foreach (var kv in liveByGuid)
+            {
+                if (incomingGuids.Contains(kv.Key)) continue;
+                try { kv.Value.Unregister(); }
+                catch (Exception e) { LunaLog.LogWarning($"[PersistentSync] contract Unregister for dropped row failed guid={kv.Key}: {e.Message}"); }
+            }
+
+            ContractSystem.Instance.Contracts.Clear();
+            ContractSystem.Instance.ContractsFinished.Clear();
+            foreach (var c in newMain) ContractSystem.Instance.Contracts.Add(c);
+            foreach (var c in newFinished) ContractSystem.Instance.ContractsFinished.Add(c);
+
+            if (wireRows > 0 && materialized == 0 && preserved == 0)
             {
                 LunaLog.LogError(
                     $"[PersistentSync] Contracts snapshot had {wireRows} wire rows but none deserialized into Contract objects " +
                     $"(skippedNull={skippedNull}). First guid={(contracts != null && contracts.Length > 0 ? contracts[0].ContractGuid.ToString() : "n/a")}");
+            }
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> and appends the live instance to the target list if its current runtime state already
+        /// matches the snapshot placement/state. Called during snapshot apply to avoid unnecessary
+        /// <see cref="Contract.Load"/> round-trips that destabilize subclass-specific runtime references.
+        /// </summary>
+        private static bool TryReuseLiveContract(Contract live, ContractSnapshotInfo info, List<Contract> newMain, List<Contract> newFinished)
+        {
+            if (live == null || info == null) return false;
+
+            var snapshotFinished = info.Placement == ContractSnapshotPlacement.Finished ||
+                                   IsSnapshotStateFinishedLike(info.ContractState);
+            if (snapshotFinished)
+            {
+                if (ShouldPlaceInContractsFinished(live))
+                {
+                    live.Unregister();
+                    newFinished.Add(live);
+                    return true;
+                }
+                return false;
+            }
+
+            if (IsSnapshotMarkedActive(info))
+            {
+                if (live.ContractState == Contract.State.Active)
+                {
+                    newMain.Add(live);
+                    return true;
+                }
+                return false;
+            }
+
+            // Snapshot implies Offered-pool placement: keep the live instance only when it is still genuinely offered
+            // and not finished. Any other local state (Active, Completed, Failed, Declined, Withdrawn) is a mismatch
+            // and must go through the re-materialize path so stock's contract state machine stays consistent.
+            if (live.ContractState == Contract.State.Offered && !live.IsFinished())
+            {
+                newMain.Add(live);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsSnapshotStateFinishedLike(string state)
+        {
+            if (string.IsNullOrWhiteSpace(state)) return false;
+            switch (state.Trim().ToLowerInvariant())
+            {
+                case "completed":
+                case "failed":
+                case "cancelled":
+                case "deadlineexpired":
+                case "declined":
+                case "withdrawn":
+                    return true;
+                default:
+                    return false;
             }
         }
 

@@ -181,6 +181,16 @@ namespace LmpClient.Systems.ShareContracts
             _snapshotChangeTracker.Clear();
         }
 
+        /// <summary>
+        /// True if the given contract GUID was included in the most recently-applied server snapshot. Used by
+        /// client-side stock guards (e.g. <see cref="Harmony.Contract_WithdrawPersistentSyncGuard"/>) to tell
+        /// server-known offers apart from locally stock-generated offers the server has not seen yet.
+        /// </summary>
+        public bool IsServerKnownContract(Guid contractGuid)
+        {
+            return _snapshotChangeTracker.IsKnown(contractGuid);
+        }
+
         private static ConfigNode ConvertContractToConfigNode(Contract contract)
         {
             var configNode = new ConfigNode();

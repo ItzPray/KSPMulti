@@ -116,6 +116,18 @@ namespace LmpCommon.PersistentSync
             }
         }
 
+        /// <summary>
+        /// True if the given <paramref name="contractGuid"/> was in the most recently-applied authoritative snapshot
+        /// from the server. Lets client-side stock guards (e.g. <c>Contract.Withdraw</c> Harmony prefix) distinguish
+        /// server-known offers (which must not be unilaterally dropped locally) from locally-generated offers stock
+        /// just minted that the server has not yet seen.
+        /// </summary>
+        public bool IsKnown(Guid contractGuid)
+        {
+            if (contractGuid == Guid.Empty) return false;
+            return _knownByGuid.ContainsKey(contractGuid);
+        }
+
         public ContractSnapshotInfo[] FilterChanged(IEnumerable<ContractSnapshotInfo> contracts)
         {
             var changedContracts = new List<ContractSnapshotInfo>();
