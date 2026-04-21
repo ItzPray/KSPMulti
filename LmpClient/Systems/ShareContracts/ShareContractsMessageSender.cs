@@ -36,7 +36,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            var command = BuildContractCommand(kind, contract.ContractGuid);
+            var command = BuildContractCommand(kind, contract);
             if (command == null)
             {
                 return;
@@ -102,12 +102,22 @@ namespace LmpClient.Systems.ShareContracts
             PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.Serialize(), reason);
         }
 
-        private static ContractCommandIntent BuildContractCommand(ContractIntentPayloadKind kind, Guid contractGuid)
+        private static ContractCommandIntent BuildContractCommand(ContractIntentPayloadKind kind, Contract contract)
         {
+            var contractGuid = contract.ContractGuid;
             switch (kind)
             {
                 case ContractIntentPayloadKind.AcceptContract:
-                    return ContractCommandIntent.Accept(contractGuid);
+                    // Accept must carry the full post-Accept contract record. Stock Contract.Accept() populates
+                    // runtime-only fields (dateAccepted, dateDeadline, subclass-specific targets like
+                    // VesselRepairContract's target vessel) that are absent from the pre-Accept Offered row the
+                    // server already has. If we only send the GUID the server rewrites state=Offered->Active on
+                    // that stale row; when the server echoes the snapshot back, the accepting client's
+                    // re-materialized Contract has dateDeadline=0 and stock Update() instantly flips it to
+                    // DeadlineExpired, paying ContractPenalty and firing ContractFailedObserved back to the
+                    // server. Passing the post-Accept snapshot keeps the canonical row internally consistent
+                    // with the Active state.
+                    return ContractCommandIntent.Accept(contractGuid, TryBuildContractSnapshot(contract));
                 case ContractIntentPayloadKind.DeclineContract:
                     return ContractCommandIntent.Decline(contractGuid);
                 case ContractIntentPayloadKind.CancelContract:
@@ -116,6 +126,17 @@ namespace LmpClient.Systems.ShareContracts
                     LunaLog.LogError($"[PersistentSync] ShareContractsMessageSender.SendContractCommand: unsupported command kind {kind}");
                     return null;
             }
+        }
+
+        private static ContractSnapshotInfo TryBuildContractSnapshot(Contract contract)
+        {
+            if (contract == null)
+            {
+                return null;
+            }
+
+            var snapshots = CreateCanonicalContractSnapshots(new[] { contract });
+            return snapshots.Count > 0 ? snapshots[0] : null;
         }
 
         private static ContractProducerProposal BuildContractProposal(ContractIntentPayloadKind kind, ContractSnapshotInfo contract)

@@ -175,7 +175,15 @@ namespace Server.System.PersistentSync
             switch (intentPayload.Kind)
             {
                 case ContractIntentPayloadKind.AcceptContract:
-                    return ReduceCommandStateRewrite(current, intentPayload.ContractGuid, "Active", ContractSnapshotPlacement.Active, requireOfferPool: true);
+                    // Preferred path: client carries the post-Accept contract record (dateAccepted, dateDeadline,
+                    // subclass runtime fields populated by stock OnAccepted overrides). Using it as the new
+                    // canonical record keeps the server row consistent with Active-state invariants so the echoed
+                    // snapshot does not wipe the accepting client's live Contract into a deadline-expired one.
+                    // Fallback (null snapshot, pre-fix clients): keep the state-only rewrite so the command still
+                    // advances canonical state even though the stored row's runtime fields remain Offered-era.
+                    return intentPayload.Contract != null
+                        ? ReduceAcceptWithProvidedSnapshot(current, intentPayload.ContractGuid, intentPayload.Contract)
+                        : ReduceCommandStateRewrite(current, intentPayload.ContractGuid, "Active", ContractSnapshotPlacement.Active, requireOfferPool: true);
                 case ContractIntentPayloadKind.DeclineContract:
                     return ReduceCommandStateRewrite(current, intentPayload.ContractGuid, "Declined", ContractSnapshotPlacement.Finished, requireOfferPool: true);
                 case ContractIntentPayloadKind.CancelContract:
@@ -207,6 +215,38 @@ namespace Server.System.PersistentSync
 
             var rewritten = RewriteContractState(existing, targetState, placement);
             return ReduceSingleRecord(current, rewritten);
+        }
+
+        /// <summary>
+        /// Reducer for the enriched <see cref="ContractIntentPayloadKind.AcceptContract"/> path where the client
+        /// supplies the full post-Accept contract record alongside the command. The state-machine gate remains the
+        /// same as the legacy rewrite path — the target contract must exist in canonical state and be an
+        /// offer-pool row — but the accepted data is the client-provided snapshot (carrying the post-Accept
+        /// runtime fields) instead of the stale Offered-era bytes that <see cref="RewriteContractState"/> would
+        /// edit. The client cannot downgrade an already-Active or already-Finished row through this path: the
+        /// <see cref="IsOfferPoolContract"/> gate mirrors the Offered -&gt; Active one-way transition invariant
+        /// from <see cref="ReduceFullReplace"/>.
+        /// </summary>
+        private static ReduceResult<Canonical> ReduceAcceptWithProvidedSnapshot(Canonical current, Guid contractGuid, ContractSnapshotInfo providedSnapshot)
+        {
+            if (providedSnapshot == null || providedSnapshot.ContractGuid != contractGuid || contractGuid == Guid.Empty)
+            {
+                return ReduceResult<Canonical>.Reject();
+            }
+
+            if (!current.ContractsByGuid.TryGetValue(contractGuid, out var existing) || !IsOfferPoolContract(existing))
+            {
+                return ReduceResult<Canonical>.Reject();
+            }
+
+            // Force the canonical row into the Active placement/state even if the client's snapshot says otherwise
+            // (e.g. a raced client whose local Contract already ticked to DeadlineExpired before the wire send).
+            // The Accept command is semantically "move this Offered row to Active"; honoring any other state here
+            // would let clients use Accept to smuggle arbitrary state transitions through the offer-pool gate.
+            var normalized = ContractSnapshotInfoComparer.Clone(providedSnapshot);
+            normalized.ContractState = "Active";
+            normalized.Placement = ContractSnapshotPlacement.Active;
+            return ReduceSingleRecord(current, normalized);
         }
 
         private static ReduceResult<Canonical> ReduceOfferGenerationRequest(Canonical current)

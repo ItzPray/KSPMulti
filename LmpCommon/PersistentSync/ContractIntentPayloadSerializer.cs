@@ -41,6 +41,22 @@ namespace LmpCommon.PersistentSync
             });
         }
 
+        /// <summary>
+        /// Variant of <see cref="SerializeCommand(ContractIntentPayloadKind, Guid)"/> that also carries a full
+        /// contract record. Used by <see cref="ContractIntentPayloadKind.AcceptContract"/> so the server receives
+        /// the client's post-Accept runtime fields (dateAccepted, dateDeadline, subclass-specific targets) rather
+        /// than rewriting only the state field on stale Offered-era data.
+        /// </summary>
+        public static byte[] SerializeCommandWithContract(ContractIntentPayloadKind kind, Guid contractGuid, ContractSnapshotInfo contract)
+        {
+            return Serialize(new ContractIntentPayload
+            {
+                Kind = kind,
+                ContractGuid = contractGuid,
+                Contract = ContractSnapshotInfoComparer.Clone(contract)
+            });
+        }
+
         public static byte[] SerializeRequestOfferGeneration()
         {
             return Serialize(new ContractIntentPayload
