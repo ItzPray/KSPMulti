@@ -7,6 +7,7 @@ using LmpClient.Systems.ShareAchievements;
 using LmpClient.Systems.ShareExperimentalParts;
 using LmpClient.Systems.SharePurchaseParts;
 using LmpClient.Systems.ShareScience;
+using LmpClient.Systems.ShareContracts;
 using LmpClient.Systems.ShareScienceSubject;
 using LmpClient.Systems.ShareStrategy;
 using LmpClient.Systems.ShareTechnology;
@@ -137,6 +138,18 @@ namespace LmpClient.Systems.PersistentSync
 
             ShareAchievementsSystem.Singleton.ApplyAchievementSnapshotTree(rootNode, "PersistentSyncSnapshotApply");
             _pendingAchievements = null;
+
+            // Stock's contract generator (RefreshContracts inside Replenish) keys off *local* ProgressTracking.
+            // When another player completes a progression-gated mission first, the server advances Achievements
+            // and Contracts, but snapshot messages often arrive so that this client applies **Contracts** (and
+            // runs ReplenishStockOffersAfterPersistentSnapshotApply) **before** the matching Achievements snapshot
+            // lands. Replenish then sees FirstLaunch still incomplete here — no new OfferObserved rows are minted
+            // for the server, and non-lock-holders already kill any local stock offers in ContractOffered. Everyone
+            // appears "stuck" until this client also completes the mission locally (gameplay fires achievements
+            // before Replenish). Queue a deferred controlled refresh now that achievementTree matches the server.
+            ShareContractsSystem.Singleton?.RequestControlledStockContractRefresh(
+                "PersistentSyncSnapshotApply:AfterAchievementsFlush");
+
             return PersistentSyncApplyOutcome.Applied;
         }
     }

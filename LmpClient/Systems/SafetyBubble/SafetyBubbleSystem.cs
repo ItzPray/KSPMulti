@@ -21,6 +21,14 @@ namespace LmpClient.Systems.SafetyBubble
 
         public SafetyBubbleEvents SafetyBubbleEvents { get; } = new SafetyBubbleEvents();
 
+        /// <summary>
+        /// When <see cref="OnEnabled"/> runs right after the network reports connected, <see cref="PSystemSetup.Instance"/>
+        /// is often still null (stock ordering) or not yet populated (Kopernicus / custom system load). Filling spawn
+        /// lists then throws NRE and spams the log — see KSP.log: SafetyBubbleSystem.FillUpPositions on
+        /// onNetworkStatusChanged. We defer one retry per enable cycle after the level GUI is ready.
+        /// </summary>
+        private bool _deferredFillRegistered;
+
         #endregion
 
         #region Base overrides
@@ -29,12 +37,18 @@ namespace LmpClient.Systems.SafetyBubble
 
         protected override void OnEnabled()
         {
-            FillUpPositions();
+            TryFillUpPositions();
             GameEvents.onFlightReady.Add(SafetyBubbleEvents.FlightReady);
         }
 
         protected override void OnDisabled()
         {
+            if (_deferredFillRegistered)
+            {
+                GameEvents.onLevelWasLoadedGUIReady.Remove(DeferredFillAfterLevelGuiReady);
+                _deferredFillRegistered = false;
+            }
+
             SpawnPoints.Clear();
             GameEvents.onFlightReady.Remove(SafetyBubbleEvents.FlightReady);
         }
@@ -154,29 +168,98 @@ namespace LmpClient.Systems.SafetyBubble
             return null;
         }
 
-        private void FillUpPositions()
+        private void TryFillUpPositions()
         {
-            foreach (var launchsite in PSystemSetup.Instance.SpaceCenterFacilityLaunchSites)
+            if (FillUpPositionsCore())
             {
-                if (!SpawnPoints.ContainsKey(launchsite.hostBody.name))
-                    SpawnPoints.Add(launchsite.hostBody.name, new List<SpawnPointLocation>());
+                return;
+            }
 
-                foreach (var spawnPoint in launchsite.spawnPoints)
+            if (_deferredFillRegistered)
+            {
+                return;
+            }
+
+            GameEvents.onLevelWasLoadedGUIReady.Add(DeferredFillAfterLevelGuiReady);
+            _deferredFillRegistered = true;
+            LunaLog.LogWarning("[LMP]: SafetyBubbleSystem: PSystemSetup not ready yet; will retry spawn list fill after level GUI is ready.");
+        }
+
+        private void DeferredFillAfterLevelGuiReady(GameScenes data)
+        {
+            if (!FillUpPositionsCore())
+            {
+                return;
+            }
+
+            GameEvents.onLevelWasLoadedGUIReady.Remove(DeferredFillAfterLevelGuiReady);
+            _deferredFillRegistered = false;
+        }
+
+        /// <summary>
+        /// Returns true once <see cref="PSystemSetup.Instance"/> exists and iteration completed without aborting early.
+        /// </summary>
+        private bool FillUpPositionsCore()
+        {
+            var setup = PSystemSetup.Instance;
+            if (setup == null)
+            {
+                return false;
+            }
+
+            if (setup.SpaceCenterFacilityLaunchSites != null)
+            {
+                foreach (var launchsite in setup.SpaceCenterFacilityLaunchSites)
                 {
-                    SpawnPoints[launchsite.hostBody.name].Add(new SpawnPointLocation(spawnPoint, launchsite.hostBody));
+                    if (launchsite?.hostBody == null || launchsite.spawnPoints == null)
+                    {
+                        continue;
+                    }
+
+                    if (!SpawnPoints.ContainsKey(launchsite.hostBody.name))
+                    {
+                        SpawnPoints.Add(launchsite.hostBody.name, new List<SpawnPointLocation>());
+                    }
+
+                    foreach (var spawnPoint in launchsite.spawnPoints)
+                    {
+                        if (spawnPoint == null)
+                        {
+                            continue;
+                        }
+
+                        SpawnPoints[launchsite.hostBody.name].Add(new SpawnPointLocation(spawnPoint, launchsite.hostBody));
+                    }
                 }
             }
 
-            foreach (var launchsite in PSystemSetup.Instance.StockLaunchSites)
+            if (setup.StockLaunchSites != null)
             {
-                if (!SpawnPoints.ContainsKey(launchsite.Body.name))
-                    SpawnPoints.Add(launchsite.Body.name, new List<SpawnPointLocation>());
-
-                foreach (var spawnPoint in launchsite.spawnPoints)
+                foreach (var launchsite in setup.StockLaunchSites)
                 {
-                    SpawnPoints[launchsite.Body.name].Add(new SpawnPointLocation(spawnPoint, launchsite.Body));
+                    if (launchsite?.Body == null || launchsite.spawnPoints == null)
+                    {
+                        continue;
+                    }
+
+                    if (!SpawnPoints.ContainsKey(launchsite.Body.name))
+                    {
+                        SpawnPoints.Add(launchsite.Body.name, new List<SpawnPointLocation>());
+                    }
+
+                    foreach (var spawnPoint in launchsite.spawnPoints)
+                    {
+                        if (spawnPoint == null)
+                        {
+                            continue;
+                        }
+
+                        SpawnPoints[launchsite.Body.name].Add(new SpawnPointLocation(spawnPoint, launchsite.Body));
+                    }
                 }
             }
+
+            return true;
         }
 
         private bool IsInSafetyBubble(double lat, double lon, double alt, int bodyIndex)
