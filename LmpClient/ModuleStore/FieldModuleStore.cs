@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Xml;
 using UnityEngine;
 
 namespace LmpClient.ModuleStore
@@ -39,9 +40,46 @@ namespace LmpClient.ModuleStore
         {
             var moduleValues = new List<ModuleDefinition>();
 
+            if (!Directory.Exists(CustomPartSyncFolder))
+            {
+                LunaLog.LogWarning($"[LMP]: PartSync folder missing; skipping module customizations: {CustomPartSyncFolder}");
+                CustomizedModuleBehaviours = new Dictionary<string, ModuleDefinition>();
+                return;
+            }
+
             foreach (var file in Directory.GetFiles(CustomPartSyncFolder, "*.xml", SearchOption.AllDirectories))
             {
-                var moduleDefinition = LunaXmlSerializer.ReadXmlFromPath<ModuleDefinition>(file);
+                // Ship layout is GameData/LunaMultiplayer/PartSync/<ModName>/*.xml (see BuildOnly / ModuleStore/XML).
+                // Some installs accidentally copy UI localization trees under PartSync (e.g. PartSync/Localization/...).
+                // Those files are not ModuleDefinition XML and must never be fed to the PartSync deserializer.
+                if (IsNonPartSyncCustomizationPath(file))
+                {
+                    continue;
+                }
+
+                if (!LooksLikeModuleDefinitionXml(file))
+                {
+                    LunaLog.LogWarning(
+                        $"[LMP]: Skipping non-PartSync XML under PartSync (expected root <ModuleDefinition>): {file}");
+                    continue;
+                }
+
+                ModuleDefinition moduleDefinition;
+                try
+                {
+                    moduleDefinition = LunaXmlSerializer.ReadXmlFromPath<ModuleDefinition>(file);
+                }
+                catch (Exception ex)
+                {
+                    LunaLog.LogWarning($"[LMP]: Skipping unreadable PartSync XML {file}: {ex.Message}");
+                    continue;
+                }
+
+                if (moduleDefinition == null)
+                {
+                    continue;
+                }
+
                 moduleDefinition.ModuleName = Path.GetFileNameWithoutExtension(file);
 
                 moduleValues.Add(moduleDefinition);
@@ -68,6 +106,55 @@ namespace LmpClient.ModuleStore
 
             foreach (var module in CustomizedModuleBehaviours.Values)
                 module.Init();
+        }
+
+        private static bool IsNonPartSyncCustomizationPath(string fullPath)
+        {
+            if (string.IsNullOrEmpty(fullPath))
+            {
+                return true;
+            }
+
+            // Normalized separators so we catch both Windows and odd mixes.
+            var normalized = fullPath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            foreach (var segment in new[] { $"{Path.DirectorySeparatorChar}Localization{Path.DirectorySeparatorChar}" })
+            {
+                if (normalized.IndexOf(segment, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Cheap root-element probe so we never deserialize unrelated XML (localization, hand-edited junk)
+        /// as <see cref="ModuleDefinition"/>.
+        /// </summary>
+        private static bool LooksLikeModuleDefinitionXml(string path)
+        {
+            try
+            {
+                using (var reader = XmlReader.Create(path, new XmlReaderSettings { CloseInput = true }))
+                {
+                    while (reader.Read())
+                    {
+                        if (reader.NodeType != XmlNodeType.Element)
+                        {
+                            continue;
+                        }
+
+                        return string.Equals(reader.LocalName, "ModuleDefinition", StringComparison.Ordinal);
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
         }
 
         /// <summary>

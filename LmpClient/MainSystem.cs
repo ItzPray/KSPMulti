@@ -580,11 +580,26 @@ namespace LmpClient
         private static void FixBindingRedirects()
         {
             var bindingRedirects = (Dictionary<string, Assembly>)typeof(AssemblyLoader).GetField("bindingRedirect", AccessTools.all)?.GetValue(null);
-            if (bindingRedirects != null)
+            if (bindingRedirects == null)
             {
-                bindingRedirects.Add("LmpClient.XmlSerializers, Culture=neutral, PublicKeyToken=null", Assembly.Load("System.Xml"));
-                bindingRedirects.Add("LmpCommon.XmlSerializers, Culture=neutral, PublicKeyToken=null", Assembly.Load("System.Xml"));
+                return;
             }
+
+            // KSP can invoke this addon's Awake more than once across load/retry paths; the dictionary is shared
+            // process-wide, so unconditional Add throws ArgumentException on the second pass.
+            void EnsureRedirect(string assemblyName, Assembly target)
+            {
+                if (bindingRedirects.ContainsKey(assemblyName))
+                {
+                    return;
+                }
+
+                bindingRedirects.Add(assemblyName, target);
+            }
+
+            var systemXml = Assembly.Load("System.Xml");
+            EnsureRedirect("LmpClient.XmlSerializers, Culture=neutral, PublicKeyToken=null", systemXml);
+            EnsureRedirect("LmpCommon.XmlSerializers, Culture=neutral, PublicKeyToken=null", systemXml);
         }
 
         #endregion
