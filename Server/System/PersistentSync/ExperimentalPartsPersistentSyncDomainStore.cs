@@ -2,6 +2,7 @@ using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
+using Server.Log;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -32,19 +33,44 @@ namespace Server.System.PersistentSync
                 return new Canonical(map);
             }
 
-            var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
-            if (expPartsNode == null)
+            // GetNode("ExpParts") throws if multiple siblings share that name (hand-merged saves, legacy writes).
+            // Merge all ExpParts blocks into one canonical map; WriteCanonical will collapse to a single node.
+            var expPartsNodes = scenario.GetNodes(ExpPartsNodeName);
+            if (expPartsNodes == null || expPartsNodes.Count == 0)
             {
                 return new Canonical(map);
             }
 
-            foreach (var value in expPartsNode.GetAllValues())
+            if (expPartsNodes.Count > 1)
             {
-                if (int.TryParse(value.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) && count > 0)
+                LunaLog.Warning(
+                    $"[PersistentSync] ExperimentalParts: ResearchAndDevelopment has {expPartsNodes.Count} duplicate " +
+                    $"'{ExpPartsNodeName}' nodes; merging counts (max per part) and will collapse on next save.");
+            }
+
+            foreach (var wrapper in expPartsNodes)
+            {
+                var expPartsNode = wrapper.Value;
+                if (expPartsNode == null) continue;
+
+                foreach (var value in expPartsNode.GetAllValues())
                 {
-                    map[value.Key] = count;
+                    if (!int.TryParse(value.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) || count <= 0)
+                    {
+                        continue;
+                    }
+
+                    if (map.TryGetValue(value.Key, out var existing))
+                    {
+                        map[value.Key] = Math.Max(existing, count);
+                    }
+                    else
+                    {
+                        map[value.Key] = count;
+                    }
                 }
             }
+
             return new Canonical(map);
         }
 
@@ -69,26 +95,15 @@ namespace Server.System.PersistentSync
 
         protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
         {
-            var expPartsNode = scenario.GetNode(ExpPartsNodeName)?.Value;
+            RemoveAllExpPartsNodes(scenario);
+
             if (canonical.Counts.Count == 0)
             {
-                if (expPartsNode != null)
-                {
-                    scenario.RemoveNode(expPartsNode);
-                }
                 return scenario;
             }
 
-            if (expPartsNode == null)
-            {
-                expPartsNode = new ConfigNode(ExpPartsNodeName, scenario);
-                scenario.AddNode(expPartsNode);
-            }
-
-            foreach (var existingValue in expPartsNode.GetAllValues().ToArray())
-            {
-                expPartsNode.RemoveValue(existingValue.Key);
-            }
+            var expPartsNode = new ConfigNode(ExpPartsNodeName, scenario);
+            scenario.AddNode(expPartsNode);
 
             foreach (var value in canonical.Counts)
             {
@@ -96,6 +111,23 @@ namespace Server.System.PersistentSync
             }
 
             return scenario;
+        }
+
+        /// <summary>
+        /// Removes every top-level ExpParts node. Required when duplicates exist because <see cref="ConfigNode.GetNode"/> is single-key.
+        /// </summary>
+        private static void RemoveAllExpPartsNodes(ConfigNode scenario)
+        {
+            var nodes = scenario.GetNodes(ExpPartsNodeName);
+            if (nodes == null || nodes.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var node in nodes.Select(w => w.Value).Where(v => v != null).ToList())
+            {
+                scenario.RemoveNode(node);
+            }
         }
 
         protected override byte[] SerializeSnapshot(Canonical canonical)
