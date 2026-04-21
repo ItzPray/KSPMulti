@@ -60,6 +60,13 @@ namespace LmpClient.Systems.ShareContracts
         private Coroutine _pendingReplenishAfterOnLoadCoroutine;
 
         /// <summary>
+        /// Defers the PersistentSync Accept intent until <see cref="ShareContractsMessageSender.SerializationShowsActiveFutureDeadline"/>
+        /// passes so we never publish a post-Accept snapshot with <c>dateDeadline=0</c> (server fallback would echo
+        /// it and stock expires the mission immediately).
+        /// </summary>
+        private Coroutine _acceptContractWireCoroutine;
+
+        /// <summary>
         /// Most recent <c>source</c> that requested a deferred Replenish pass. The deferred coroutine
         /// forwards this string when it finally runs so the log trail shows the original caller (e.g.
         /// LevelLoaded:PostTransientPreUi) rather than the coroutine itself.
@@ -234,6 +241,12 @@ namespace LmpClient.Systems.ShareContracts
             }
             _pendingReplenishAfterOnLoadSource = null;
 
+            if (_acceptContractWireCoroutine != null && MainSystem.Singleton != null)
+            {
+                MainSystem.Singleton.StopCoroutine(_acceptContractWireCoroutine);
+                _acceptContractWireCoroutine = null;
+            }
+
             base.OnDisabled();
 
             ContractSystem.generateContractIterations = DefaultContractGenerateIterations;
@@ -255,6 +268,84 @@ namespace LmpClient.Systems.ShareContracts
             GameEvents.Contract.onParameterChange.Remove(ShareContractsEvents.ContractParameterChanged);
             GameEvents.Contract.onRead.Remove(ShareContractsEvents.ContractRead);
             GameEvents.Contract.onSeen.Remove(ShareContractsEvents.ContractSeen);
+        }
+
+        /// <summary>
+        /// Waits until <see cref="ShareContractsMessageSender.SerializationShowsActiveFutureDeadline"/> succeeds, then
+        /// sends the PersistentSync Accept intent. Avoids echoing Active contracts whose serialized <c>dateDeadline</c>
+        /// is still zero (repair / attach satellite templates are especially sensitive).
+        /// </summary>
+        public void EnqueueAcceptContractWireIntent(Contract contract)
+        {
+            if (contract == null || MainSystem.Singleton == null)
+            {
+                return;
+            }
+
+            if (_acceptContractWireCoroutine != null)
+            {
+                MainSystem.Singleton.StopCoroutine(_acceptContractWireCoroutine);
+                _acceptContractWireCoroutine = null;
+            }
+
+            var guid = contract.ContractGuid;
+            var reason = $"ContractCommand:Accept:{guid:N}";
+            _acceptContractWireCoroutine = MainSystem.Singleton.StartCoroutine(AcceptContractWireIntentCoroutine(guid, reason));
+        }
+
+        private IEnumerator AcceptContractWireIntentCoroutine(Guid contractGuid, string reason)
+        {
+            const int maxAttempts = 24;
+
+            ShareContractsSystem.LogMcUiContractInventory($"Contract.onAccepted:wireWait guid={contractGuid}");
+
+            for (var attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    yield return null;
+                }
+
+                var live = ContractSystem.Instance?.Contracts?.FirstOrDefault(c => c != null && c.ContractGuid == contractGuid);
+                if (live == null)
+                {
+                    LunaLog.LogWarning($"[PersistentSync] Accept wire aborted: contract {contractGuid} not in main list.");
+                    _acceptContractWireCoroutine = null;
+                    yield break;
+                }
+
+                if (live.ContractState != Contract.State.Active)
+                {
+                    LunaLog.LogWarning(
+                        $"[PersistentSync] Accept wire aborted: contract {contractGuid} is state={live.ContractState} (expected Active).");
+                    _acceptContractWireCoroutine = null;
+                    yield break;
+                }
+
+                if (ShareContractsMessageSender.SerializationShowsActiveFutureDeadline(live))
+                {
+                    MessageSender.SendContractCommand(ContractIntentPayloadKind.AcceptContract, live, reason);
+                    LunaLog.Log($"Contract accept intent sent (after {attempt + 1} frame(s)): {contractGuid}");
+                    _acceptContractWireCoroutine = null;
+                    yield break;
+                }
+            }
+
+            var fallback = ContractSystem.Instance?.Contracts?.FirstOrDefault(c => c != null && c.ContractGuid == contractGuid);
+            if (fallback != null && fallback.ContractState == Contract.State.Active)
+            {
+                LunaLog.LogError(
+                    $"[PersistentSync] Accept wire: deadline serialization still unhealthy after {maxAttempts} frame(s); " +
+                    $"sending best-effort snapshot guid={contractGuid} title={fallback.Title}");
+                MessageSender.SendContractCommand(ContractIntentPayloadKind.AcceptContract, fallback, reason);
+            }
+            else
+            {
+                LunaLog.LogError(
+                    $"[PersistentSync] Accept wire exhausted without healthy deadline; no Accept command sent guid={contractGuid}.");
+            }
+
+            _acceptContractWireCoroutine = null;
         }
 
         /// <summary>

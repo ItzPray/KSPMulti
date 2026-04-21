@@ -9,6 +9,7 @@ using LmpCommon.Message.Interface;
 using LmpCommon.PersistentSync;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace LmpClient.Systems.ShareContracts
@@ -102,6 +103,42 @@ namespace LmpClient.Systems.ShareContracts
             PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.Serialize(), reason);
         }
 
+        /// <summary>
+        /// Stock sometimes fires <c>Contract.onAccepted</c> before every post-Accept field is written to the
+        /// contract's serialization view (deadline / repair targets). If we snapshot too early, the wire record
+        /// carries <c>dateDeadline=0</c>; the server echoes it and stock treats the mission as already expired.
+        /// </summary>
+        public static bool SerializationShowsActiveFutureDeadline(Contract contract)
+        {
+            if (contract == null || contract.ContractState != Contract.State.Active)
+            {
+                return false;
+            }
+
+            var node = new ConfigNode();
+            try
+            {
+                contract.Save(node);
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogWarning($"[PersistentSync] Accept snapshot probe: Contract.Save failed guid={contract.ContractGuid}: {e.Message}");
+                return false;
+            }
+
+            if (!node.HasValue("dateDeadline"))
+            {
+                return false;
+            }
+
+            if (!double.TryParse(node.GetValue("dateDeadline"), NumberStyles.Float, CultureInfo.InvariantCulture, out var deadlineUt))
+            {
+                return false;
+            }
+
+            return deadlineUt > Planetarium.GetUniversalTime() + 5.0;
+        }
+
         private static ContractCommandIntent BuildContractCommand(ContractIntentPayloadKind kind, Contract contract)
         {
             var contractGuid = contract.ContractGuid;
@@ -117,7 +154,16 @@ namespace LmpClient.Systems.ShareContracts
                     // DeadlineExpired, paying ContractPenalty and firing ContractFailedObserved back to the
                     // server. Passing the post-Accept snapshot keeps the canonical row internally consistent
                     // with the Active state.
-                    return ContractCommandIntent.Accept(contractGuid, TryBuildContractSnapshot(contract));
+                    var snapshot = TryBuildContractSnapshot(contract);
+                    if (snapshot == null)
+                    {
+                        LunaLog.LogError(
+                            $"[PersistentSync] Accept command has no serializable contract snapshot (guid={contractGuid}). " +
+                            "Server will fall back to state-only Active rewrite — deadlines may be wrong. Title=" +
+                            contract.Title);
+                    }
+
+                    return ContractCommandIntent.Accept(contractGuid, snapshot);
                 case ContractIntentPayloadKind.DeclineContract:
                     return ContractCommandIntent.Decline(contractGuid);
                 case ContractIntentPayloadKind.CancelContract:

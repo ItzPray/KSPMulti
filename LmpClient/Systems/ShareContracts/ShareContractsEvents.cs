@@ -57,13 +57,11 @@ namespace LmpClient.Systems.ShareContracts
         {
             if (System.IgnoreEvents) return;
 
-            ShareContractsSystem.LogMcUiContractInventory($"Contract.onAccepted:beforeSend guid={contract?.ContractGuid}");
-            System.MessageSender.SendContractCommand(
-                ContractIntentPayloadKind.AcceptContract,
-                contract,
-                $"ContractCommand:Accept:{contract?.ContractGuid:N}");
-            LunaLog.Log($"Contract accepted: {contract.ContractGuid}");
-            ShareContractsSystem.LogMcUiContractInventory($"Contract.onAccepted:afterSend guid={contract.ContractGuid}");
+            ShareContractsSystem.LogMcUiContractInventory($"Contract.onAccepted:beforeWire guid={contract?.ContractGuid}");
+            // Do not call SendContractCommand synchronously: stock can fire onAccepted before dateDeadline is
+            // present in Contract.Save output; the server then stores Active+zero deadline and clients see instant expiry.
+            System.EnqueueAcceptContractWireIntent(contract);
+            ShareContractsSystem.LogMcUiContractInventory($"Contract.onAccepted:afterSchedule guid={contract.ContractGuid}");
         }
 
         public void ContractCancelled(Contract contract)
