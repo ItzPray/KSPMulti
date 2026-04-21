@@ -75,6 +75,17 @@ namespace LmpClient.Systems.VesselImmortalSys
         {
             if (vessel == null) return;
 
+            // Another player is flying this vessel — always treat it as remote for physics, even when
+            // UpdateLockExists is false locally (handoff gap or lock list ordering). Otherwise the
+            // "!UpdateLockExists" branch marks the vessel as "ours" (mortal), FlightIntegrator runs,
+            // and orbit/interpolation diverge so targeting / name-distance HUD no longer lines up.
+            if (LockSystem.LockQuery.ControlLockExists(vessel.id) &&
+                !LockSystem.LockQuery.ControlLockBelongsToPlayer(vessel.id, SettingsSystem.CurrentSettings.PlayerName))
+            {
+                vessel.SetImmortal(true);
+                return;
+            }
+
             var isOurs = LockSystem.LockQuery.ControlLockBelongsToPlayer(vessel.id, SettingsSystem.CurrentSettings.PlayerName) ||
                          LockSystem.LockQuery.UpdateLockBelongsToPlayer(vessel.id, SettingsSystem.CurrentSettings.PlayerName) ||
                          !LockSystem.LockQuery.UpdateLockExists(vessel.id);
