@@ -191,6 +191,18 @@ namespace LmpClient.Systems.ShareContracts
             return _snapshotChangeTracker.IsKnown(contractGuid);
         }
 
+        /// <summary>
+        /// True once any server snapshot has populated the known-contract tracker, even if the global
+        /// <c>PersistentSyncReconciler.MarkApplied</c> flip hasn't fired yet. The tracker is seeded at the
+        /// very start of <c>ContractsPersistentSyncClientDomain.ReplaceContractsFromSnapshot</c> (before any
+        /// stock mutation can run), so it is the earliest reliable authority signal for client-side guards
+        /// that need to suppress stock list mutations during the apply window itself.
+        /// </summary>
+        public bool HasAnyServerKnownContracts()
+        {
+            return _snapshotChangeTracker.KnownCount > 0;
+        }
+
         private static ConfigNode ConvertContractToConfigNode(Contract contract)
         {
             var configNode = new ConfigNode();

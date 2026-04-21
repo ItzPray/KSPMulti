@@ -41,7 +41,20 @@ namespace LmpClient.Harmony
             }
 
             var share = ShareContractsSystem.Singleton;
-            if (share == null || !share.Enabled || !share.IsPersistentSyncAuthoritativeForContracts())
+            if (share == null || !share.Enabled)
+            {
+                return true;
+            }
+
+            // Activate as soon as the tracker has any server-known contracts. IsPersistentSyncAuthoritativeForContracts
+            // reads Reconciler.State.HasInitialSnapshot, which only flips true after MarkApplied fires — but the
+            // tracker is populated at the very start of ReplaceContractsFromSnapshot, and stock RefreshContracts
+            // (which calls WithdrawSurplusContracts) can execute between those moments, pruning the freshly
+            // materialized server-authoritative offer pool down to local tier caps in that window. Tracker presence
+            // is strictly a subset of HasInitialSnapshot once both are true, so this only WIDENS the guard window.
+            var sender = share.MessageSender;
+            var trackerActive = sender != null && sender.HasAnyServerKnownContracts();
+            if (!trackerActive && !share.IsPersistentSyncAuthoritativeForContracts())
             {
                 return true;
             }

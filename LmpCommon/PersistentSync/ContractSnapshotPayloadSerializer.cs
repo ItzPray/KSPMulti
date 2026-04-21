@@ -96,6 +96,8 @@ namespace LmpCommon.PersistentSync
     {
         private readonly Dictionary<Guid, ContractSnapshotInfo> _knownByGuid = new Dictionary<Guid, ContractSnapshotInfo>();
 
+        public int KnownCount => _knownByGuid.Count;
+
         public void Clear()
         {
             _knownByGuid.Clear();
