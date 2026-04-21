@@ -98,8 +98,17 @@ namespace LmpClient.Systems.PersistentSync
                 // top of synced offers (duplicate "completed" starters in Available + truncated list until Accept).
                 ShareContractsSystem.Singleton.CancelPendingControlledStockContractRefresh("PersistentSyncSnapshotApply:PreReplace");
 
-                ReplaceContractsFromSnapshot(_pendingContracts);
+                // Seed the server-known contract tracker BEFORE materializing contracts. ReplaceContractsFromSnapshot
+                // calls Contract.Load which — together with the stock Contract.Update sweep that follows the apply —
+                // can invoke Contract.Withdraw for any offered row whose dateExpire is behind the current UT. UT jumps
+                // forward after reconnect, so every snapshot-materialized offer satisfies that predicate. The
+                // Contract.Withdraw Harmony guard keys its suppression decision off the tracker (a tracked GUID means
+                // the server holds the authoritative row), so the tracker must already contain the incoming GUIDs by
+                // the time any withdraw fires. Order-dependent: move this line after ReplaceContractsFromSnapshot and
+                // the guard no-ops for a few frames, allowing stock to prune the offer pool down to only rows whose
+                // dateExpire happens to still be ahead of UT.
                 ShareContractsSystem.Singleton.MessageSender.ResetKnownContractSnapshots(_pendingContracts);
+                ReplaceContractsFromSnapshot(_pendingContracts);
                 // Stock RefreshContracts reloads from HighLogic.CurrentGame.scenarios ContractSystem proto. We mutate
                 // ContractSystem.Instance lists only — without mirroring here, a later RefreshContracts (subspace lock,
                 // Mission Control, etc.) rebuilds from stale proto and wipes offers while keeping ContractsFinished.

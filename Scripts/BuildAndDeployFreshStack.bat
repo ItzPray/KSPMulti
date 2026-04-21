@@ -53,6 +53,18 @@ if not defined LMPTESTDEPLOYPATH (
   set "LMPTESTDEPLOYPATH=C:\LMPServer-test"
 )
 
+REM CLEANOFFEREDONRESET: when "true", strip every Offered CONTRACT block out of
+REM Universe_Backup\Scenarios\ContractSystem.txt BEFORE the live Universe is
+REM rebuilt from it. This prevents a stale offered pool (captured into the
+REM backup during a past session) from flooding clients on reconnect. Active
+REM contracts and all non-CONTRACT data are preserved.
+REM
+REM Default: true. Set CLEANOFFEREDONRESET=false in SetDirectories.bat (or
+REM the shell) to keep the backup as-is.
+if not defined CLEANOFFEREDONRESET (
+  set "CLEANOFFEREDONRESET=true"
+)
+
 set "BUILD_ROOT=%REPOROOT%\Build\%SOLUTIONCONFIGURATION%"
 set "CLIENT_OUT=%BUILD_ROOT%\Client"
 set "SERVER_OUT=%BUILD_ROOT%\Server"
@@ -145,6 +157,23 @@ if not exist "%LMPTESTDEPLOYPATH%\Universe_Backup\" (
     echo snapshot under "%LMPTESTDEPLOYPATH%\Universe_Backup\" and re-run.
     exit /b 1
   )
+)
+
+REM Optionally strip stale offered contracts from the backup before we use it
+REM as the reset source. See CLEANOFFEREDONRESET comment above for rationale.
+if /I "%CLEANOFFEREDONRESET%"=="true" (
+  if exist "%LMPTESTDEPLOYPATH%\Universe_Backup\Scenarios\ContractSystem.txt" (
+    echo Stripping stale Offered contracts from Universe_Backup ^(CLEANOFFEREDONRESET=true^)
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0CleanContractsInUniverseBackup.ps1" -Path "%LMPTESTDEPLOYPATH%\Universe_Backup\Scenarios\ContractSystem.txt" -NoBackup
+    if errorlevel 1 (
+      echo ERROR: CleanContractsInUniverseBackup.ps1 failed.
+      exit /b 1
+    )
+  ) else (
+    echo CLEANOFFEREDONRESET=true but ContractSystem.txt not found under Universe_Backup; skipping.
+  )
+) else (
+  echo Skipping offered-contract strip ^(CLEANOFFEREDONRESET=%CLEANOFFEREDONRESET%^).
 )
 
 REM Reset the live Universe folder from Universe_Backup so every run starts fresh.
