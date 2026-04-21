@@ -75,8 +75,11 @@ namespace Server.Settings.Definition
         [XmlComment(Value = "Terrain quality. All clients will need to have this setting in their KSP to avoid terrain differences. Values: Low, Default, High, Ignore. Using 'Ignore' might create bugs")]
         public TerrainQuality TerrainQuality { get; set; } = TerrainQuality.High;
 
-        [XmlComment(Value = "Specify the minimum distance in which vessels can interact with eachother at the launch pad and runway")]
-        public float SafetyBubbleDistance { get; set; } = 100.0f;
+        [XmlComment(Value = "Radius (meters) around each registered launch/runway spawn point where OTHER players' vessels " +
+                            "skip Vessel.Load (invisible on pad). 0 = disabled so everyone sees each other on the pad, " +
+                            "including multi-launch-pad mods that register sites in PSystemSetup. Older LMP default was 100m; " +
+                            "raise only if you need pad isolation.")]
+        public float SafetyBubbleDistance { get; set; } = 0.0f;
 
         [XmlComment(Value = "Max number of parts that a vessel can have when spawning")]
         public int MaxVesselParts { get; set; } = 200;

@@ -1,5 +1,7 @@
 ﻿using HarmonyLib;
 using LmpClient.Systems.SafetyBubble;
+using LmpClient.Systems.SettingsSys;
+using LmpCommon.Enums;
 
 // ReSharper disable All
 
@@ -15,6 +17,16 @@ namespace LmpClient.Harmony
         [HarmonyPrefix]
         private static bool PrefixLoad(Vessel __instance)
         {
+            if (MainSystem.NetworkState < ClientState.Connected)
+            {
+                return true;
+            }
+
+            if (SettingsSystem.ServerSettings.SafetyBubbleDistance <= 0)
+            {
+                return true;
+            }
+
             if (FlightGlobals.ActiveVessel != null && FlightGlobals.ActiveVessel.loaded && FlightGlobals.ActiveVessel.id != __instance.id)
             {
                 return !SafetyBubbleSystem.Singleton.IsInSafetyBubble(__instance);

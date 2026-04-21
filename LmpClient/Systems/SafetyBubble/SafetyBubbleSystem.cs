@@ -79,8 +79,11 @@ namespace LmpClient.Systems.SafetyBubble
         /// </summary>
         public bool IsInSafetyBubble(ProtoVessel protoVessel)
         {
+            if (SettingsSystem.ServerSettings.SafetyBubbleDistance <= 0)
+                return false;
+
             if (protoVessel == null)
-                return true;
+                return false;
 
             if (protoVessel.orbitSnapShot != null)
                 return IsInSafetyBubble(protoVessel.latitude, protoVessel.longitude, protoVessel.altitude, protoVessel.orbitSnapShot.ReferenceBodyIndex);
@@ -207,6 +210,8 @@ namespace LmpClient.Systems.SafetyBubble
                 return false;
             }
 
+            // Stock + mods: extra launch pads that register with PSystemSetup appear here and in StockLaunchSites,
+            // so bubble checks stay aligned with actual spawn geometry when SafetyBubbleDistance is positive.
             if (setup.SpaceCenterFacilityLaunchSites != null)
             {
                 foreach (var launchsite in setup.SpaceCenterFacilityLaunchSites)

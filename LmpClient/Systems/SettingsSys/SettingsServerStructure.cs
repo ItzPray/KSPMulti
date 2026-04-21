@@ -18,7 +18,7 @@ namespace LmpClient.Systems.SettingsSys
         public int MaxNumberOfComets { get; set; }
         public string ConsoleIdentifier { get; set; } = "";
         public GameDifficulty GameDifficulty { get; set; }
-        public float SafetyBubbleDistance { get; set; } = 100f;
+        public float SafetyBubbleDistance { get; set; } = 0f;
         public int MaxVesselParts { get; set; }
         public int VesselUpdatesMsInterval { get; set; }
         public int SecondaryVesselUpdatesMsInterval { get; set; }
