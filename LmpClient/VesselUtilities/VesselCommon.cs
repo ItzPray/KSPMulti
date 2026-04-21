@@ -115,6 +115,16 @@ namespace LmpClient.VesselUtilities
             if (LockSystem.LockQuery.ControlLockBelongsToPlayer(vesselId, SettingsSystem.CurrentSettings.PlayerName))
                 return false;
 
+            //Another player is flying this vessel — always apply their streamed state. Without this, the first
+            //client in the session can win the VesselLoaded update-lock race and then ignore all position/flight
+            //messages for that vessel because UpdateLockBelongsToPlayer stays true locally until the server
+            //hands the lock to the pilot (or forever if messages reorder).
+            if (LockSystem.LockQuery.ControlLockExists(vesselId) &&
+                !LockSystem.LockQuery.ControlLockBelongsToPlayer(vesselId, SettingsSystem.CurrentSettings.PlayerName))
+            {
+                return true;
+            }
+
             //Ignore vessel updates for our own updated vessels
             if (LockSystem.LockQuery.UpdateLockBelongsToPlayer(vesselId, SettingsSystem.CurrentSettings.PlayerName))
                 return false;
@@ -134,7 +144,11 @@ namespace LmpClient.VesselUtilities
             //We don't need to check if vessel is in safety bubble as the update locks are updated accordingly
             return LockSystem.LockQuery.GetAllUpdateLocks(SettingsSystem.CurrentSettings.PlayerName)
                 .Select(l => FlightGlobals.VesselsLoaded.FirstOrDefault(v => v && v.id == l.VesselId))
-                .Where(v => v && (FlightGlobals.ActiveVessel == null || v != FlightGlobals.ActiveVessel));
+                .Where(v => v && (FlightGlobals.ActiveVessel == null || v != FlightGlobals.ActiveVessel))
+                // Do not send secondary physics for vessels another player is piloting — only they should stream
+                // from ActiveVessel; otherwise we fight their lock state and spam wrong positions.
+                .Where(v => !LockSystem.LockQuery.ControlLockExists(v.id) ||
+                            LockSystem.LockQuery.ControlLockBelongsToPlayer(v.id, SettingsSystem.CurrentSettings.PlayerName));
         }
 
         /// <summary>

@@ -3,6 +3,7 @@ using LmpClient.Systems.Lock;
 using LmpClient.Systems.SettingsSys;
 using LmpClient.VesselUtilities;
 using LmpCommon.Locks;
+using System;
 
 namespace LmpClient.Systems.VesselLockSys
 {
@@ -76,10 +77,20 @@ namespace LmpClient.Systems.VesselLockSys
         /// </summary>
         public void VesselLoaded(Vessel vessel)
         {
-            if (!LockSystem.LockQuery.UpdateLockExists(vessel.id) && !VesselCommon.IsSpectating)
+            if (LockSystem.LockQuery.UpdateLockExists(vessel.id) || VesselCommon.IsSpectating)
+                return;
+
+            // If the pilot already has control, do not request the update lock. Otherwise the first client in the
+            // session often wins VesselLoaded before the pilot's control lock arrives locally and then ignores the
+            // pilot's position stream (DoVesselChecks treats "our" update lock as authoritative).
+            var controlOwner = LockSystem.LockQuery.GetControlLockOwner(vessel.id);
+            if (!string.IsNullOrEmpty(controlOwner) &&
+                !string.Equals(controlOwner, SettingsSystem.CurrentSettings.PlayerName, StringComparison.Ordinal))
             {
-                LockSystem.Singleton.AcquireUpdateLock(vessel.id);
+                return;
             }
+
+            LockSystem.Singleton.AcquireUpdateLock(vessel.id);
         }
 
         /// <summary>
