@@ -76,9 +76,8 @@ namespace Server.Settings.Definition
         public TerrainQuality TerrainQuality { get; set; } = TerrainQuality.High;
 
         [XmlComment(Value = "Radius (meters) around each registered launch/runway spawn point where OTHER players' vessels " +
-                            "skip Vessel.Load (invisible on pad). 0 = disabled so everyone sees each other on the pad, " +
-                            "including multi-launch-pad mods that register sites in PSystemSetup. Older LMP default was 100m; " +
-                            "raise only if you need pad isolation.")]
+                            "skip Vessel.Load (invisible on pad). Default 0 = disabled so everyone sees each other on the pad " +
+                            "(recommended with multi-pad mods). Raise only if you need pad isolation.")]
         public float SafetyBubbleDistance { get; set; } = 0.0f;
 
         [XmlComment(Value = "Max number of parts that a vessel can have when spawning")]
@@ -88,8 +87,9 @@ namespace Server.Settings.Definition
                             "Protects server RAM if sends fall behind (e.g. snapshot storms). 0 = unlimited (legacy). Default 65536.")]
         public int MaxOutboundSendQueuePerClient { get; set; } = 65536;
 
-        [XmlComment(Value = "Launch pad coordination for multi-pad setups (e.g. KSC Enhanced). Off = legacy LMP behaviour.")]
-        public LaunchPadCoordinationMode LaunchPadCoordinationMode { get; set; } = LaunchPadCoordinationMode.Off;
+        [XmlComment(Value = "Launch pad coordination for multi-pad setups (e.g. KSC Enhanced). Default LockAndOverflowBubble " +
+                            "for new installs; set Off for legacy behaviour (no pad locking).")]
+        public LaunchPadCoordinationMode LaunchPadCoordinationMode { get; set; } = LaunchPadCoordinationMode.LockAndOverflowBubble;
 
         [XmlComment(Value = "When LaunchPadCoordinationMode=LockAndOverflowBubble and all concurrent slots are in use, " +
                             "clients use at least this bubble radius (meters) so overlapping pad spawns are less lethal.")]

@@ -528,8 +528,10 @@ namespace LmpClient.Systems.PersistentSync
         /// Legacy LMP contract (Career included): researching a node makes every part in that tech usable without a
         /// separate R&amp;D purchase step. Stock can leave <see cref="ProtoTechNode.partsPurchased"/> empty while the
         /// node is <see cref="RDTech.State.Available"/>, which makes the R&amp;D UI ask for purchases anyway.
-        /// For each Available tech with an empty list, assign all <see cref="PartLoader.LoadedPartsList"/> entries
-        /// whose <c>TechRequired</c> matches, then mirror the tree.
+        /// Also, when <c>partsPurchased</c> is <b>non-empty but stale</b> (e.g. server snapshot or part-purchase list
+        /// captured before a mod added new parts to an already-researched node), we must <b>merge</b> in every current
+        /// <see cref="PartLoader.LoadedPartsList"/> entry whose <c>TechRequired</c> matches so new mod parts are owned
+        /// without asking the player to buy them again.
         /// </summary>
         public static void EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded(string reason)
         {
@@ -564,24 +566,57 @@ namespace LmpClient.Systems.PersistentSync
                     continue;
                 }
 
-                if (state.partsPurchased != null && state.partsPurchased.Count > 0)
-                {
-                    continue;
-                }
-
                 if (!partsByTechId.TryGetValue(tech.techID, out var implied) || implied.Count == 0)
                 {
                     continue;
                 }
 
-                state.partsPurchased = implied;
+                var seenNames = new HashSet<string>(StringComparer.Ordinal);
+                var merged = new List<AvailablePart>();
+
+                if (state.partsPurchased != null)
+                {
+                    foreach (var p in state.partsPurchased)
+                    {
+                        if (p == null || string.IsNullOrEmpty(p.name) || !seenNames.Add(p.name))
+                        {
+                            continue;
+                        }
+
+                        merged.Add(p);
+                    }
+                }
+
+                foreach (var p in implied)
+                {
+                    if (p == null || string.IsNullOrEmpty(p.name) || !seenNames.Add(p.name))
+                    {
+                        continue;
+                    }
+
+                    merged.Add(p);
+                }
+
+                var priorCount = state.partsPurchased?.Count ?? 0;
+                if (priorCount == merged.Count && merged.Count > 0)
+                {
+                    var priorNameSet = new HashSet<string>(
+                        state.partsPurchased.Where(p => p != null && !string.IsNullOrEmpty(p.name)).Select(p => p.name),
+                        StringComparer.Ordinal);
+                    if (priorNameSet.SetEquals(merged.Select(p => p.name)))
+                    {
+                        continue;
+                    }
+                }
+
+                state.partsPurchased = merged;
                 ResearchAndDevelopment.Instance.SetTechState(tech.techID, state);
                 filled++;
             }
 
             if (filled > 0)
             {
-                LunaLog.Log($"[PersistentSync] Implicit partsPurchased (legacy LMP: full tech ownership) filledTechs={filled} source={reason}");
+                LunaLog.Log($"[PersistentSync] Implicit partsPurchased merge (full tech ownership + mod-added parts) filledTechs={filled} source={reason}");
                 SyncRnDTechTreeFromResearchInstance();
             }
         }

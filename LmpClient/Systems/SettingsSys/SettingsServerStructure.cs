@@ -28,7 +28,7 @@ namespace LmpClient.Systems.SettingsSys
         public int MinCraftLibraryRequestIntervalMs { get; set; }
         public bool PrintMotdInChat { get; set; }
 
-        public LaunchPadCoordinationMode LaunchPadCoordMode { get; set; } = LaunchPadCoordinationMode.Off;
+        public LaunchPadCoordinationMode LaunchPadCoordMode { get; set; } = LaunchPadCoordinationMode.LockAndOverflowBubble;
         public float LaunchPadOverflowBubble { get; set; } = 200f;
         public int LaunchPadSlotCount { get; set; } = 2;
 

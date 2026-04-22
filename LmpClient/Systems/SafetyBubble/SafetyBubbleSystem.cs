@@ -212,6 +212,10 @@ namespace LmpClient.Systems.SafetyBubble
                 return false;
             }
 
+            // Idempotent refill (e.g. deferred GUI-ready retry): avoid duplicating thousands of spawn entries if this
+            // runs more than once in an edge-case lifecycle without OnDisabled.
+            SpawnPoints.Clear();
+
             // Stock + mods: extra launch pads that register with PSystemSetup appear here and in StockLaunchSites,
             // so bubble checks stay aligned with actual spawn geometry when SafetyBubbleDistance is positive.
             if (setup.SpaceCenterFacilityLaunchSites != null)

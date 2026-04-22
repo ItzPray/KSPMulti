@@ -31,6 +31,13 @@ namespace LmpClient.Systems.VesselProtoSys
 
         public VesselRemoveSystem VesselRemoveSystem => VesselRemoveSystem.Singleton;
 
+        /// <summary>
+        /// Cap how many incoming protos we fully deserialize + load per Update. Server join sync sends many
+        /// <see cref="VesselProtoMsgData"/> with GameTime default 0, so all are eligible at once; loading every
+        /// vessel in a single frame spikes RAM (ConfigNode + parts). Spreading loads removes most of that peak.
+        /// </summary>
+        private const int MaxVesselProtoLoadsPerUpdate = 4;
+
         #endregion
 
         #region Base overrides
@@ -122,43 +129,53 @@ namespace LmpClient.Systems.VesselProtoSys
 
             try
             {
+                var loadsRemaining = MaxVesselProtoLoadsPerUpdate;
                 foreach (var keyVal in VesselProtos)
                 {
-                    if (keyVal.Value.TryPeek(out var vesselProto) && vesselProto.GameTime <= TimeSyncSystem.UniversalTime)
+                    if (loadsRemaining <= 0)
+                        break;
+
+                    if (!keyVal.Value.TryPeek(out var vesselProto) || vesselProto.GameTime > TimeSyncSystem.UniversalTime)
+                        continue;
+
+                    if (!keyVal.Value.TryDequeue(out vesselProto))
+                        continue;
+
+                    loadsRemaining--;
+
+                    if (VesselRemoveSystem.VesselWillBeKilled(vesselProto.VesselId))
                     {
-                        keyVal.Value.TryDequeue(out _);
-
-                        if (VesselRemoveSystem.VesselWillBeKilled(vesselProto.VesselId))
-                            continue;
-
-                        var forceReload = vesselProto.ForceReload;
-                        var protoVessel = vesselProto.CreateProtoVessel();
                         keyVal.Value.Recycle(vesselProto);
+                        continue;
+                    }
 
-                        if (protoVessel == null || protoVessel.HasInvalidParts(!VesselsUnableToLoad.Contains(vesselProto.VesselId)))
+                    var forceReload = vesselProto.ForceReload;
+                    var protoVessel = vesselProto.CreateProtoVessel();
+                    keyVal.Value.Recycle(vesselProto);
+
+                    if (protoVessel == null || protoVessel.HasInvalidParts(!VesselsUnableToLoad.Contains(vesselProto.VesselId)))
+                    {
+                        VesselsUnableToLoad.Add(vesselProto.VesselId);
+                        continue;
+                    }
+
+                    VesselsUnableToLoad.Remove(vesselProto.VesselId);
+
+                    var existingVessel = FlightGlobals.FindVessel(vesselProto.VesselId);
+                    if (existingVessel == null)
+                    {
+                        if (VesselLoader.LoadVessel(protoVessel, forceReload))
                         {
-                            VesselsUnableToLoad.Add(vesselProto.VesselId);
-                            continue;
+                            LunaLog.Log($"[LMP]: Vessel {protoVessel.vesselID} loaded");
+                            VesselLoadEvent.onLmpVesselLoaded.Fire(protoVessel.vesselRef);
                         }
-
-                        VesselsUnableToLoad.Remove(vesselProto.VesselId);
-
-                        var existingVessel = FlightGlobals.FindVessel(vesselProto.VesselId);
-                        if (existingVessel == null)
+                    }
+                    else
+                    {
+                        if (VesselLoader.LoadVessel(protoVessel, forceReload))
                         {
-                            if (VesselLoader.LoadVessel(protoVessel, forceReload))
-                            {
-                                LunaLog.Log($"[LMP]: Vessel {protoVessel.vesselID} loaded");
-                                VesselLoadEvent.onLmpVesselLoaded.Fire(protoVessel.vesselRef);
-                            }
-                        }
-                        else
-                        {
-                            if (VesselLoader.LoadVessel(protoVessel, forceReload))
-                            {
-                                LunaLog.Log($"[LMP]: Vessel {protoVessel.vesselID} reloaded");
-                                VesselReloadEvent.onLmpVesselReloaded.Fire(protoVessel.vesselRef);
-                            }
+                            LunaLog.Log($"[LMP]: Vessel {protoVessel.vesselID} reloaded");
+                            VesselReloadEvent.onLmpVesselReloaded.Fire(protoVessel.vesselRef);
                         }
                     }
                 }
