@@ -107,6 +107,13 @@ namespace LmpClient.Systems.Warp
             GameEvents.onTimeWarpRateChanged.Add(WarpEvents.OnTimeWarpChanged);
             GameEvents.onLevelWasLoadedGUIReady.Add(WarpEvents.OnSceneChanged);
             SetupRoutine(new RoutineDefinition(100, RoutineExecution.Update, ProcessDeferredKscAutoSubspaceMerge));
+            if (SettingsSystem.ServerSettings.WarpMode == WarpMode.Subspace)
+            {
+                // Entering KSC schedules one deferred merge; staying at KSC while another player warps does not.
+                // Poll here so we catch session subspace advances without requiring a scene reload or manual sync.
+                SetupRoutine(new RoutineDefinition(2000, RoutineExecution.Update, PeriodicTryKscAutoSubspaceMerge));
+            }
+
             if (SettingsSystem.ServerSettings.WarpMode != WarpMode.None)
             {
                 SetupRoutine(new RoutineDefinition(100, RoutineExecution.Update, CheckWarpStopped));
@@ -186,6 +193,18 @@ namespace LmpClient.Systems.Warp
                 return;
 
             _kscAutoSubspaceMergeDeadline = -1f;
+            if (HighLogic.LoadedScene != GameScenes.SPACECENTER)
+                return;
+
+            TryAutoMergeToSessionSubspaceAtSpaceCenter();
+        }
+
+        /// <summary>
+        /// While idle at the Space Center, re-evaluate catch-up whenever the session timeline moves ahead
+        /// (another client finished a warp). Scene-based scheduling alone misses that case.
+        /// </summary>
+        private void PeriodicTryKscAutoSubspaceMerge()
+        {
             if (HighLogic.LoadedScene != GameScenes.SPACECENTER)
                 return;
 
