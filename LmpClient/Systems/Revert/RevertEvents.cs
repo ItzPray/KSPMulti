@@ -15,7 +15,16 @@ namespace LmpClient.Systems.Revert
                 return;
             }
 
-            System.StartingVesselId = Guid.Empty;
+            if (data == null) return;
+
+            // Still controlling the vessel we launched with
+            if (data.id == System.StartingVesselId)
+                return;
+
+            // Invalidate revert only when switching to another vessel while the launch vessel still exists (stock behaviour).
+            // If the launch vessel was destroyed, keep StartingVesselId so revert-to-launch can stay available after KSP retargets.
+            if (System.StartingVesselId != Guid.Empty && FlightGlobals.FindVessel(System.StartingVesselId) != null)
+                System.StartingVesselId = Guid.Empty;
         }
 
         public void VesselAssembled(Vessel vessel, ShipConstruct construct)

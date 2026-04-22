@@ -1,5 +1,6 @@
 ﻿using LmpClient.Base;
 using LmpClient.Events;
+using LmpClient.VesselUtilities;
 using System;
 
 namespace LmpClient.Systems.Revert
@@ -14,6 +15,19 @@ namespace LmpClient.Systems.Revert
         public static RevertEvents RevertEvents { get; } = new RevertEvents();
 
         public Guid StartingVesselId { get; set; } = Guid.Empty;
+
+        /// <summary>
+        /// When false, Harmony patches disable stock revert UI (switching away from the launch vessel in MP).
+        /// After the launch vessel is destroyed, KSP may focus another craft — we still allow revert in that case.
+        /// </summary>
+        public bool StockRevertEligible()
+        {
+            if (VesselCommon.IsSpectating) return false;
+            if (StartingVesselId == Guid.Empty) return false;
+            if (FlightGlobals.ActiveVessel != null && FlightGlobals.ActiveVessel.id == StartingVesselId)
+                return true;
+            return FlightGlobals.FindVessel(StartingVesselId) == null;
+        }
 
         #endregion
 

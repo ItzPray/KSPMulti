@@ -1,7 +1,6 @@
 ﻿using HarmonyLib;
 using LmpClient.Localization;
 using LmpClient.Systems.Revert;
-using LmpClient.VesselUtilities;
 using LmpCommon.Enums;
 using System.Collections.Generic;
 
@@ -21,7 +20,7 @@ namespace LmpClient.Harmony
         {
             if (MainSystem.NetworkState < ClientState.Connected) return;
 
-            if (FlightGlobals.ActiveVessel && FlightGlobals.ActiveVessel.id == RevertSystem.Singleton.StartingVesselId && !VesselCommon.IsSpectating)
+            if (RevertSystem.Singleton.StockRevertEligible())
                 return;
 
             foreach (var guiComponent in options)

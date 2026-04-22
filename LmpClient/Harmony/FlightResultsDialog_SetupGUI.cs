@@ -2,7 +2,6 @@
 using KSP.UI.Dialogs;
 using LmpClient.Localization;
 using LmpClient.Systems.Revert;
-using LmpClient.VesselUtilities;
 using LmpCommon.Enums;
 using UnityEngine;
 using UnityEngine.UI;
@@ -23,7 +22,7 @@ namespace LmpClient.Harmony
         {
             if (MainSystem.NetworkState < ClientState.Connected) return;
 
-            if (FlightGlobals.ActiveVessel && FlightGlobals.ActiveVessel.id == RevertSystem.Singleton.StartingVesselId && !VesselCommon.IsSpectating)
+            if (RevertSystem.Singleton.StockRevertEligible())
                 return;
 
             ___Btn_revLaunch.onClick.RemoveAllListeners();

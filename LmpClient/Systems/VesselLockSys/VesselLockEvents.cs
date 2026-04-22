@@ -10,6 +10,21 @@ namespace LmpClient.Systems.VesselLockSys
     public class VesselLockEvents : SubSystem<VesselLockSystem>
     {
         /// <summary>
+        /// When our active vessel is destroyed, KSP can auto-switch focus to another player's craft.
+        /// Without this guard, <see cref="VesselLockSystem.StartSpectating"/> runs and stock revert is blocked.
+        /// Set from vessel remove <c>OnVesselWillDestroy</c> while the dying vessel is still ours.
+        /// </summary>
+        private static bool _skipSpectateOnceForOtherPlayerControlledVessel;
+
+        /// <summary>
+        /// Called when our active vessel is about to be destroyed (before locks are released).
+        /// </summary>
+        public static void PrepareSkipSpectateAfterOwnActiveVesselDestroyed()
+        {
+            _skipSpectateOnceForOtherPlayerControlledVessel = true;
+        }
+
+        /// <summary>
         /// This event is called after a vessel has changed. Also called when starting a flight
         /// </summary>
         public void OnVesselChange(Vessel vessel)
@@ -22,18 +37,31 @@ namespace LmpClient.Systems.VesselLockSys
             //Therefore we just ignore this whole thing to avoid releasing our locks.
             //Reloading our own current vessel is a bad practice so this case should not happen anyway...
             if (LockSystem.LockQuery.GetControlLockOwner(vessel.id) == SettingsSystem.CurrentSettings.PlayerName)
+            {
+                _skipSpectateOnceForOtherPlayerControlledVessel = false;
                 return;
+            }
 
             //Release all vessel CONTROL locks as we are switching to a NEW vessel.
             LockSystem.Singleton.ReleasePlayerLocks(LockType.Control);
 
             if (LockSystem.LockQuery.ControlLockExists(vessel.id) && !LockSystem.LockQuery.ControlLockBelongsToPlayer(vessel.id, SettingsSystem.CurrentSettings.PlayerName))
             {
+                if (_skipSpectateOnceForOtherPlayerControlledVessel)
+                {
+                    // Do not spectate or try to acquire control on their vessel; revert / flight UI stay usable.
+                    _skipSpectateOnceForOtherPlayerControlledVessel = false;
+                    if (VesselCommon.IsSpectating)
+                        VesselLockSystem.Singleton.StopSpectating();
+                    return;
+                }
+
                 //We switched to a vessel that is controlled by another player so start spectating
                 System.StartSpectating(vessel.id);
             }
             else
             {
+                _skipSpectateOnceForOtherPlayerControlledVessel = false;
                 if (VesselCommon.IsSpectating)
                     VesselLockSystem.Singleton.StopSpectating();
                 if (FlightDriver.flightStarted)

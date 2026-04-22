@@ -3,6 +3,7 @@ using LmpClient.Events;
 using LmpClient.Localization;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Systems.VesselLockSys;
 using LmpClient.VesselUtilities;
 using System;
 using UniLinq;
@@ -25,6 +26,8 @@ namespace LmpClient.Systems.VesselRemoveSys
                 LockSystem.LockQuery.UnloadedUpdateLockBelongsToPlayer(dyingVessel.id, SettingsSystem.CurrentSettings.PlayerName) || dyingVessel.id == _recoveringTerminatingVesselId)
             {
                 var ownVesselDying = FlightGlobals.ActiveVessel != null && FlightGlobals.ActiveVessel.id == dyingVessel.id;
+                if (ownVesselDying)
+                    VesselLockEvents.PrepareSkipSpectateAfterOwnActiveVesselDestroyed();
 
                 var reason = dyingVessel.id == _recoveringTerminatingVesselId ? "Recovered/Terminated" : "Destroyed";
                 LunaLog.Log($"[LMP]: Removing vessel {dyingVessel.id}-{dyingVessel.persistentId}, Name: {dyingVessel.vesselName} from the server: {reason}");
