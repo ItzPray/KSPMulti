@@ -26,6 +26,9 @@ namespace LmpClient.Systems.Lock
                 case LockMessageType.ListReply:
                     {
                         var data = (LockListReplyMsgData)msgData;
+                        // Full server snapshot — replace local store so a reconnecting client (or reordering) cannot
+                        // keep stale control/update rows that make DoVesselChecks ignore another pilot's FX/stream.
+                        LockSystem.LockStore.ClearAllLocks();
                         for (var i = 0; i < data.LocksCount; i++)
                         {
                             LockSystem.LockStore.AddOrUpdateLock(data.Locks[i]);

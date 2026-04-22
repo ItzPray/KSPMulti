@@ -15,10 +15,10 @@ namespace LmpClient.Harmony
         [HarmonyPostfix]
         private static void PostfixProcessLabel(BaseLabel label)
         {
-            if (label.gameObject.activeSelf)
-            {
-                LabelEvent.onLabelProcessed.Fire(label);
-            }
+            // Always append lock owner text when ProcessLabel runs. Gating on activeSelf caused vessels whose label
+            // GameObject was temporarily inactive (distance/culling) to miss the owner line on some clients while
+            // the other client still saw the full label — asymmetric HUD around other players' craft.
+            LabelEvent.onLabelProcessed.Fire(label);
         }
     }
 }
