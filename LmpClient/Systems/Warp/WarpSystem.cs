@@ -1,4 +1,5 @@
 ﻿using FinePrint.Utilities;
+using LmpClient;
 using LmpClient.Base;
 using LmpClient.Events;
 using LmpClient.Localization;
@@ -65,6 +66,11 @@ namespace LmpClient.Systems.Warp
 
         public List<SubspaceDisplayEntry> SubspaceEntries { get; set; } = new List<SubspaceDisplayEntry>();
 
+        /// <summary>
+        /// When non-negative, <see cref="ProcessDeferredKscAutoSubspaceMerge"/> will run session catch-up after this Unity <see cref="Time.time"/>.
+        /// </summary>
+        private float _kscAutoSubspaceMergeDeadline = -1f;
+
         #endregion
 
         #region Base overrides
@@ -72,6 +78,13 @@ namespace LmpClient.Systems.Warp
         public override string SystemName { get; } = nameof(WarpSystem);
 
         protected override bool ProcessMessagesInUnityThread => false;
+
+        protected override void NetworkEventHandler(ClientState data)
+        {
+            base.NetworkEventHandler(data);
+            if (data == ClientState.Running && HighLogic.LoadedScene == GameScenes.SPACECENTER)
+                ScheduleKscAutoSubspaceMergeDeferred();
+        }
 
         protected override void OnDisabled()
         {
@@ -85,6 +98,7 @@ namespace LmpClient.Systems.Warp
             SkipSubspaceProcess = false;
             WaitingSubspaceIdFromServer = false;
             SyncedToLastSubspace = false;
+            _kscAutoSubspaceMergeDeadline = -1f;
         }
 
         protected override void OnEnabled()
@@ -92,6 +106,7 @@ namespace LmpClient.Systems.Warp
             base.OnEnabled();
             GameEvents.onTimeWarpRateChanged.Add(WarpEvents.OnTimeWarpChanged);
             GameEvents.onLevelWasLoadedGUIReady.Add(WarpEvents.OnSceneChanged);
+            SetupRoutine(new RoutineDefinition(100, RoutineExecution.Update, ProcessDeferredKscAutoSubspaceMerge));
             if (SettingsSystem.ServerSettings.WarpMode != WarpMode.None)
             {
                 SetupRoutine(new RoutineDefinition(100, RoutineExecution.Update, CheckWarpStopped));
@@ -151,6 +166,64 @@ namespace LmpClient.Systems.Warp
         #endregion
 
         #region Public methods
+
+        /// <summary>
+        /// Schedules <see cref="TryAutoMergeToSessionSubspaceAtSpaceCenter"/> shortly after Space Center load so subspace tables and time sync are stable.
+        /// </summary>
+        public void ScheduleKscAutoSubspaceMergeDeferred()
+        {
+            if (!SettingsSystem.CurrentSettings.AutoSyncSubspaceAtSpaceCenter) return;
+            if (MainSystem.NetworkState < ClientState.Running) return;
+            if (SettingsSystem.ServerSettings.WarpMode != WarpMode.Subspace) return;
+            if (HighLogic.LoadedScene != GameScenes.SPACECENTER) return;
+
+            _kscAutoSubspaceMergeDeadline = UnityEngine.Time.time + 0.75f;
+        }
+
+        private void ProcessDeferredKscAutoSubspaceMerge()
+        {
+            if (_kscAutoSubspaceMergeDeadline < 0f || UnityEngine.Time.time < _kscAutoSubspaceMergeDeadline)
+                return;
+
+            _kscAutoSubspaceMergeDeadline = -1f;
+            if (HighLogic.LoadedScene != GameScenes.SPACECENTER)
+                return;
+
+            TryAutoMergeToSessionSubspaceAtSpaceCenter();
+        }
+
+        /// <summary>
+        /// At Space Center, if we are behind the session's latest subspace, adopt it using the same path as the status window "Warp to" control.
+        /// </summary>
+        public void TryAutoMergeToSessionSubspaceAtSpaceCenter()
+        {
+            if (!SettingsSystem.CurrentSettings.AutoSyncSubspaceAtSpaceCenter) return;
+            if (MainSystem.NetworkState < ClientState.Running) return;
+            if (!Enabled || SettingsSystem.ServerSettings.WarpMode != WarpMode.Subspace) return;
+            if (HighLogic.LoadedScene != GameScenes.SPACECENTER) return;
+            if (CurrentlyWarping || WaitingSubspaceIdFromServer) return;
+            if (Subspaces.IsEmpty) return;
+
+            var target = LatestSubspace;
+            if (target <= 0 || !Subspaces.ContainsKey(target)) return;
+            if (!ShouldCatchUpToSubspace(target)) return;
+
+            var before = CurrentSubspace;
+            SyncToSubspace(target);
+            if (before != CurrentSubspace)
+                DisplayMessage(LocalizationContainer.ScreenText.SessionSubspaceSynced, 2.5f);
+        }
+
+        private bool ShouldCatchUpToSubspace(int futureSubspaceId)
+        {
+            if (CurrentlyWarping || futureSubspaceId <= 0) return false;
+            if (!Subspaces.ContainsKey(futureSubspaceId)) return false;
+            if (CurrentSubspace == futureSubspaceId) return false;
+            if (!Subspaces.ContainsKey(CurrentSubspace))
+                return true;
+
+            return Subspaces[CurrentSubspace] < Subspaces[futureSubspaceId];
+        }
 
         /// <summary>
         /// Perform sync validations and sync to given subspace

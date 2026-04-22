@@ -112,6 +112,14 @@ namespace LmpClient.Windows.Options
                     SettingsSystem.CurrentSettings.IgnoreSyncChecks = settingSyncCheck;
                     SettingsSystem.SaveSettings();
                 }
+
+                var autoKscSubspace = GUILayout.Toggle(SettingsSystem.CurrentSettings.AutoSyncSubspaceAtSpaceCenter,
+                    LocalizationContainer.OptionsWindowText.AutoSyncSubspaceAtSpaceCenter);
+                if (autoKscSubspace != SettingsSystem.CurrentSettings.AutoSyncSubspaceAtSpaceCenter)
+                {
+                    SettingsSystem.CurrentSettings.AutoSyncSubspaceAtSpaceCenter = autoKscSubspace;
+                    SettingsSystem.SaveSettings();
+                }
             }
         }
 

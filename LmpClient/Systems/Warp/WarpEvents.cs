@@ -1,5 +1,7 @@
-﻿using LmpClient.Base;
+﻿using LmpClient;
+using LmpClient.Base;
 using LmpClient.VesselUtilities;
+using LmpCommon.Enums;
 
 namespace LmpClient.Systems.Warp
 {
@@ -35,6 +37,9 @@ namespace LmpClient.Systems.Warp
                 System.SyncedToLastSubspace = true;
                 System.ProcessNewSubspace();
             }
+
+            if (data == GameScenes.SPACECENTER && System.Enabled && MainSystem.NetworkState >= ClientState.Running)
+                System.ScheduleKscAutoSubspaceMergeDeferred();
         }
     }
 }

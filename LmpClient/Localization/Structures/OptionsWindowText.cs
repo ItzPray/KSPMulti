@@ -25,6 +25,7 @@ namespace LmpClient.Localization.Structures
         public string ConnectionTimeout { get; set; } = "Connection timeout (Default: 15):";
         public string GeneralSettings { get; set; } = "General settings";
         public string IgnoreSyncChecks { get; set; } = "Ignore warp sync safety checks";
+        public string AutoSyncSubspaceAtSpaceCenter { get; set; } = "Auto-sync subspace at Space Center (subspace warp mode)";
         public string ChatBuffer { get; set; } = "Chat buffer size:";
     }
 }

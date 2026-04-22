@@ -23,4 +23,5 @@
   <CannotLoadGames>LMP does not allow loading savegames</CannotLoadGames>
   <KerbalNotYours>Another player is using this kerbal</KerbalNotYours>
   <UnsafeToSync>Cannot sync while in unstable orbit or spectating as you might crash! You can turn off this check in settings</UnsafeToSync>
+  <SessionSubspaceSynced>Session time synchronized with the latest player timeline.</SessionSubspaceSynced>
 </ScreenText>

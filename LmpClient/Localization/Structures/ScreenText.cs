@@ -24,5 +24,6 @@
         public string CannotLoadGames { get; set; } = "LMP does not allow loading savegames";
         public string KerbalNotYours { get; set; } = "Another player is using this kerbal";
         public string UnsafeToSync { get; set; } = "Cannot sync while in unstable orbit or spectating as you might crash! You can turn off this check in settings";
+        public string SessionSubspaceSynced { get; set; } = "Session time synchronized with the latest player timeline.";
     }
 }

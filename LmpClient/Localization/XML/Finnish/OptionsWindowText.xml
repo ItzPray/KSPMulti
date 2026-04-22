@@ -22,4 +22,5 @@
   <ConnectionTimeout>Yhteyden aikakatkaisu (Oletus: 15):</ConnectionTimeout>
   <GeneralSettings>Yleiset asetukset</GeneralSettings>
   <IgnoreSyncChecks>Jätä aikamatkustussynkronointi pois käytöstä</IgnoreSyncChecks>
+  <AutoSyncSubspaceAtSpaceCenter>Synkronoi alitila automaattisesti avaruuskeskuksessa (alitilavarp)</AutoSyncSubspaceAtSpaceCenter>
 </OptionsWindowText>

@@ -22,4 +22,5 @@
   <ConnectionTimeout>Timeout připojení (Výchozí: 15):</ConnectionTimeout>
   <GeneralSettings>Hlavní nastavení</GeneralSettings>
   <IgnoreSyncChecks>Ignorovat kontrolu warp synchronizace</IgnoreSyncChecks>
+  <AutoSyncSubspaceAtSpaceCenter>Automaticky synchronizovat subprostor na Vesmírném středisku (režim subprostoru)</AutoSyncSubspaceAtSpaceCenter>
 </OptionsWindowText>

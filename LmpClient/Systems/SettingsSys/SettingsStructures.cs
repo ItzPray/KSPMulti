@@ -24,6 +24,10 @@ namespace LmpClient.Systems.SettingsSys
         public bool RevertEnabled { get; set; }
         public int MaxGroupsPerPlayer { get; set; } = 1;
         public bool IgnoreSyncChecks { get; set; } = false;
+        /// <summary>
+        /// When true (default), returning to the Space Center in subspace warp mode will catch up to the session's latest subspace automatically.
+        /// </summary>
+        public bool AutoSyncSubspaceAtSpaceCenter { get; set; } = true;
         public int Mtu { get; set; } = NetPeerConfiguration.kDefaultMTU;
         public int ChatBuffer { get; set; } = 30;
         public bool AutoExpandMtu { get; set; } = false;
