@@ -5,6 +5,7 @@ using Server.Log;
 using Server.Plugin;
 using Server.Server;
 using Server.Settings.Structures;
+using Server.System.LaunchSite;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -22,6 +23,7 @@ namespace Server.Client
                     //Check timers
                     NukeCommand.CheckTimer();
                     DekesslerCommand.CheckTimer();
+                    LaunchPadReservationRegistry.ClearExpired();
 
                     LmpPluginHandler.FireOnUpdate(); //Run plugin update
 

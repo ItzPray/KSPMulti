@@ -1,4 +1,5 @@
 ﻿using LmpClient.Base;
+using LmpClient.Systems.LaunchPadCoordination;
 using LmpClient.Systems.SettingsSys;
 using System.Collections.Generic;
 using UnityEngine;
@@ -68,7 +69,7 @@ namespace LmpClient.Systems.SafetyBubble
             if (vessel.situation > Vessel.Situations.FLYING)
                 return false;
 
-            if (SettingsSystem.ServerSettings.SafetyBubbleDistance <= 0)
+            if (LaunchPadCoordinationSystem.Singleton.GetEffectiveSafetyBubbleForRendering() <= 0)
                 return false;
 
             return IsInSafetyBubble(vessel.latitude, vessel.longitude, vessel.altitude, vessel.mainBody);
@@ -79,7 +80,7 @@ namespace LmpClient.Systems.SafetyBubble
         /// </summary>
         public bool IsInSafetyBubble(ProtoVessel protoVessel)
         {
-            if (SettingsSystem.ServerSettings.SafetyBubbleDistance <= 0)
+            if (LaunchPadCoordinationSystem.Singleton.GetEffectiveSafetyBubbleForRendering() <= 0)
                 return false;
 
             if (protoVessel == null)
@@ -137,8 +138,9 @@ namespace LmpClient.Systems.SafetyBubble
             for (var i = 0; i < lineRenderer.positionCount; i++)
             {
                 theta += 2.0f * Mathf.PI * 0.01f;
-                var x = SettingsSystem.ServerSettings.SafetyBubbleDistance * Mathf.Cos(theta);
-                var y = SettingsSystem.ServerSettings.SafetyBubbleDistance * Mathf.Sin(theta);
+                var radius = LaunchPadCoordinationSystem.Singleton.GetEffectiveSafetyBubbleForRendering();
+                var x = radius * Mathf.Cos(theta);
+                var y = radius * Mathf.Sin(theta);
                 x += (float)center.x;
                 y += (float)center.y;
                 lineRenderer.SetPosition(i, new Vector3(x, y, 0));
@@ -162,7 +164,7 @@ namespace LmpClient.Systems.SafetyBubble
         {
             foreach (var point in SpawnPoints[vessel.mainBody.name])
             {
-                if (Vector3d.Distance(vessel.vesselTransform.position, point.Position) < SettingsSystem.ServerSettings.SafetyBubbleDistance)
+                if (Vector3d.Distance(vessel.vesselTransform.position, point.Position) < LaunchPadCoordinationSystem.Singleton.GetEffectiveSafetyBubbleForRendering())
                 {
                     return point;
                 }
@@ -298,7 +300,7 @@ namespace LmpClient.Systems.SafetyBubble
             foreach (var spawnPoint in SpawnPoints[body.name])
             {
                 var distance = Vector3d.Distance(position, spawnPoint.Position);
-                if (distance < SettingsSystem.ServerSettings.SafetyBubbleDistance)
+                if (distance < LaunchPadCoordinationSystem.Singleton.GetEffectiveSafetyBubbleForRendering())
                 {
                     return true;
                 }

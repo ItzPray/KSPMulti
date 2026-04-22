@@ -229,6 +229,9 @@
     <Compile Include="Harmony\ModuleScienceExperiment_ResetExperiment.cs" />
     <Compile Include="Harmony\KscVesselMarkers_SpawnVesselMarkers.cs" />
     <Compile Include="Harmony\LaunchSiteClear_Test.cs" />
+    <Compile Include="Harmony\LaunchPadStockLaunchSiteUiPatches.cs" />
+    <Compile Include="Harmony\LaunchPadOccupiedHoverHint.cs" />
+    <Compile Include="Harmony\KerbalKonstructsLaunchPadHarmony.cs" />
     <Compile Include="Harmony\KSCPauseMenu_QuickLoad.cs" />
     <Compile Include="Harmony\QuickSaveLoad_QuickLoad.cs" />
     <Compile Include="Harmony\ProtoCrewMember_Die.cs" />
@@ -504,6 +507,11 @@
     <Compile Include="Systems\Motd\MotdMessageHandler.cs" />
     <Compile Include="Systems\Motd\MotdMessageSender.cs" />
     <Compile Include="Systems\Motd\MotdSystem.cs" />
+    <Compile Include="Systems\LaunchPadCoordination\LaunchPadCoordinationSystem.cs" />
+    <Compile Include="Systems\LaunchPadCoordination\LaunchPadMessageHandler.cs" />
+    <Compile Include="Systems\LaunchPadCoordination\LaunchPadMessageSender.cs" />
+    <Compile Include="Systems\LaunchPadCoordination\LaunchPadKsceCompatibility.cs" />
+    <Compile Include="Systems\LaunchPadCoordination\LaunchPadSiteKeyUtil.cs" />
     <Compile Include="Network\NetworkServerList.cs" />
     <Compile Include="Systems\PlayerConnection\PlayerConnectionMessageHandler.cs" />
     <Compile Include="Systems\PlayerConnection\PlayerConnectionMessageSender.cs" />

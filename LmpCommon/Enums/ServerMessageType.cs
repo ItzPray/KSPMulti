@@ -23,5 +23,6 @@
         Screenshot = 19,
         ShareProgress = 20,
         PersistentSync = 21,
+        LaunchPad = 22,
     }
 }

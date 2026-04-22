@@ -87,5 +87,36 @@ namespace Server.Settings.Definition
         [XmlComment(Value = "Max outbound messages queued per client before oldest are dropped. " +
                             "Protects server RAM if sends fall behind (e.g. snapshot storms). 0 = unlimited (legacy). Default 65536.")]
         public int MaxOutboundSendQueuePerClient { get; set; } = 65536;
+
+        [XmlComment(Value = "Launch pad coordination for multi-pad setups (e.g. KSC Enhanced). Off = legacy LMP behaviour.")]
+        public LaunchPadCoordinationMode LaunchPadCoordinationMode { get; set; } = LaunchPadCoordinationMode.Off;
+
+        [XmlComment(Value = "When LaunchPadCoordinationMode=LockAndOverflowBubble and all concurrent slots are in use, " +
+                            "clients use at least this bubble radius (meters) so overlapping pad spawns are less lethal.")]
+        public float LaunchPadOverflowBubbleDistance { get; set; } = 200f;
+
+        [XmlComment(Value = "How many distinct PRELAUNCH pad slots are expected before overflow-bubble activates (e.g. 2 for dual pads).")]
+        public int LaunchPadConcurrentSlots { get; set; } = 2;
+
+        [XmlComment(Value = "Seconds without vessel proto/update before a PRELAUNCH vessel stops counting toward pad occupancy (lease expiry). 0 = disabled.")]
+        public int LaunchPadLeaseTimeoutSeconds { get; set; } = 120;
+
+        [XmlComment(Value = "How long a client→server pad reservation lasts without a matching PRELAUNCH proto (Plan B).")]
+        public int LaunchPadReservationDurationSeconds { get; set; } = 180;
+
+        [XmlComment(Value = "When true and optional DLL fields are set, clients must have that DLL with matching SHA256 (from mod list) while coordination is enabled.")]
+        public bool LaunchPadKsceEnforceOptionalDllMatch { get; set; } = false;
+
+        [XmlComment(Value = "GameData-relative path to optional KSCE/KK plugin DLL for SHA/version check, e.g. 'kerbalkonstructs/plugins/kerbalkonstructs.dll'. Lowercase.")]
+        public string LaunchPadKsceOptionalDllRelativePath { get; set; } = "";
+
+        [XmlComment(Value = "Expected SHA256 of that DLL when enforcement is on (hex, same format as LMP mod control). Empty = skip SHA check.")]
+        public string LaunchPadKsceOptionalDllSha256 { get; set; } = "";
+
+        [XmlComment(Value = "Minimum FileVersion of the optional DLL (from Windows file version). Empty = any.")]
+        public string LaunchPadKsceMinPluginFileVersion { get; set; } = "";
+
+        [XmlComment(Value = "Maximum FileVersion of the optional DLL. Empty = any.")]
+        public string LaunchPadKsceMaxPluginFileVersion { get; set; } = "";
     }
 }

@@ -7,6 +7,7 @@ using Server.Log;
 using Server.Plugin;
 using Server.Server;
 using Server.System;
+using Server.System.LaunchSite;
 using System;
 
 namespace Server.Client
@@ -46,6 +47,8 @@ namespace Server.Client
 
                     MessageQueuer.RelayMessage<PlayerConnectionSrvMsg>(client, msgData);
                     LockSystem.ReleasePlayerLocks(client);
+                    LaunchPadReservationRegistry.ReleaseForPlayer(client.PlayerName);
+                    LaunchSiteOccupancyService.BroadcastSmart();
                     WarpSystem.RemoveSubspace(client.Subspace);
                 }
 

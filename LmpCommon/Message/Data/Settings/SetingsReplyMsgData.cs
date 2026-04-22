@@ -70,6 +70,18 @@ namespace LmpCommon.Message.Data.Settings
         public int MinCraftLibraryRequestIntervalMs;
         public bool PrintMotdInChat;
 
+        public LaunchPadCoordinationMode LaunchPadCoordMode;
+        public float LaunchPadOverflowBubble;
+        public int LaunchPadSlotCount;
+
+        public int LaunchPadLeaseTimeoutSeconds;
+        public int LaunchPadReservationDurationSeconds;
+        public bool LaunchPadKsceEnforceOptionalDllMatch;
+        public string LaunchPadKsceOptionalDllRelativePath = "";
+        public string LaunchPadKsceOptionalDllSha256 = "";
+        public string LaunchPadKsceMinPluginFileVersion = "";
+        public string LaunchPadKsceMaxPluginFileVersion = "";
+
         public override string ClassName { get; } = nameof(SettingsReplyMsgData);
 
         internal override void InternalSerialize(NetOutgoingMessage lidgrenMsg)
@@ -134,6 +146,16 @@ namespace LmpCommon.Message.Data.Settings
             lidgrenMsg.Write(MaxScreenshotHeight);
             lidgrenMsg.Write(MinCraftLibraryRequestIntervalMs);
             lidgrenMsg.Write(PrintMotdInChat);
+            lidgrenMsg.Write((byte)LaunchPadCoordMode);
+            lidgrenMsg.Write(LaunchPadOverflowBubble);
+            lidgrenMsg.Write(LaunchPadSlotCount);
+            lidgrenMsg.Write(LaunchPadLeaseTimeoutSeconds);
+            lidgrenMsg.Write(LaunchPadReservationDurationSeconds);
+            lidgrenMsg.Write(LaunchPadKsceEnforceOptionalDllMatch);
+            lidgrenMsg.Write(LaunchPadKsceOptionalDllRelativePath ?? string.Empty);
+            lidgrenMsg.Write(LaunchPadKsceOptionalDllSha256 ?? string.Empty);
+            lidgrenMsg.Write(LaunchPadKsceMinPluginFileVersion ?? string.Empty);
+            lidgrenMsg.Write(LaunchPadKsceMaxPluginFileVersion ?? string.Empty);
         }
 
         internal override void InternalDeserialize(NetIncomingMessage lidgrenMsg)
@@ -198,12 +220,26 @@ namespace LmpCommon.Message.Data.Settings
             MaxScreenshotHeight = lidgrenMsg.ReadInt32();
             MinCraftLibraryRequestIntervalMs = lidgrenMsg.ReadInt32();
             PrintMotdInChat = lidgrenMsg.ReadBoolean();
+            LaunchPadCoordMode = (LaunchPadCoordinationMode)lidgrenMsg.ReadByte();
+            LaunchPadOverflowBubble = lidgrenMsg.ReadFloat();
+            LaunchPadSlotCount = lidgrenMsg.ReadInt32();
+            LaunchPadLeaseTimeoutSeconds = lidgrenMsg.ReadInt32();
+            LaunchPadReservationDurationSeconds = lidgrenMsg.ReadInt32();
+            LaunchPadKsceEnforceOptionalDllMatch = lidgrenMsg.ReadBoolean();
+            LaunchPadKsceOptionalDllRelativePath = lidgrenMsg.ReadString();
+            LaunchPadKsceOptionalDllSha256 = lidgrenMsg.ReadString();
+            LaunchPadKsceMinPluginFileVersion = lidgrenMsg.ReadString();
+            LaunchPadKsceMaxPluginFileVersion = lidgrenMsg.ReadString();
         }
 
         internal override int InternalGetMessageSize()
         {
             return base.InternalGetMessageSize() + sizeof(WarpMode) + sizeof(GameMode) + sizeof(TerrainQuality) + sizeof(GameDifficulty) +
-                sizeof(bool) * 24 + sizeof(int) * 9 + sizeof(float) * 19 + ConsoleIdentifier.GetByteCount();
+                sizeof(bool) * 25 + sizeof(int) * 12 + sizeof(float) * 20 + sizeof(byte) + ConsoleIdentifier.GetByteCount() +
+                (LaunchPadKsceOptionalDllRelativePath ?? string.Empty).GetByteCount() +
+                (LaunchPadKsceOptionalDllSha256 ?? string.Empty).GetByteCount() +
+                (LaunchPadKsceMinPluginFileVersion ?? string.Empty).GetByteCount() +
+                (LaunchPadKsceMaxPluginFileVersion ?? string.Empty).GetByteCount();
         }
     }
 }

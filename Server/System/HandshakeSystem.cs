@@ -8,6 +8,7 @@ using Server.Context;
 using Server.Log;
 using Server.Plugin;
 using Server.Server;
+using Server.System.LaunchSite;
 
 namespace Server.System
 {
@@ -84,6 +85,8 @@ namespace Server.System
                 MessageQueuer.RelayMessage<PlayerConnectionSrvMsg>(client, msgData);
 
                 LunaLog.Debug($"Online Players: {ServerContext.PlayerCount}, connected: {ClientRetriever.GetClients().Length}");
+
+                LaunchSiteOccupancyService.SendSnapshotToClient(client);
             }
         }
     }

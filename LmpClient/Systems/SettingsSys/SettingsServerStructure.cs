@@ -27,5 +27,17 @@ namespace LmpClient.Systems.SettingsSys
         public int MaxScreenshotHeight { get; set; }
         public int MinCraftLibraryRequestIntervalMs { get; set; }
         public bool PrintMotdInChat { get; set; }
+
+        public LaunchPadCoordinationMode LaunchPadCoordMode { get; set; } = LaunchPadCoordinationMode.Off;
+        public float LaunchPadOverflowBubble { get; set; } = 200f;
+        public int LaunchPadSlotCount { get; set; } = 2;
+
+        public int LaunchPadLeaseTimeoutSeconds { get; set; } = 120;
+        public int LaunchPadReservationDurationSeconds { get; set; } = 180;
+        public bool LaunchPadKsceEnforceOptionalDllMatch { get; set; }
+        public string LaunchPadKsceOptionalDllRelativePath { get; set; } = "";
+        public string LaunchPadKsceOptionalDllSha256 { get; set; } = "";
+        public string LaunchPadKsceMinPluginFileVersion { get; set; } = "";
+        public string LaunchPadKsceMaxPluginFileVersion { get; set; } = "";
     }
 }

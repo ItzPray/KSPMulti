@@ -37,6 +37,16 @@ namespace Server.Message
             msgData.MaxScreenshotHeight = ScreenshotSettings.SettingsStore.MaxScreenshotHeight;
             msgData.MinCraftLibraryRequestIntervalMs = CraftSettings.SettingsStore.MinCraftLibraryRequestIntervalMs;
             msgData.PrintMotdInChat = GeneralSettings.SettingsStore.PrintMotdInChat;
+            msgData.LaunchPadCoordMode = GeneralSettings.SettingsStore.LaunchPadCoordinationMode;
+            msgData.LaunchPadOverflowBubble = GeneralSettings.SettingsStore.LaunchPadOverflowBubbleDistance;
+            msgData.LaunchPadSlotCount = GeneralSettings.SettingsStore.LaunchPadConcurrentSlots;
+            msgData.LaunchPadLeaseTimeoutSeconds = GeneralSettings.SettingsStore.LaunchPadLeaseTimeoutSeconds;
+            msgData.LaunchPadReservationDurationSeconds = GeneralSettings.SettingsStore.LaunchPadReservationDurationSeconds;
+            msgData.LaunchPadKsceEnforceOptionalDllMatch = GeneralSettings.SettingsStore.LaunchPadKsceEnforceOptionalDllMatch;
+            msgData.LaunchPadKsceOptionalDllRelativePath = GeneralSettings.SettingsStore.LaunchPadKsceOptionalDllRelativePath ?? string.Empty;
+            msgData.LaunchPadKsceOptionalDllSha256 = GeneralSettings.SettingsStore.LaunchPadKsceOptionalDllSha256 ?? string.Empty;
+            msgData.LaunchPadKsceMinPluginFileVersion = GeneralSettings.SettingsStore.LaunchPadKsceMinPluginFileVersion ?? string.Empty;
+            msgData.LaunchPadKsceMaxPluginFileVersion = GeneralSettings.SettingsStore.LaunchPadKsceMaxPluginFileVersion ?? string.Empty;
 
             if (GeneralSettings.SettingsStore.GameDifficulty == GameDifficulty.Custom && GameplaySettings.SettingsStore != null)
             {

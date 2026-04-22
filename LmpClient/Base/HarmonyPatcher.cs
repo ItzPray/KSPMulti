@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using LmpClient.Harmony;
 
 namespace LmpClient.Base
 {
@@ -9,6 +10,7 @@ namespace LmpClient.Base
         public static void Awake()
         {
             HarmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
+            KerbalKonstructsLaunchPadHarmony.TryRegister(HarmonyInstance);
         }
     }
 }

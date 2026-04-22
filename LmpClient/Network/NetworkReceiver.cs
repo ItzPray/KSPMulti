@@ -8,6 +8,7 @@ using LmpClient.Systems.Flag;
 using LmpClient.Systems.Groups;
 using LmpClient.Systems.Handshake;
 using LmpClient.Systems.KerbalSys;
+using LmpClient.Systems.LaunchPadCoordination;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.ModApi;
 using LmpClient.Systems.Motd;
@@ -290,6 +291,9 @@ namespace LmpClient.Network
                     break;
                 case ServerMessageType.Screenshot:
                     ScreenshotSystem.Singleton.EnqueueMessage(msg);
+                    break;
+                case ServerMessageType.LaunchPad:
+                    LaunchPadCoordinationSystem.Singleton.EnqueueMessage(msg);
                     break;
                 default:
                     LunaLog.LogError($"[LMP]: Unhandled Message type {msg.MessageType}");

@@ -1,5 +1,9 @@
 ﻿using HarmonyLib;
+using LmpClient;
 using LmpClient.Events;
+using LmpClient.Systems.LaunchPadCoordination;
+using LmpClient.Systems.SettingsSys;
+using LmpCommon.Enums;
 
 // ReSharper disable All
 
@@ -25,6 +29,17 @@ namespace LmpClient.Harmony
         {
             if (fromShipAssembly && ship != null)
                 VesselAssemblyEvent.onAssemblingVessel.Fire(ship);
+
+            if (fromShipAssembly && MainSystem.NetworkState >= ClientState.Connected)
+            {
+                var mode = SettingsSystem.ServerSettings.LaunchPadCoordMode;
+                if (mode != LaunchPadCoordinationMode.Off)
+                {
+                    var siteName = !string.IsNullOrEmpty(landedAt) ? landedAt : displaylandedAt;
+                    if (LaunchPadSiteKeyUtil.TryBuildSpaceCenterSiteKey(siteName, out var siteKey))
+                        LaunchPadCoordinationSystem.Singleton.MessageSender.SendReserveSiteRequest(siteKey);
+                }
+            }
         }
 
         [HarmonyPostfix]

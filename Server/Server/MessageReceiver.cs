@@ -40,6 +40,7 @@ namespace Server.Server
             [ClientMessageType.Screenshot] = new ScreenshotMsgReader(),
             [ClientMessageType.ShareProgress] = new ShareProgressMsgReader(),
             [ClientMessageType.PersistentSync] = new PersistentSyncMsgReader(),
+            [ClientMessageType.LaunchPad] = new LaunchPadMsgReader(),
         };
 
         #endregion

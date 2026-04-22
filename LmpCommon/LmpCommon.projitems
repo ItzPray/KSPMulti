@@ -23,6 +23,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Enums\GameDificulty.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\GameMode.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\HandshakeReply.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Enums\LaunchPadCoordinationMode.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\LogLevels.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\MasterServerMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Enums\PartSyncFieldType.cs" />
@@ -94,6 +95,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\GroupCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\HandshakeCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\KerbalCliMsg.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Client\LaunchPadCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\LockCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\ModCliMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Client\MotdCliMsg.cs" />
@@ -196,6 +198,13 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Screenshot\ScreenshotListRequestMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Screenshot\ScreenshotNotificationMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Settings\SetingsReplyMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadBaseMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadClientBaseMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadLaunchDeniedMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadOccupancyDeltaMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadOccupancySnapshotMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadReserveSiteReplyMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadReserveSiteRequestMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Settings\SettingsBaseMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Settings\SettingsRequestCliMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\ShareProgress\ContractInfo.cs" />
@@ -259,6 +268,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\LockSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\ModSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\MotdSrvMsg.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Server\LaunchPadSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\PersistentSyncSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\PlayerColorSrvMsg.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Server\PlayerConnectionSrvMsg.cs" />
@@ -277,6 +287,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\HandshakeMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\KerbalMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\LockMessageType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Types\LaunchPadClientMessageType.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Types\LaunchPadMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\MasterServerMessageSubType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\MotdMessageType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Types\PersistentSyncMessageType.cs" />

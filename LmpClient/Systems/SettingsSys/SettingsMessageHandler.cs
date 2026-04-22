@@ -1,6 +1,9 @@
 ﻿using CommNet;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
+using LmpClient.Harmony;
+using LmpClient.Network;
+using LmpClient.Systems.LaunchPadCoordination;
 using LmpCommon.Enums;
 using LmpCommon.Message.Data.Settings;
 using LmpCommon.Message.Interface;
@@ -33,8 +36,32 @@ namespace LmpClient.Systems.SettingsSys
             SettingsSystem.ServerSettings.MinScreenshotIntervalMs = msgData.MinScreenshotIntervalMs;
             SettingsSystem.ServerSettings.MaxScreenshotWidth = msgData.MaxScreenshotWidth;
             SettingsSystem.ServerSettings.MaxScreenshotHeight = msgData.MaxScreenshotHeight;
-            SettingsSystem.ServerSettings.MinCraftLibraryRequestIntervalMs = msgData.MinScreenshotIntervalMs;
+            SettingsSystem.ServerSettings.MinCraftLibraryRequestIntervalMs = msgData.MinCraftLibraryRequestIntervalMs;
             SettingsSystem.ServerSettings.PrintMotdInChat = msgData.PrintMotdInChat;
+            SettingsSystem.ServerSettings.LaunchPadCoordMode = msgData.LaunchPadCoordMode;
+            SettingsSystem.ServerSettings.LaunchPadOverflowBubble = msgData.LaunchPadOverflowBubble;
+            SettingsSystem.ServerSettings.LaunchPadSlotCount = msgData.LaunchPadSlotCount;
+            SettingsSystem.ServerSettings.LaunchPadLeaseTimeoutSeconds = msgData.LaunchPadLeaseTimeoutSeconds;
+            SettingsSystem.ServerSettings.LaunchPadReservationDurationSeconds = msgData.LaunchPadReservationDurationSeconds;
+            SettingsSystem.ServerSettings.LaunchPadKsceEnforceOptionalDllMatch = msgData.LaunchPadKsceEnforceOptionalDllMatch;
+            SettingsSystem.ServerSettings.LaunchPadKsceOptionalDllRelativePath = msgData.LaunchPadKsceOptionalDllRelativePath ?? string.Empty;
+            SettingsSystem.ServerSettings.LaunchPadKsceOptionalDllSha256 = msgData.LaunchPadKsceOptionalDllSha256 ?? string.Empty;
+            SettingsSystem.ServerSettings.LaunchPadKsceMinPluginFileVersion = msgData.LaunchPadKsceMinPluginFileVersion ?? string.Empty;
+            SettingsSystem.ServerSettings.LaunchPadKsceMaxPluginFileVersion = msgData.LaunchPadKsceMaxPluginFileVersion ?? string.Empty;
+
+            LaunchPadKsceCompatibility.RevalidateAfterSettingsSync();
+
+            if (LaunchPadKsceCompatibility.StrictKsceDllCheckFailed)
+            {
+                NetworkConnection.Disconnect("[LMP]: Launch pad optional DLL pin failed — see KSP.log.");
+                return;
+            }
+
+            if (msgData.LaunchPadCoordMode == LaunchPadCoordinationMode.Off)
+            {
+                LaunchPadCoordinationSystem.Singleton.ClearFromSettings();
+                LaunchPadStockLaunchSiteUi.RefreshAllInScene();
+            }
 
             SettingsSystem.ServerSettings.ServerParameters =
                 GameParameters.GetDefaultParameters(

@@ -9,6 +9,7 @@ using Server.Log;
 using Server.Message.Base;
 using Server.Server;
 using Server.System;
+using Server.System.LaunchSite;
 using Server.System.Vessel;
 using System;
 using System.Linq;
@@ -45,6 +46,8 @@ namespace Server.Message
                 case VesselMessageType.Update:
                     VesselDataUpdater.WriteUpdateDataToFile(messageData);
                     MessageQueuer.RelayMessage<VesselSrvMsg>(client, messageData);
+                    LaunchSiteOccupancyService.OnVesselProtoStored(messageData.VesselId);
+                    LaunchSiteOccupancyService.BroadcastSmart();
                     break;
                 case VesselMessageType.Resource:
                     VesselDataUpdater.WriteResourceDataToFile(messageData);
@@ -101,6 +104,8 @@ namespace Server.Message
 
             //Relay the message.
             MessageQueuer.RelayMessage<VesselSrvMsg>(client, data);
+            LaunchSiteOccupancyService.OnVesselRemoved(data.VesselId);
+            LaunchSiteOccupancyService.BroadcastSmart();
         }
 
         private static void HandleVesselProto(ClientStructure client, VesselBaseMsgData message)
@@ -120,8 +125,17 @@ namespace Server.Message
                 LunaLog.Debug($"Saving vessel {msgData.VesselId} ({ByteSize.FromBytes(msgData.NumBytes).KiloBytes} KB) from {client.PlayerName}.");
             }
 
-            VesselDataUpdater.RawConfigNodeInsertOrUpdate(msgData.VesselId, Encoding.UTF8.GetString(msgData.Data, 0, msgData.NumBytes));
+            var vesselText = Encoding.UTF8.GetString(msgData.Data, 0, msgData.NumBytes);
+            if (!LaunchSiteOccupancyService.TryAcceptIncomingProto(client, msgData.VesselId, vesselText, out var denyReason))
+            {
+                LaunchSiteOccupancyService.SendLaunchDenied(client, denyReason);
+                return;
+            }
+
+            VesselDataUpdater.RawConfigNodeInsertOrUpdate(msgData.VesselId, vesselText);
+            LaunchSiteOccupancyService.OnVesselProtoStored(msgData.VesselId);
             MessageQueuer.RelayMessage<VesselSrvMsg>(client, msgData);
+            LaunchSiteOccupancyService.BroadcastSmart();
         }
 
         private static void HandleVesselsSync(ClientStructure client, VesselBaseMsgData message)
