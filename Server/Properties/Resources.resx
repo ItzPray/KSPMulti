@@ -139,6 +139,9 @@
   <data name="Jebediah_Kerman" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Kerbals\Jebediah Kerman.txt;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
   </data>
+  <data name="LmpGameLaunchId" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Scenario\LmpGameLaunchId.txt;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
+  </data>
   <data name="PartUpgradeManager" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\Scenario\PartUpgradeManager.txt;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
   </data>

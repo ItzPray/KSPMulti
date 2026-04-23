@@ -23,7 +23,8 @@ namespace Server.System.PersistentSync
             "ContractSystem",
             "StrategySystem",
             "ProgressTracking",
-            "ResearchAndDevelopment"
+            "ResearchAndDevelopment",
+            "LmpGameLaunchId"
         };
         private static bool _initialized;
 
@@ -35,6 +36,8 @@ namespace Server.System.PersistentSync
         public static void Initialize(bool createdFromScratch)
         {
             Domains.Clear();
+            GameLaunchIdScenarioBootstrap.EnsureScenarioInStore();
+            Register(new GameLaunchIdPersistentSyncDomainStore());
             Register(new FundsPersistentSyncDomainStore());
             Register(new SciencePersistentSyncDomainStore());
             Register(new ReputationPersistentSyncDomainStore());
@@ -233,7 +236,15 @@ namespace Server.System.PersistentSync
                 {
                     if (!Domains.ContainsKey(domainId))
                     {
-                        LunaLog.Error($"[PersistentSync] registry guard: snapshot requested for missing domain {domainId} client={clientName}");
+                        // GameLaunchId is an optional post-handshake pull on newer clients; older servers omit the domain.
+                        if (domainId == PersistentSyncDomainId.GameLaunchId)
+                        {
+                            LunaLog.Debug($"[PersistentSync] snapshot requested for optional domain {domainId} (not registered) client={clientName}");
+                        }
+                        else
+                        {
+                            LunaLog.Error($"[PersistentSync] registry guard: snapshot requested for missing domain {domainId} client={clientName}");
+                        }
                     }
                 }
             }
@@ -376,7 +387,14 @@ namespace Server.System.PersistentSync
                 }
                 else if (_initialized)
                 {
-                    LunaLog.Error($"[PersistentSync] registry guard: GetSnapshots skipped unknown domain={domainId}");
+                    if (domainId == PersistentSyncDomainId.GameLaunchId)
+                    {
+                        LunaLog.Debug($"[PersistentSync] GetSnapshots skipped optional domain={domainId}");
+                    }
+                    else
+                    {
+                        LunaLog.Error($"[PersistentSync] registry guard: GetSnapshots skipped unknown domain={domainId}");
+                    }
                 }
             }
 

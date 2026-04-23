@@ -78,7 +78,7 @@ namespace LmpClient.Windows.Vessels.Structures
                     return string.Empty;
                 }
 
-                return min == max ? $"  launchID={min}" : $"  launchID={min}-{max}";
+                return min == max ? $"  partsLaunchID={min}" : $"  partsLaunchID={min}-{max}";
             }
 
             var snaps = vessel.protoVessel?.protoPartSnapshots;

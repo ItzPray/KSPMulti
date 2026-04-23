@@ -25,6 +25,8 @@
 
         internal static string Jebediah_Kerman => ResourceManager.GetString("Jebediah_Kerman", Culture);
 
+        internal static string LmpGameLaunchId => ResourceManager.GetString("LmpGameLaunchId", Culture);
+
         internal static string PartUpgradeManager => ResourceManager.GetString("PartUpgradeManager", Culture);
 
         internal static string ProgressTracking => ResourceManager.GetString("ProgressTracking", Culture);

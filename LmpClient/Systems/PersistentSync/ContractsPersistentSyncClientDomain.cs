@@ -413,6 +413,9 @@ namespace LmpClient.Systems.PersistentSync
             // launchID can stay at the server's Game.launchID while this client's Game.launchID is lower — impossible
             // for VesselLaunchedAfterID. Align requireNew thresholds to local Game.launchID (stock accept semantics).
             VesselSystemsParameterLaunchIdFix.ClampRequireNewLaunchIdsToLocalGame();
+            // Join path uses CreateBlankGame (launchID defaults low) while vessels carry server-era part launchIDs;
+            // bump the global counter to match the universe so future pad launches do not reuse stale ids.
+            VesselSystemsParameterLaunchIdFix.AdvanceGameLaunchIdIfBelowMaxProtoPartLaunchIdAcrossVessels();
 
             if (wireRows > 0 && materialized == 0 && preserved == 0)
             {

@@ -19,11 +19,18 @@ namespace LmpClient.Systems.PersistentSync
 
         protected override ClientState EnableStage => ClientState.ScenariosSynced;
 
+        /// <summary>
+        /// Per join session: <see cref="PersistentSyncDomainId.GameLaunchId"/> is requested only after the mandatory
+        /// persistent-sync handshake completes so older servers (no domain 11) do not block the join batch.
+        /// </summary>
+        private bool _optionalGameLaunchIdPullSent;
+
         public PersistentSyncReconciler Reconciler { get; } = new PersistentSyncReconciler();
 
         public Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain> Domains { get; } =
             new Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain>
             {
+                [PersistentSyncDomainId.GameLaunchId] = new GameLaunchIdPersistentSyncClientDomain(),
                 [PersistentSyncDomainId.Funds] = new FundsPersistentSyncClientDomain(),
                 [PersistentSyncDomainId.Science] = new SciencePersistentSyncClientDomain(),
                 [PersistentSyncDomainId.Reputation] = new ReputationPersistentSyncClientDomain(),
@@ -72,10 +79,12 @@ namespace LmpClient.Systems.PersistentSync
             GameEvents.onLevelWasLoadedGUIReady.Remove(OnSceneReady);
             GameEvents.onGUIRnDComplexSpawn.Remove(OnRnDComplexSpawn);
             Reconciler.Reset(new PersistentSyncDomainId[0]);
+            _optionalGameLaunchIdPullSent = false;
         }
 
         public void StartInitialSync()
         {
+            _optionalGameLaunchIdPullSent = false;
             var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
             var requiredDomains = PersistentSyncDomainApplicability
                 .GetRequiredDomainsForInitialSync(SettingsSystem.ServerSettings.GameMode, caps)
@@ -86,12 +95,34 @@ namespace LmpClient.Systems.PersistentSync
             {
                 LunaLog.Log("[PersistentSync] StartInitialSync no required domains for current game mode; advancing to PersistentStateSynced");
                 MainSystem.NetworkState = ClientState.PersistentStateSynced;
+                RequestOptionalGameLaunchIdSnapshotAfterMandatorySync();
                 return;
             }
 
             var domainList = string.Join(",", requiredDomains.Select(d => d.ToString()));
             LunaLog.Log($"[PersistentSync] StartInitialSync requesting snapshots for domains=[{domainList}]");
             MessageSender.SendRequest(requiredDomains);
+        }
+
+        /// <summary>
+        /// Pulls <see cref="PersistentSyncDomainId.GameLaunchId"/> in a second request after mandatory domains so
+        /// servers without that domain still complete the initial snapshot round-trip.
+        /// </summary>
+        internal void RequestOptionalGameLaunchIdSnapshotAfterMandatorySync()
+        {
+            if (_optionalGameLaunchIdPullSent)
+            {
+                return;
+            }
+
+            if (!IsLiveForDomain(PersistentSyncDomainId.GameLaunchId))
+            {
+                return;
+            }
+
+            _optionalGameLaunchIdPullSent = true;
+            LunaLog.Log("[PersistentSync] optional post-handshake snapshot request domain=GameLaunchId");
+            MessageSender.SendRequest(PersistentSyncDomainId.GameLaunchId);
         }
 
         /// <summary>

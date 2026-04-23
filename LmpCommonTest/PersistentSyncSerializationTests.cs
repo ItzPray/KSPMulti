@@ -82,6 +82,18 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
+        public void TestGameLaunchIdPayloadSerializerRoundTrip()
+        {
+            var payload = GameLaunchIdIntentPayloadSerializer.Serialize(4242u, "VesselProto");
+            GameLaunchIdIntentPayloadSerializer.Deserialize(payload, payload.Length, out var launchId, out var reason);
+            Assert.AreEqual(4242u, launchId);
+            Assert.AreEqual("VesselProto", reason);
+
+            var snapshotPayload = GameLaunchIdSnapshotPayloadSerializer.Serialize(9001u);
+            Assert.AreEqual(9001u, GameLaunchIdSnapshotPayloadSerializer.Deserialize(snapshotPayload, snapshotPayload.Length));
+        }
+
+        [TestMethod]
         public void TestFundsPayloadSerializerRoundTrip()
         {
             var payload = FundsIntentPayloadSerializer.Serialize(999.5d, "Admin");

@@ -10,6 +10,8 @@ namespace LmpCommon.PersistentSync
         {
             switch (domainId)
             {
+                case PersistentSyncDomainId.GameLaunchId:
+                    return PersistentSyncMaterializationSlot.None;
                 case PersistentSyncDomainId.Funds:
                     return PersistentSyncMaterializationSlot.Funding;
                 case PersistentSyncDomainId.Reputation:

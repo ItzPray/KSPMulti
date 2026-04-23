@@ -52,6 +52,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)LunaNetUtils.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\FundsIntentPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\FundsSnapshotPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\GameLaunchIdIntentPayloadSerializer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\GameLaunchIdSnapshotPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ContractCommandIntent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ContractIntentPayloadSerializer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\ContractProducerProposal.cs" />

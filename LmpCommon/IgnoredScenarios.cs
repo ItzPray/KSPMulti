@@ -16,6 +16,8 @@ namespace LmpCommon
             //can carry an empty or stale ContractSystem proto; applying it after PersistentSync.ReplaceContractsFromSnapshot
             //wipes live offers and Mission Control stays empty on first join / reconnect.
             "ContractSystem",
+            //Owned by PersistentSync GameLaunchId; not a stock scenario module.
+            "LmpGameLaunchId",
         };
 
         public static List<string> IgnoreSend { get; } = new List<string>
@@ -30,7 +32,8 @@ namespace LmpCommon
             "ResearchAndDevelopment",//This scenario has its own handling system
             "ScenarioDestructibles",//This scenario has its own handling system
             "ScenarioUpgradeableFacilities",//This scenario has its own handling system
-            "StrategySystem"//This scenario has its own handling system
+            "StrategySystem",//This scenario has its own handling system
+            "LmpGameLaunchId"
         };
     }
 }

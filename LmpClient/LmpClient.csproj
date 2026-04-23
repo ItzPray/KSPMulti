@@ -312,6 +312,7 @@
     <Compile Include="Systems\ShareFunds\ShareFundsMessageSender.cs" />
     <Compile Include="Systems\ShareFunds\ShareFundsSystem.cs" />
     <Compile Include="Systems\PersistentSync\FundsPersistentSyncClientDomain.cs" />
+    <Compile Include="Systems\PersistentSync\GameLaunchIdPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\IPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\ContractsPersistentSyncClientDomain.cs" />
     <Compile Include="Systems\PersistentSync\PersistentSyncApplyOutcome.cs" />

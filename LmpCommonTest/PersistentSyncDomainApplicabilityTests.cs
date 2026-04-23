@@ -56,14 +56,14 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
-        public void SandboxYieldsNoDomains()
+        public void SandboxYieldsOnlyGameLaunchId()
         {
             var caps = PersistentSyncSessionCapabilities.OptimisticForServerGameMode(GameMode.Sandbox);
             var domains = PersistentSyncDomainApplicability
                 .GetRequiredDomainsForInitialSync(GameMode.Sandbox, caps)
                 .ToArray();
 
-            Assert.AreEqual(0, domains.Length);
+            CollectionAssert.AreEqual(new[] { PersistentSyncDomainId.GameLaunchId }, domains);
         }
 
         [TestMethod]

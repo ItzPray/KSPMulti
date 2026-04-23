@@ -15,6 +15,15 @@ namespace LmpClient.Windows.Vessels
 
         private static void PrintVessels()
         {
+            if (HighLogic.CurrentGame != null)
+            {
+                GUILayout.Label($"Game.launchID (local): {HighLogic.CurrentGame.launchID}");
+            }
+            else
+            {
+                GUILayout.Label("Game.launchID (local): —");
+            }
+
             _fastUpdate = GUILayout.Toggle(_fastUpdate, "Fast Update");
             VesselFilter.DrawFilters();
             if (_activeVesselDisplayStore != null)

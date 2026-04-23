@@ -34,6 +34,7 @@ namespace LmpCommonTest
         [TestMethod]
         public void Maps_NonMaterializedDomains_ToNone()
         {
+            Assert.AreEqual(PersistentSyncMaterializationSlot.None, PersistentSyncMaterializationDomainMap.GetSlot(PersistentSyncDomainId.GameLaunchId));
             Assert.AreEqual(PersistentSyncMaterializationSlot.None, PersistentSyncMaterializationDomainMap.GetSlot(PersistentSyncDomainId.Contracts));
             Assert.AreEqual(PersistentSyncMaterializationSlot.None, PersistentSyncMaterializationDomainMap.GetSlot(PersistentSyncDomainId.Achievements));
         }

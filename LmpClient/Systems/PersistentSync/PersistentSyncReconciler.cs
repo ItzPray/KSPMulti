@@ -164,6 +164,7 @@ namespace LmpClient.Systems.PersistentSync
 
             PsLog("initial join handshakes complete (live apply may still be pending for some domains) -> PersistentStateSynced");
             MainSystem.NetworkState = ClientState.PersistentStateSynced;
+            System.RequestOptionalGameLaunchIdSnapshotAfterMandatorySync();
         }
 
         private void LogAfterMarkApplied(PersistentSyncDomainId domainId, long revision)

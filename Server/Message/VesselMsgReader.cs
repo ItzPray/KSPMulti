@@ -9,7 +9,9 @@ using Server.Log;
 using Server.Message.Base;
 using Server.Server;
 using Server.System;
+using LmpCommon.PersistentSync;
 using Server.System.LaunchSite;
+using Server.System.PersistentSync;
 using Server.System.Vessel;
 using System;
 using System.Linq;
@@ -134,8 +136,29 @@ namespace Server.Message
 
             VesselDataUpdater.RawConfigNodeInsertOrUpdate(msgData.VesselId, vesselText);
             LaunchSiteOccupancyService.OnVesselProtoStored(msgData.VesselId);
+            TryBumpGameLaunchIdFromVesselText(vesselText, msgData.VesselId);
             MessageQueuer.RelayMessage<VesselSrvMsg>(client, msgData);
             LaunchSiteOccupancyService.BroadcastSmart();
+        }
+
+        private static void TryBumpGameLaunchIdFromVesselText(string vesselText, Guid vesselId)
+        {
+            if (!PersistentSyncRegistry.IsPersistentSyncInitialized)
+            {
+                return;
+            }
+
+            if (!VesselProtoLaunchIdScanner.TryGetMaxLaunchId(vesselText, out var maxLid))
+            {
+                return;
+            }
+
+            var payload = GameLaunchIdIntentPayloadSerializer.Serialize(maxLid, "VesselProto");
+            PersistentSyncRegistry.ApplyServerMutation(
+                PersistentSyncDomainId.GameLaunchId,
+                payload,
+                payload.Length,
+                $"VesselProto:{vesselId}");
         }
 
         private static void HandleVesselsSync(ClientStructure client, VesselBaseMsgData message)
