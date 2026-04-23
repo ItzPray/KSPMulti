@@ -165,7 +165,10 @@ namespace LmpClient.Systems.TimeSync
                 }
                 else if (Math.Abs(currentError) > MaxPhysicsClockMsError)
                 {
-                    LunaLog.LogWarning($"[LMP] Adjusted time from: {UniversalTime} to: {targetTime} due to error: {currentError}");
+                    // |error| is in milliseconds. Step sync is normal after pauses, hitches, or subspace catch-up when
+                    // drift exceeds MaxPhysicsClockMsError (physics nudge only works for smaller errors).
+                    LunaLog.Log(
+                        $"[LMP] Step clock sync: UT {UniversalTime:F3} -> {targetTime:F3} s (|clock error| {Math.Abs(currentError):F0} ms > {MaxPhysicsClockMsError} ms nudge range; not a fault).");
                     SetGameTime(targetTime);
                 }
             }

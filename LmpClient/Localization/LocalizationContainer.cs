@@ -135,9 +135,10 @@ namespace LmpClient.Localization
 
         private static void LoadWindowTexts<T>(string language, ref T classToReplace) where T : class, new()
         {
+            var typeName = typeof(T).Name;
+            var filePath = CommonUtil.CombinePaths(LocalizationFolder, language, $"{typeName}.xml");
             try
             {
-                var filePath = CommonUtil.CombinePaths(LocalizationFolder, language, $"{classToReplace.GetType().Name}.xml");
                 if (!File.Exists(filePath))
                     LunaXmlSerializer.WriteToXmlFile(new T(), filePath);
 
@@ -145,7 +146,20 @@ namespace LmpClient.Localization
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"Error reading '{classToReplace.GetType().Name}.xml' for language '{language}' Details: {e}");
+                LunaLog.LogError($"Error reading '{typeName}.xml' for language '{language}'. Details: {e}");
+                try
+                {
+                    // Common failure: NUL bytes / wrong encoding / truncated file (often after bad merge or editor glitch).
+                    // Overwrite with defaults so LMP UI strings load; user can re-edit translations afterward.
+                    LunaXmlSerializer.WriteToXmlFile(new T(), filePath);
+                    classToReplace = LunaXmlSerializer.ReadXmlFromPath<T>(filePath);
+                    LunaLog.LogWarning($"[LMP] Regenerated corrupt or unreadable '{typeName}.xml' for language '{language}'.");
+                }
+                catch (Exception e2)
+                {
+                    LunaLog.LogError($"Error regenerating '{typeName}.xml'. Details: {e2}");
+                    classToReplace = new T();
+                }
             }
         }
 
