@@ -48,6 +48,10 @@ namespace LmpClient.Systems.SettingsSys
         public bool Debug4 { get; set; } = false;
         public bool Debug5 { get; set; } = false;
         public bool Debug6 { get; set; } = false;
+        /// <summary>
+        /// Status bar <c>D7</c>: when true, logs contract <c>PARAM</c> name/state trees and completion hints to
+        /// <c>KSP.log</c> (see <c>ContractRuntimeDiagnostics</c>) to debug missions that never reach Completed.
+        /// </summary>
         public bool Debug7 { get; set; } = false;
         public bool Debug8 { get; set; } = false;
         public bool Debug9 { get; set; } = false;

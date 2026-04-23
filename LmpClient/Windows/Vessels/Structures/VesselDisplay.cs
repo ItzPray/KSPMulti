@@ -1,5 +1,6 @@
 ﻿using LmpClient.VesselUtilities;
 using System;
+using System.Linq;
 using UnityEngine;
 
 namespace LmpClient.Windows.Vessels.Structures
@@ -8,6 +9,10 @@ namespace LmpClient.Windows.Vessels.Structures
     {
         public override bool Display { get; set; }
         public Guid VesselId { get; set; }
+
+        /// <summary>Min/max <see cref="Part.launchID"/> on parts (not contract VSP threshold; see clamp log / D7).</summary>
+        public string PartLaunchIdSummary { get; private set; } = string.Empty;
+
         public string VesselName { get; set; }
         public VesselDataDisplay Data { get; set; }
         public VesselLockDisplay Locks { get; set; }
@@ -19,6 +24,7 @@ namespace LmpClient.Windows.Vessels.Structures
         public VesselDisplay(Guid vesselId)
         {
             VesselId = vesselId;
+            PartLaunchIdSummary = string.Empty;
             Data = new VesselDataDisplay(VesselId);
             Locks = new VesselLockDisplay(VesselId);
             Orbit = new VesselOrbitDisplay(VesselId);
@@ -27,10 +33,76 @@ namespace LmpClient.Windows.Vessels.Structures
             Vectors = new VesselVectorsDisplay(VesselId);
         }
 
+        /// <summary>
+        /// Updates header fields used on the collapsed vessel row (always call from <see cref="Vessels.VesselsWindow"/>;
+        /// <see cref="VesselBaseDisplay.Update"/> skips work when the row is collapsed).
+        /// </summary>
+        public void RefreshHeader(Vessel vessel)
+        {
+            if (vessel == null)
+            {
+                return;
+            }
+
+            VesselId = vessel.id;
+            PartLaunchIdSummary = BuildPartLaunchIdSummary(vessel);
+        }
+
+        private static string BuildPartLaunchIdSummary(Vessel vessel)
+        {
+            if (vessel.loaded && vessel.Parts != null && vessel.Parts.Count > 0)
+            {
+                uint min = uint.MaxValue;
+                uint max = 0u;
+                foreach (var p in vessel.Parts)
+                {
+                    if (p == null)
+                    {
+                        continue;
+                    }
+
+                    var id = p.launchID;
+                    if (id < min)
+                    {
+                        min = id;
+                    }
+
+                    if (id > max)
+                    {
+                        max = id;
+                    }
+                }
+
+                if (min == uint.MaxValue)
+                {
+                    return string.Empty;
+                }
+
+                return min == max ? $"  launchID={min}" : $"  launchID={min}-{max}";
+            }
+
+            var snaps = vessel.protoVessel?.protoPartSnapshots;
+            if (snaps == null || snaps.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var ids = snaps.Where(s => s != null).Select(s => s.launchID).ToArray();
+            if (ids.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            var pmin = ids.Min();
+            var pmax = ids.Max();
+            return pmin == pmax ? $"  partsLaunchID={pmin}" : $"  partsLaunchID={pmin}-{pmax}";
+        }
+
         protected override void UpdateDisplay(Vessel vessel)
         {
             VesselId = vessel.id;
             VesselName = vessel.vesselName;
+            PartLaunchIdSummary = BuildPartLaunchIdSummary(vessel);
             Data.Update(vessel);
             Locks.Update(vessel);
             Orbit.Update(vessel);

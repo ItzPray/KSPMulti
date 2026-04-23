@@ -200,7 +200,10 @@ namespace LmpClient.Windows.Status
                 SettingsSystem.CurrentSettings.Debug6 = d6;
                 SettingsSystem.SaveSettings();
             }
-            var d7 = GUILayout.Toggle(SettingsSystem.CurrentSettings.Debug7, StatusTexts.Debug7BtnTxt, ToggleButtonStyle);
+            var d7 = GUILayout.Toggle(
+                SettingsSystem.CurrentSettings.Debug7,
+                new GUIContent(StatusTexts.Debug7BtnTxt, "D7: log contract PARAM trees to KSP.log (stuck missions)"),
+                ToggleButtonStyle);
             if (d7 != SettingsSystem.CurrentSettings.Debug7)
             {
                 SettingsSystem.CurrentSettings.Debug7 = d7;

@@ -19,6 +19,28 @@ namespace LmpClient.Systems.PersistentSync
     {
         private const string LmpOfferTitleFieldName = "lmpOfferTitle";
 
+        /// <summary>
+        /// Throttle for <see cref="LogActiveReuseSkippedThrottled"/> — snapshot apply can touch many Active rows per frame.
+        /// </summary>
+        private const float ActiveReuseMismatchLogWindowSeconds = 5f;
+
+        private static float _activeReuseMismatchLogWindowStartRealtime = -1f;
+
+        private static int _activeReuseMismatchLogWindowCount;
+
+        private static Guid _activeReuseMismatchLogSampleGuid;
+
+        private static string _activeReuseMismatchLogSampleReason = string.Empty;
+
+        private static string _activeReuseMismatchLogSampleTitle = string.Empty;
+
+        /// <summary>
+        /// Contracts whose snapshot row was merged with live <see cref="ContractParameter"/> completion before
+        /// <see cref="Contract.Load"/>; after snapshot apply we emit <see cref="ContractIntentPayloadKind.ParameterProgressObserved"/>
+        /// so the server catches up when stock had advanced locally but the canonical row still lagged.
+        /// </summary>
+        private static readonly List<Guid> PostSnapshotParameterProgressGuids = new List<Guid>();
+
         private ContractSnapshotInfo[] _pendingContracts;
 
         public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
@@ -182,14 +204,78 @@ namespace LmpClient.Systems.PersistentSync
                 ShareContractsSystem.Singleton.StopIgnoringEvents();
             }
 
+            FlushPostSnapshotMergedContractParameterProgressProposals();
+
             // _pendingContracts was cleared inside the try block immediately after ReplaceContractsFromSnapshot
             // completed so the HasPendingSnapshot gate opens before we invoke ReplenishStockOffers. See the
             // comment at that clear site for the full rationale.
             return PersistentSyncApplyOutcome.Applied;
         }
 
+        /// <summary>
+        /// After contracts snapshot apply, push any merged live parameter completions to the server while events
+        /// are enabled so <see cref="ShareContractsMessageSender.SendProducerProposal"/> is not skipped.
+        /// </summary>
+        private static void FlushPostSnapshotMergedContractParameterProgressProposals()
+        {
+            if (PostSnapshotParameterProgressGuids.Count == 0)
+            {
+                return;
+            }
+
+            var copy = PostSnapshotParameterProgressGuids.ToArray();
+            PostSnapshotParameterProgressGuids.Clear();
+
+            var share = ShareContractsSystem.Singleton;
+            if (share?.MessageSender == null || !PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Contracts))
+            {
+                return;
+            }
+
+            foreach (var guid in copy)
+            {
+                var contract = FindContractByGuidInRuntimeLists(guid);
+                if (contract == null || contract.ContractState != Contract.State.Active)
+                {
+                    continue;
+                }
+
+                share.MessageSender.SendProducerProposal(
+                    ContractIntentPayloadKind.ParameterProgressObserved,
+                    contract,
+                    $"PersistentSyncSnapshotApply:MergedLiveParamProgress:{guid:N}");
+            }
+        }
+
+        private static Contract FindContractByGuidInRuntimeLists(Guid guid)
+        {
+            if (ContractSystem.Instance == null)
+            {
+                return null;
+            }
+
+            foreach (var c in ContractSystem.Instance.Contracts)
+            {
+                if (c != null && c.ContractGuid == guid)
+                {
+                    return c;
+                }
+            }
+
+            foreach (var c in ContractSystem.Instance.ContractsFinished)
+            {
+                if (c != null && c.ContractGuid == guid)
+                {
+                    return c;
+                }
+            }
+
+            return null;
+        }
+
         private static void ReplaceContractsFromSnapshot(ContractSnapshotInfo[] contracts)
         {
+            PostSnapshotParameterProgressGuids.Clear();
             contracts = DedupeContractsByGuidPreserveOrder(contracts);
 
             // Index the live contracts by GUID so we can preserve whichever instances already match the incoming
@@ -241,6 +327,18 @@ namespace LmpClient.Systems.PersistentSync
                     continue;
                 }
 
+                // Merge live parameter completion into the server row *before* Unregister: stock Contract.Save on
+                // the live instance can depend on the contract still being registered.
+                var deserializeSource = contractInfo;
+                if (liveContract != null &&
+                    liveContract.ContractState == Contract.State.Active &&
+                    IsSnapshotMarkedActive(contractInfo) &&
+                    TryMergeLiveActiveParameterProgressAheadOfServer(liveContract, contractInfo, out var mergedRow))
+                {
+                    deserializeSource = mergedRow;
+                    PostSnapshotParameterProgressGuids.Add(contractInfo.ContractGuid);
+                }
+
                 // State mismatch or GUID not live: drop the previous live subscription (if any) and re-materialize
                 // from the snapshot so Accept/Decline/Complete/Fail transitions propagate to stock KSP's scorers.
                 if (liveContract != null)
@@ -249,7 +347,7 @@ namespace LmpClient.Systems.PersistentSync
                     catch (Exception e) { LunaLog.LogWarning($"[PersistentSync] contract Unregister before re-materialize failed guid={liveContract.ContractGuid}: {e.Message}"); }
                 }
 
-                var contract = DeserializeContract(contractInfo);
+                var contract = DeserializeContract(deserializeSource);
                 if (contract == null)
                 {
                     skippedNull++;
@@ -311,6 +409,11 @@ namespace LmpClient.Systems.PersistentSync
             foreach (var c in newMain) ContractSystem.Instance.Contracts.Add(c);
             foreach (var c in newFinished) ContractSystem.Instance.ContractsFinished.Add(c);
 
+            // Active rows deserialized from the server never run FinePrint OnAccepted(), so VesselSystemsParameter
+            // launchID can stay at the server's Game.launchID while this client's Game.launchID is lower — impossible
+            // for VesselLaunchedAfterID. Align requireNew thresholds to local Game.launchID (stock accept semantics).
+            VesselSystemsParameterLaunchIdFix.ClampRequireNewLaunchIdsToLocalGame();
+
             if (wireRows > 0 && materialized == 0 && preserved == 0)
             {
                 LunaLog.LogError(
@@ -345,8 +448,27 @@ namespace LmpClient.Systems.PersistentSync
             {
                 if (live.ContractState == Contract.State.Active)
                 {
-                    newMain.Add(live);
-                    return true;
+                    // Do not reuse the live instance solely because both sides are Active. The server snapshot
+                    // carries authoritative PARAM / subclass fields; reusing live without comparing bytes drops
+                    // ParameterProgressObserved merges from other clients (common when the contract lock holder is
+                    // not the flying player) and makes satellite / multi-parameter missions look "half synced".
+                    //
+                    // Byte-identical Contract.Save output is often false between server LunaConfigNode round-trips
+                    // and local stock serialization (float formatting, key order), which produced rapid-fire
+                    // rematerialize+reload in one scene load and broke runtime parameter trackers. When the PARAM
+                    // name/state sequence still matches the server row, keep the live instance.
+                    var liveSnap = ShareContractsMessageSender.TryBuildContractSnapshot(live);
+                    if (liveSnap != null &&
+                        (ContractSnapshotInfoComparer.AreEquivalent(liveSnap, info) ||
+                         ActiveContractSemanticsMatchForLiveReuse(liveSnap, info)))
+                    {
+                        newMain.Add(live);
+                        return true;
+                    }
+
+                    var reason = liveSnap == null ? "live_snapshot_null" : "live_snapshot_semantics_differ_from_server";
+                    LogActiveReuseSkippedThrottled(info.ContractGuid, reason, live.Title);
+                    return false;
                 }
                 return false;
             }
@@ -361,6 +483,267 @@ namespace LmpClient.Systems.PersistentSync
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// True when the server snapshot and a freshly serialized live row carry the same contract-level state and
+        /// the same pre-order <c>PARAM</c> <c>name</c> + <c>state</c> sequence. Ignores benign serialize drift
+        /// (orbit floats, field order) so we do not rematerialize Active contracts every revision.
+        /// </summary>
+        private static bool ActiveContractSemanticsMatchForLiveReuse(ContractSnapshotInfo liveSnap, ContractSnapshotInfo serverSnap)
+        {
+            if (liveSnap == null || serverSnap == null)
+            {
+                return false;
+            }
+
+            if (liveSnap.ContractGuid != serverSnap.ContractGuid)
+            {
+                return false;
+            }
+
+            if (!string.Equals(
+                    liveSnap.ContractState?.Trim(),
+                    serverSnap.ContractState?.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var liveRoot = TryParseContractConfigNode(liveSnap);
+            var serverRoot = TryParseContractConfigNode(serverSnap);
+            if (liveRoot == null || serverRoot == null)
+            {
+                return false;
+            }
+
+            var liveType = liveRoot.GetValue("type")?.Trim() ?? string.Empty;
+            var serverType = serverRoot.GetValue("type")?.Trim() ?? string.Empty;
+            if (!string.Equals(liveType, serverType, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var liveSeq = new List<(string typeName, string state)>();
+            var serverSeq = new List<(string typeName, string state)>();
+            CollectContractParamStatesDepthFirst(liveRoot, liveSeq);
+            CollectContractParamStatesDepthFirst(serverRoot, serverSeq);
+            if (liveSeq.Count != serverSeq.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < liveSeq.Count; i++)
+            {
+                if (!string.Equals(liveSeq[i].typeName, serverSeq[i].typeName, StringComparison.Ordinal) ||
+                    !string.Equals(liveSeq[i].state, serverSeq[i].state, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static void CollectContractParamStatesDepthFirst(ConfigNode node, List<(string typeName, string state)> acc)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            if (string.Equals(node.name, "PARAM", StringComparison.OrdinalIgnoreCase))
+            {
+                var typeName = node.GetValue("name")?.Trim() ?? string.Empty;
+                var state = node.GetValue("state")?.Trim() ?? string.Empty;
+                acc.Add((typeName, state));
+            }
+
+            foreach (ConfigNode child in node.GetNodes())
+            {
+                CollectContractParamStatesDepthFirst(child, acc);
+            }
+        }
+
+        /// <summary>
+        /// When the flying client has stock-valid <c>PARAM</c> completions that the authoritative snapshot has not
+        /// yet recorded (common across revision applies while orbiting), merge those scalar fields into a copy of
+        /// the server contract node before <see cref="Contract.Load"/> so we do not wipe local progress. Caller
+        /// then publishes <see cref="ContractIntentPayloadKind.ParameterProgressObserved"/> so the server converges.
+        /// </summary>
+        private static bool TryMergeLiveActiveParameterProgressAheadOfServer(
+            Contract live,
+            ContractSnapshotInfo serverRow,
+            out ContractSnapshotInfo merged)
+        {
+            merged = null;
+            if (live == null || serverRow == null)
+            {
+                return false;
+            }
+
+            if (live.ContractState != Contract.State.Active || !IsSnapshotMarkedActive(serverRow))
+            {
+                return false;
+            }
+
+            var liveSnap = ShareContractsMessageSender.TryBuildContractSnapshot(live);
+            if (liveSnap == null)
+            {
+                return false;
+            }
+
+            var serverRoot = TryParseContractConfigNode(serverRow);
+            var liveRoot = TryParseContractConfigNode(liveSnap);
+            if (serverRoot == null || liveRoot == null)
+            {
+                return false;
+            }
+
+            var liveParamsByName = new Dictionary<string, ConfigNode>(StringComparer.Ordinal);
+            IndexContractParamNodesByStockName(liveRoot, liveParamsByName);
+
+            var promoted = false;
+            PromoteServerParamsWhereLiveAhead(serverRoot, liveParamsByName, ref promoted);
+            if (!promoted)
+            {
+                return false;
+            }
+
+            var data = serverRoot.Serialize();
+            merged = new ContractSnapshotInfo
+            {
+                ContractGuid = serverRow.ContractGuid,
+                ContractState = serverRow.ContractState,
+                Placement = serverRow.Placement,
+                Order = serverRow.Order,
+                Data = data,
+                NumBytes = data.Length
+            };
+            return true;
+        }
+
+        private static void IndexContractParamNodesByStockName(ConfigNode node, Dictionary<string, ConfigNode> acc)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            if (string.Equals(node.name, "PARAM", StringComparison.OrdinalIgnoreCase))
+            {
+                var typeName = node.GetValue("name")?.Trim();
+                if (!string.IsNullOrEmpty(typeName))
+                {
+                    acc[typeName] = node;
+                }
+            }
+
+            foreach (ConfigNode child in node.GetNodes())
+            {
+                IndexContractParamNodesByStockName(child, acc);
+            }
+        }
+
+        private static void PromoteServerParamsWhereLiveAhead(
+            ConfigNode node,
+            Dictionary<string, ConfigNode> liveParamsByName,
+            ref bool promoted)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            if (string.Equals(node.name, "PARAM", StringComparison.OrdinalIgnoreCase))
+            {
+                var typeName = node.GetValue("name")?.Trim();
+                if (!string.IsNullOrEmpty(typeName) &&
+                    liveParamsByName.TryGetValue(typeName, out var liveParam) &&
+                    IsContractParamStateComplete(liveParam) &&
+                    !IsContractParamStateComplete(node))
+                {
+                    OverlayStockConfigNodeScalarValues(liveParam, node);
+                    promoted = true;
+                }
+            }
+
+            foreach (ConfigNode child in node.GetNodes())
+            {
+                PromoteServerParamsWhereLiveAhead(child, liveParamsByName, ref promoted);
+            }
+        }
+
+        private static bool IsContractParamStateComplete(ConfigNode paramNode)
+        {
+            if (paramNode == null)
+            {
+                return false;
+            }
+
+            var st = paramNode.GetValue("state")?.Trim();
+            return string.Equals(st, "Complete", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void OverlayStockConfigNodeScalarValues(ConfigNode src, ConfigNode dest)
+        {
+            if (src?.values == null || dest == null)
+            {
+                return;
+            }
+
+            foreach (var name in src.values.DistinctNames())
+            {
+                var v = src.GetValue(name);
+                if (v == null)
+                {
+                    continue;
+                }
+
+                dest.RemoveValues(name);
+                dest.AddValue(name, v);
+            }
+        }
+
+        /// <summary>
+        /// One line per throttle window when an Active contract is rematerialized from the server snapshot because
+        /// the live instance did not serialize equivalently to the incoming row (diagnoses cross-client PARAM drift).
+        /// </summary>
+        private static void LogActiveReuseSkippedThrottled(Guid contractGuid, string reason, string title)
+        {
+            var now = Time.realtimeSinceStartup;
+            if (_activeReuseMismatchLogWindowStartRealtime < 0f)
+            {
+                _activeReuseMismatchLogWindowStartRealtime = now;
+            }
+
+            _activeReuseMismatchLogWindowCount++;
+            if (_activeReuseMismatchLogWindowCount == 1)
+            {
+                _activeReuseMismatchLogSampleGuid = contractGuid;
+                _activeReuseMismatchLogSampleReason = reason ?? string.Empty;
+                _activeReuseMismatchLogSampleTitle = title ?? string.Empty;
+            }
+
+            if (now - _activeReuseMismatchLogWindowStartRealtime < ActiveReuseMismatchLogWindowSeconds)
+            {
+                return;
+            }
+
+            const int maxTitleLen = 80;
+            var sampleTitle = _activeReuseMismatchLogSampleTitle;
+            if (sampleTitle.Length > maxTitleLen)
+            {
+                sampleTitle = sampleTitle.Substring(0, maxTitleLen) + "...";
+            }
+
+            LunaLog.Log(
+                $"[PersistentSync] Contracts: skipped Active live reuse ({_activeReuseMismatchLogWindowCount} in " +
+                $"{ActiveReuseMismatchLogWindowSeconds:0.#}s); rematerializing from server snapshot. " +
+                $"sample guid={_activeReuseMismatchLogSampleGuid} reason={_activeReuseMismatchLogSampleReason} title=\"{sampleTitle}\"");
+
+            _activeReuseMismatchLogWindowStartRealtime = now;
+            _activeReuseMismatchLogWindowCount = 0;
         }
 
         private static bool IsSnapshotStateFinishedLike(string state)

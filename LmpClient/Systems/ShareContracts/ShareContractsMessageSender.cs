@@ -4,6 +4,7 @@ using LmpClient.Base.Interface;
 using LmpClient.Extensions;
 using LmpClient.Network;
 using LmpClient.Systems.PersistentSync;
+using LmpClient.Systems.SettingsSys;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Interface;
 using LmpCommon.PersistentSync;
@@ -60,10 +61,32 @@ namespace LmpClient.Systems.ShareContracts
 
         public void SendProducerProposal(ContractIntentPayloadKind kind, Contract contract, string reason)
         {
+            if (ContractRuntimeDiagnostics.IsEnabled &&
+                (kind == ContractIntentPayloadKind.ContractCompletedObserved ||
+                 kind == ContractIntentPayloadKind.ContractFailedObserved))
+            {
+                ContractRuntimeDiagnostics.MaybeLogParameterTree(
+                    contract,
+                    kind == ContractIntentPayloadKind.ContractCompletedObserved
+                        ? "preSend:ContractCompletedObserved"
+                        : "preSend:ContractFailedObserved");
+            }
+
             var contractSnapshots = CreateCanonicalContractSnapshots(new[] { contract });
             var changedSnapshots = _snapshotChangeTracker.FilterChanged(contractSnapshots);
             if (changedSnapshots.Length == 0)
             {
+                if (ContractRuntimeDiagnostics.IsEnabled)
+                {
+                    LunaLog.LogWarning(
+                        $"[LMP][ContractDiag] SendProducerProposal dropped (snapshot unchanged vs tracker) kind={kind} " +
+                        $"reason={reason} guid={contract?.ContractGuid:N} title={contract?.Title}");
+                    if (contract != null)
+                    {
+                        ContractRuntimeDiagnostics.MaybeLogParameterTree(contract, "postFilter:noDelta");
+                    }
+                }
+
                 return;
             }
 
@@ -174,7 +197,12 @@ namespace LmpClient.Systems.ShareContracts
             }
         }
 
-        private static ContractSnapshotInfo TryBuildContractSnapshot(Contract contract)
+        /// <summary>
+        /// Builds the same wire-shaped snapshot used for PersistentSync proposals so client-side snapshot apply
+        /// can compare live stock state to an incoming server row (see
+        /// <see cref="ContractsPersistentSyncClientDomain"/> reuse path).
+        /// </summary>
+        internal static ContractSnapshotInfo TryBuildContractSnapshot(Contract contract)
         {
             if (contract == null)
             {

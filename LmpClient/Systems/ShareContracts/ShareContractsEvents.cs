@@ -77,15 +77,24 @@ namespace LmpClient.Systems.ShareContracts
 
         public void ContractCompleted(Contract contract)
         {
-            if (System.IgnoreEvents) return;
+            if (contract == null)
+            {
+                return;
+            }
 
+            // Do not skip when IgnoreEvents is true: stock can evaluate the final parameter transition and fire
+            // onCompleted during PersistentSync snapshot apply (ReplaceContractsFromSnapshot → Contract.Register)
+            // while ShareContractsSystem is inside StartIgnoringEvents, which would otherwise drop
+            // ContractCompletedObserved and leave the mission Active on the server forever.
             // Do not gate on contract-lock ownership: the flying client completes Active work while the lock
             // holder is often another player (Mission Control / offer generation). Server ReduceObservedActive
             // only merges when the canonical row is Active.
+            ContractRuntimeDiagnostics.MaybeLogParameterTree(contract, "onCompleted:beforeWire");
+
             System.MessageSender.SendProducerProposal(
                 ContractIntentPayloadKind.ContractCompletedObserved,
                 contract,
-                $"ContractProposal:Completed:{contract?.ContractGuid:N}");
+                $"ContractProposal:Completed:{contract.ContractGuid:N}");
 
             LunaLog.Log($"Contract completed: {contract.ContractGuid}");
         }
@@ -115,12 +124,18 @@ namespace LmpClient.Systems.ShareContracts
 
         public void ContractFailed(Contract contract)
         {
-            if (System.IgnoreEvents) return;
+            if (contract == null)
+            {
+                return;
+            }
+
+            // Same rationale as ContractCompleted: onFailed can fire during snapshot apply under IgnoreEvents.
+            ContractRuntimeDiagnostics.MaybeLogParameterTree(contract, "onFailed:beforeWire");
 
             System.MessageSender.SendProducerProposal(
                 ContractIntentPayloadKind.ContractFailedObserved,
                 contract,
-                $"ContractProposal:Failed:{contract?.ContractGuid:N}");
+                $"ContractProposal:Failed:{contract.ContractGuid:N}");
 
             LunaLog.Log($"Contract failed: {contract.ContractGuid}");
         }
@@ -210,6 +225,10 @@ namespace LmpClient.Systems.ShareContracts
             {
                 return;
             }
+
+            ContractRuntimeDiagnostics.MaybeLogParameterTree(
+                contract,
+                $"onParameterChange changedParam={contractParameter?.GetType().Name ?? "null"}");
 
             System.MessageSender.SendProducerProposal(
                 ContractIntentPayloadKind.ParameterProgressObserved,

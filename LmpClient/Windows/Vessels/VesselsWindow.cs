@@ -47,6 +47,7 @@ namespace LmpClient.Windows.Vessels
                     if (_activeVesselDisplayStore == null)
                         _activeVesselDisplayStore = new VesselDisplay(FlightGlobals.ActiveVessel.id);
 
+                    _activeVesselDisplayStore.RefreshHeader(FlightGlobals.ActiveVessel);
                     _activeVesselDisplayStore.Update(FlightGlobals.ActiveVessel);
                 }
                 else
@@ -69,6 +70,7 @@ namespace LmpClient.Windows.Vessels
                         VesselDisplayStore.Add(vessel.id, new VesselDisplay(vessel.id));
                     }
 
+                    VesselDisplayStore[vessel.id].RefreshHeader(vessel);
                     VesselDisplayStore[vessel.id].Update(vessel);
                 }
 

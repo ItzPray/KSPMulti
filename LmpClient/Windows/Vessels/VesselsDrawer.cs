@@ -21,7 +21,10 @@ namespace LmpClient.Windows.Vessels
             {
                 GUILayout.Label("Active vessel:");
                 GUILayout.BeginVertical(Skin.box);
-                _activeVesselDisplayStore.Display = GUILayout.Toggle(_activeVesselDisplayStore.Display, _activeVesselDisplayStore.VesselId.ToString());
+                _activeVesselDisplayStore.Display = GUILayout.Toggle(
+                    _activeVesselDisplayStore.Display,
+                    _activeVesselDisplayStore.VesselId.ToString() +
+                    (_activeVesselDisplayStore.PartLaunchIdSummary ?? string.Empty));
                 _activeVesselDisplayStore.Print();
                 GUILayout.EndVertical();
                 GUILayout.Label("Other vessels:");
@@ -34,7 +37,9 @@ namespace LmpClient.Windows.Vessels
             foreach (var keyVal in VesselDisplayStore)
             {
                 GUILayout.BeginVertical(Skin.box);
-                keyVal.Value.Display = GUILayout.Toggle(keyVal.Value.Display, keyVal.Value.VesselId.ToString());
+                keyVal.Value.Display = GUILayout.Toggle(
+                    keyVal.Value.Display,
+                    keyVal.Value.VesselId.ToString() + (keyVal.Value.PartLaunchIdSummary ?? string.Empty));
                 keyVal.Value.Print();
                 GUILayout.EndVertical();
             }

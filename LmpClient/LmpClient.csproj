@@ -297,6 +297,8 @@
     <Compile Include="Systems\ShareAchievements\ShareAchievementsMessageSender.cs" />
     <Compile Include="Systems\ShareAchievements\ShareAchievementsSystem.cs" />
     <Compile Include="Systems\ShareCareer\ShareCareerSystem.cs" />
+    <Compile Include="Systems\ShareContracts\ContractRuntimeDiagnostics.cs" />
+    <Compile Include="Systems\ShareContracts\VesselSystemsParameterLaunchIdFix.cs" />
     <Compile Include="Systems\ShareContracts\ShareContractsEvents.cs" />
     <Compile Include="Systems\ShareContracts\ShareContractsMessageHandler.cs" />
     <Compile Include="Systems\ShareContracts\ShareContractsMessageSender.cs" />
