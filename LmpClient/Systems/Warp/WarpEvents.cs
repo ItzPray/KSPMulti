@@ -38,7 +38,7 @@ namespace LmpClient.Systems.Warp
                 System.ProcessNewSubspace();
             }
 
-            if (data == GameScenes.SPACECENTER && System.Enabled && MainSystem.NetworkState >= ClientState.Running)
+            if (WarpSystem.CanAutoMergeToSessionSubspaceInCurrentScene() && System.Enabled && MainSystem.NetworkState >= ClientState.Running)
                 System.ScheduleKscAutoSubspaceMergeDeferred();
         }
     }

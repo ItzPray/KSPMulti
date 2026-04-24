@@ -82,7 +82,7 @@ namespace LmpClient.Systems.Warp
         protected override void NetworkEventHandler(ClientState data)
         {
             base.NetworkEventHandler(data);
-            if (data == ClientState.Running && HighLogic.LoadedScene == GameScenes.SPACECENTER)
+            if (data == ClientState.Running && CanAutoMergeToSessionSubspaceInCurrentScene())
                 ScheduleKscAutoSubspaceMergeDeferred();
         }
 
@@ -175,14 +175,14 @@ namespace LmpClient.Systems.Warp
         #region Public methods
 
         /// <summary>
-        /// Schedules <see cref="TryAutoMergeToSessionSubspaceAtSpaceCenter"/> shortly after Space Center load so subspace tables and time sync are stable.
+        /// Schedules <see cref="TryAutoMergeToSessionSubspaceAtSpaceCenter"/> shortly after a safe KSC/facility/prelaunch context loads so subspace tables and time sync are stable.
         /// </summary>
         public void ScheduleKscAutoSubspaceMergeDeferred()
         {
             if (!SettingsSystem.CurrentSettings.AutoSyncSubspaceAtSpaceCenter) return;
             if (MainSystem.NetworkState < ClientState.Running) return;
             if (SettingsSystem.ServerSettings.WarpMode != WarpMode.Subspace) return;
-            if (HighLogic.LoadedScene != GameScenes.SPACECENTER) return;
+            if (!CanAutoMergeToSessionSubspaceInCurrentScene()) return;
 
             _kscAutoSubspaceMergeDeadline = UnityEngine.Time.time + 0.75f;
         }
@@ -193,7 +193,7 @@ namespace LmpClient.Systems.Warp
                 return;
 
             _kscAutoSubspaceMergeDeadline = -1f;
-            if (HighLogic.LoadedScene != GameScenes.SPACECENTER)
+            if (!CanAutoMergeToSessionSubspaceInCurrentScene())
                 return;
 
             TryAutoMergeToSessionSubspaceAtSpaceCenter();
@@ -205,7 +205,7 @@ namespace LmpClient.Systems.Warp
         /// </summary>
         private void PeriodicTryKscAutoSubspaceMerge()
         {
-            if (HighLogic.LoadedScene != GameScenes.SPACECENTER)
+            if (!CanAutoMergeToSessionSubspaceInCurrentScene())
                 return;
 
             TryAutoMergeToSessionSubspaceAtSpaceCenter();
@@ -219,7 +219,7 @@ namespace LmpClient.Systems.Warp
             if (!SettingsSystem.CurrentSettings.AutoSyncSubspaceAtSpaceCenter) return;
             if (MainSystem.NetworkState < ClientState.Running) return;
             if (!Enabled || SettingsSystem.ServerSettings.WarpMode != WarpMode.Subspace) return;
-            if (HighLogic.LoadedScene != GameScenes.SPACECENTER) return;
+            if (!CanAutoMergeToSessionSubspaceInCurrentScene()) return;
             if (CurrentlyWarping || WaitingSubspaceIdFromServer) return;
             if (Subspaces.IsEmpty) return;
 
@@ -242,6 +242,22 @@ namespace LmpClient.Systems.Warp
                 return true;
 
             return Subspaces[CurrentSubspace] < Subspaces[futureSubspaceId];
+        }
+
+        internal static bool CanAutoMergeToSessionSubspaceInCurrentScene()
+        {
+            switch (HighLogic.LoadedScene)
+            {
+                case GameScenes.SPACECENTER:
+                case GameScenes.EDITOR:
+                case GameScenes.TRACKSTATION:
+                    return true;
+                case GameScenes.FLIGHT:
+                    return FlightGlobals.ActiveVessel != null &&
+                           FlightGlobals.ActiveVessel.situation == Vessel.Situations.PRELAUNCH;
+                default:
+                    return false;
+            }
         }
 
         /// <summary>
