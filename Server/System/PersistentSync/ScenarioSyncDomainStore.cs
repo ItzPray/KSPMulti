@@ -196,11 +196,14 @@ namespace Server.System.PersistentSync
                 // never bump Revision or rewrite the scenario. This is rule 4 of the Scenario Sync Domain Contract.
                 if (AreEquivalent(previous, next))
                 {
+                    var replyBecauseRevisionDrift =
+                        !isServerMutation && clientKnownRevision.HasValue && clientKnownRevision.Value != _revision;
+                    var replyBecauseDomainForced = !isServerMutation && reduce.ForceReplyToOriginClient;
                     return new PersistentSyncDomainApplyResult
                     {
                         Accepted = true,
                         Changed = false,
-                        ReplyToOriginClient = !isServerMutation && clientKnownRevision.HasValue && clientKnownRevision.Value != _revision,
+                        ReplyToOriginClient = replyBecauseRevisionDrift || replyBecauseDomainForced,
                         ReplyToProducerClient = reduce.ReplyToProducerClient,
                         Snapshot = GetCurrentSnapshotLocked()
                     };

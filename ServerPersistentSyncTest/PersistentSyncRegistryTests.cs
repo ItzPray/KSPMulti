@@ -991,6 +991,59 @@ Tech
             Assert.AreEqual("Complete", updatedNode.GetNode("PARAM").Value.GetValue("state").Value);
         }
 
+        /// <summary>
+        /// Two clients can disagree briefly (crew on station vs observer still loading). Server must not accept
+        /// a regression that wipes a PARAM already Complete in canonical state — that caused PersistentSync spam.
+        /// </summary>
+        [TestMethod]
+        public void ApplyClientIntentWithAuthority_ContractsParameterProgressObserved_DoesNotRegressCompletedParameter()
+        {
+            var existingContract = CreateContractSnapshotInfo(
+                Guid.Parse("77777777-7777-7777-7777-777777777777"),
+                "Active",
+                ContractSnapshotPlacement.Active,
+                0,
+                "Complete",
+                "1,1,0,0,0");
+            var regressedObservation = CreateContractSnapshotInfo(
+                existingContract.ContractGuid,
+                "Active",
+                ContractSnapshotPlacement.Active,
+                -1,
+                "Incomplete",
+                "1,0,0,0,0");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario(existingContract);
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
+            ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"] = CreateScenario("sci", "1");
+            ScenarioStoreSystem.CurrentScenarios["Reputation"] = CreateScenario("rep", "1");
+            ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
+            PersistentSyncRegistry.Initialize(false);
+
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "LockHolder"), false, out _);
+
+            var payload = ContractIntentPayloadSerializer.SerializeProposal(
+                ContractIntentPayloadKind.ParameterProgressObserved,
+                regressedObservation);
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
+                CreateClient("LagObserver"),
+                CreateIntent(PersistentSyncDomainId.Contracts, payload, "Observer sends stale param"));
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsFalse(
+                result.Changed,
+                "Monotonic merge should make the incoming row equivalent to canonical so revision does not advance.");
+            Assert.IsTrue(
+                result.ReplyToOriginClient,
+                "Sender must still receive the authoritative snapshot so local contract UI converges to Complete.");
+
+            var domainSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var contracts = ContractSnapshotPayloadSerializer.Deserialize(domainSnapshot.Payload, domainSnapshot.NumBytes);
+            var row = contracts.Single(c => c.ContractGuid == existingContract.ContractGuid);
+            var node = new ConfigNode(Encoding.UTF8.GetString(row.Data, 0, row.NumBytes));
+            Assert.AreEqual("Complete", node.GetNode("PARAM").Value.GetValue("state").Value);
+        }
+
         [TestMethod]
         public void Gate_RequestOfferGeneration_RoutesSnapshotToProducerWhenOfferPoolEmpty()
         {

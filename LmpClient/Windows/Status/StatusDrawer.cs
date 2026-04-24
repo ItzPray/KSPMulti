@@ -1,5 +1,6 @@
 ﻿using LmpClient.Systems.Chat;
 using LmpClient.Systems.CraftLibrary;
+using LmpClient.Systems.Label;
 using LmpClient.Systems.PlayerColorSys;
 using LmpClient.Systems.Screenshot;
 using LmpClient.Systems.SettingsSys;
@@ -209,11 +210,18 @@ namespace LmpClient.Windows.Status
                 SettingsSystem.CurrentSettings.Debug7 = d7;
                 SettingsSystem.SaveSettings();
             }
-            var d8 = GUILayout.Toggle(SettingsSystem.CurrentSettings.Debug8, StatusTexts.Debug8BtnTxt, ToggleButtonStyle);
+            var d8 = GUILayout.Toggle(
+                SettingsSystem.CurrentSettings.Debug8,
+                new GUIContent(
+                    StatusTexts.Debug8BtnTxt,
+                    "D8: vessel HUD / lock label diagnostics in KSP.log — grep token LMP_VESSEL_LABEL_HUD_DIAG (Harmony order, stale text, map caption, tracking). Throttled."),
+                ToggleButtonStyle);
             if (d8 != SettingsSystem.CurrentSettings.Debug8)
             {
                 SettingsSystem.CurrentSettings.Debug8 = d8;
                 SettingsSystem.SaveSettings();
+                if (d8)
+                    VesselLabelLockDiagnostics.LogEnabledBanner();
             }
             var d9 = GUILayout.Toggle(SettingsSystem.CurrentSettings.Debug9, StatusTexts.Debug9BtnTxt, ToggleButtonStyle);
             if (d9 != SettingsSystem.CurrentSettings.Debug9)

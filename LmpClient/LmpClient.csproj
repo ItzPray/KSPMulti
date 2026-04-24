@@ -185,6 +185,7 @@
     <Compile Include="Harmony\OrbitDriver_UpdateFromParameters.cs" />
     <Compile Include="Harmony\OrbitDriver_UpdateOrbit.cs" />
     <Compile Include="Harmony\OrbitRendererBase_OnUpdateCaption.cs" />
+    <Compile Include="Harmony\OrbitRendererBase_OnUpdateCaption_AfterLmpDiagnostic.cs" />
     <Compile Include="Harmony\PartBuoyancy_FixedUpdate.cs" />
     <Compile Include="Harmony\Part_CheckPartG.cs" />
     <Compile Include="Harmony\Part_CheckPartPressure.cs" />
@@ -245,8 +246,11 @@
     <Compile Include="Harmony\TimeWarp_setMode.cs" />
     <Compile Include="Harmony\TimeWarp_setRate.cs" />
     <Compile Include="Harmony\TrackingStationWidget_Update.cs" />
+    <Compile Include="Harmony\TrackingStationWidget_Update_AfterLmpDiagnostic.cs" />
     <Compile Include="Harmony\ModuleWheelDamage_FixedUpdate.cs" />
     <Compile Include="Harmony\VesselLabels_ProcessLabel.cs" />
+    <Compile Include="Harmony\VesselLabels_ProcessLabel_BeforeLmpEventDiagnostic.cs" />
+    <Compile Include="Harmony\VesselLabels_ProcessLabel_VeryLateHarmonyDiagnostic.cs" />
     <Compile Include="Harmony\Vessel_Initialize.cs" />
     <Compile Include="Harmony\Vessel_Load.cs" />
     <Compile Include="Harmony\Vessel_Unload.cs" />
@@ -287,6 +291,7 @@
     <Compile Include="Systems\AsteroidComet\AsteroidCometEvents.cs" />
     <Compile Include="Systems\Label\LabelEvents.cs" />
     <Compile Include="Systems\Label\LabelSystem.cs" />
+    <Compile Include="Systems\Label\VesselLabelLockDiagnostics.cs" />
     <Compile Include="Systems\Revert\RevertEvents.cs" />
     <Compile Include="Systems\Revert\RevertSystem.cs" />
     <Compile Include="Systems\SafetyBubble\SpawnPointLocation.cs" />

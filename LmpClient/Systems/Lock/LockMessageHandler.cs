@@ -34,6 +34,8 @@ namespace LmpClient.Systems.Lock
                             LockSystem.LockStore.AddOrUpdateLock(data.Locks[i]);
                         }
 
+                        LockEvent.onLockListApplied.Fire();
+
                         if (MainSystem.NetworkState < ClientState.LocksSynced)
                             MainSystem.NetworkState = ClientState.LocksSynced;
                     }

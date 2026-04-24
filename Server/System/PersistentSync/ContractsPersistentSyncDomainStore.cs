@@ -283,15 +283,164 @@ namespace Server.System.PersistentSync
                 return ReduceResult<Canonical>.Reject();
             }
 
-            return ReduceSingleRecord(current, incoming);
+            // Stock can fire parameter updates from every client; observers often lag (no vessel / crew loaded yet).
+            // Without this guard, a regressed PARAM snapshot replaces canonical state and fights the client who
+            // actually completed the step — endless snapshot ping-pong + server log spam.
+            // When we repair the wire row against canonical completion, ForceReplyToOriginClient (via ReduceSingleRecord)
+            // makes ScenarioSync echo the snapshot to the sender even if revision unchanged, so their UI matches.
+            var forceOriginReply = false;
+            if (intentPayload.Kind == ContractIntentPayloadKind.ParameterProgressObserved)
+            {
+                incoming = MergeParameterProgressObservationMonotonic(existing, incoming, out forceOriginReply);
+            }
+
+            return ReduceSingleRecord(current, incoming, forceOriginReply);
         }
 
-        private static ReduceResult<Canonical> ReduceSingleRecord(Canonical current, ContractSnapshotInfo incoming)
+        /// <summary>
+        /// When merging a <see cref="ContractIntentPayloadKind.ParameterProgressObserved"/> row into canonical state,
+        /// never let an incoming PARAM regress below what the server already recorded as <c>Complete</c> (same
+        /// contract GUID, matched by stock PARAM <c>name</c>). Incoming may still advance incomplete → complete.
+        /// </summary>
+        private static ContractSnapshotInfo MergeParameterProgressObservationMonotonic(
+            ContractSnapshotInfo canonicalExisting,
+            ContractSnapshotInfo incoming,
+            out bool repairedRegressionAgainstCanonical)
+        {
+            repairedRegressionAgainstCanonical = false;
+            if (canonicalExisting == null || incoming == null || canonicalExisting.ContractGuid != incoming.ContractGuid)
+            {
+                return incoming;
+            }
+
+            try
+            {
+                var canonBody = Encoding.UTF8.GetString(canonicalExisting.Data, 0, canonicalExisting.NumBytes);
+                var incomingClone = ContractSnapshotInfoComparer.Clone(incoming);
+                var incomingBody = Encoding.UTF8.GetString(incomingClone.Data, 0, incomingClone.NumBytes);
+
+                var canonGraph = BuildContractNodeFromBody(canonBody);
+                var incomingGraph = BuildContractNodeFromBody(incomingBody);
+
+                var canonParamsByName = new Dictionary<string, ConfigNode>(StringComparer.Ordinal);
+                IndexContractParamNodesByName(canonGraph, canonParamsByName);
+                repairedRegressionAgainstCanonical =
+                    ApplyCanonicalCompleteParamGuardToIncoming(incomingGraph, canonParamsByName);
+
+                var bodyText = StripContractWrapper(incomingGraph.ToString());
+                var bodyBytes = Encoding.UTF8.GetBytes(bodyText);
+                incomingClone.NumBytes = bodyBytes.Length;
+                incomingClone.Data = bodyBytes;
+                return CanonicalizeRecordData(incomingClone);
+            }
+            catch
+            {
+                return incoming;
+            }
+        }
+
+        private static void IndexContractParamNodesByName(ConfigNode node, Dictionary<string, ConfigNode> acc)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            if (string.Equals(node.Name, "PARAM", StringComparison.OrdinalIgnoreCase))
+            {
+                var name = node.GetValue("name")?.Value?.Trim();
+                if (!string.IsNullOrEmpty(name))
+                {
+                    acc[name] = node;
+                }
+            }
+
+            foreach (var child in node.GetAllNodes())
+            {
+                IndexContractParamNodesByName(child, acc);
+            }
+        }
+
+        /// <returns><c>true</c> if any incoming PARAM was brought forward to match canonical completion.</returns>
+        private static bool ApplyCanonicalCompleteParamGuardToIncoming(
+            ConfigNode incomingRoot,
+            IReadOnlyDictionary<string, ConfigNode> canonParamsByName)
+        {
+            if (incomingRoot == null || canonParamsByName == null || canonParamsByName.Count == 0)
+            {
+                return false;
+            }
+
+            var repaired = false;
+
+            void Walk(ConfigNode node)
+            {
+                if (node == null)
+                {
+                    return;
+                }
+
+                if (string.Equals(node.Name, "PARAM", StringComparison.OrdinalIgnoreCase))
+                {
+                    var name = node.GetValue("name")?.Value?.Trim();
+                    if (!string.IsNullOrEmpty(name) &&
+                        canonParamsByName.TryGetValue(name, out var canonParam) &&
+                        IsContractParamNodeComplete(canonParam) &&
+                        !IsContractParamNodeComplete(node))
+                    {
+                        OverlayContractParamScalarValuesFromSource(canonParam, node);
+                        repaired = true;
+                    }
+                }
+
+                foreach (var child in node.GetAllNodes())
+                {
+                    Walk(child);
+                }
+            }
+
+            Walk(incomingRoot);
+            return repaired;
+        }
+
+        private static bool IsContractParamNodeComplete(ConfigNode paramNode)
+        {
+            var st = paramNode?.GetValue("state")?.Value?.Trim();
+            return string.Equals(st, "Complete", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void OverlayContractParamScalarValuesFromSource(ConfigNode src, ConfigNode dest)
+        {
+            if (src == null || dest == null)
+            {
+                return;
+            }
+
+            foreach (var val in src.GetAllValues())
+            {
+                if (val.Key == null)
+                {
+                    continue;
+                }
+
+                while (dest.GetValues(val.Key).Any())
+                {
+                    dest.RemoveValue(val.Key);
+                }
+
+                dest.CreateValue(new CfgNodeValue<string, string>(val.Key, val.Value));
+            }
+        }
+
+        private static ReduceResult<Canonical> ReduceSingleRecord(
+            Canonical current,
+            ContractSnapshotInfo incoming,
+            bool forceReplyToOriginClient = false)
         {
             var nextMap = current.ContractsByGuid.ToDictionary(kv => kv.Key, kv => ContractSnapshotInfoComparer.Clone(kv.Value));
             var nextOrder = nextMap.Any() ? nextMap.Values.Max(c => c.Order) + 1 : 0;
             ApplyCanonicalRecord(nextMap, incoming, ref nextOrder);
-            return ReduceResult<Canonical>.Accept(new Canonical(nextMap));
+            return ReduceResult<Canonical>.Accept(new Canonical(nextMap), replyToProducerClient: false, forceReplyToOriginClient);
         }
 
         private static ReduceResult<Canonical> ReduceRecords(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)

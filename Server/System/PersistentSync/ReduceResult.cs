@@ -27,18 +27,29 @@ namespace Server.System.PersistentSync
         /// </summary>
         public bool ReplyToProducerClient { get; private set; }
 
+        /// <summary>
+        /// When true on a client intent that did not change canonical state, <see cref="ScenarioSyncDomainStore{TCanonical}"/>
+        /// still sets <see cref="PersistentSyncDomainApplyResult.ReplyToOriginClient"/> so the sender receives an
+        /// authoritative snapshot (e.g. Contracts monotonic merge repaired a regressed parameter observation).
+        /// </summary>
+        public bool ForceReplyToOriginClient { get; private set; }
+
         public static ReduceResult<TCanonical> Reject()
         {
             return new ReduceResult<TCanonical> { Accepted = false };
         }
 
-        public static ReduceResult<TCanonical> Accept(TCanonical nextState, bool replyToProducerClient = false)
+        public static ReduceResult<TCanonical> Accept(
+            TCanonical nextState,
+            bool replyToProducerClient = false,
+            bool forceReplyToOriginClient = false)
         {
             return new ReduceResult<TCanonical>
             {
                 Accepted = true,
                 NextState = nextState,
-                ReplyToProducerClient = replyToProducerClient
+                ReplyToProducerClient = replyToProducerClient,
+                ForceReplyToOriginClient = forceReplyToOriginClient
             };
         }
     }
