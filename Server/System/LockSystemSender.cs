@@ -5,6 +5,7 @@ using Server.Client;
 using Server.Context;
 using Server.Log;
 using Server.Server;
+using Server.System.LaunchSite;
 using System.Linq;
 
 namespace Server.System
@@ -30,6 +31,7 @@ namespace Server.System
                 msgData.LockResult = true;
 
                 MessageQueuer.RelayMessage<LockSrvMsg>(client, msgData);
+                LaunchSiteOccupancyService.BroadcastIfLockCanChangeOccupancy(lockDefinition);
                 LunaLog.Debug($"{lockDefinition.PlayerName} released lock {lockDefinition}");
             }
             else
@@ -51,7 +53,10 @@ namespace Server.System
 
                 //Just log it if we actually changed the value. Users might send repeated acquire locks as they take a bit of time to reach them...
                 if (!repeatedAcquire)
+                {
+                    LaunchSiteOccupancyService.BroadcastIfLockCanChangeOccupancy(lockDefinition);
                     LunaLog.Debug($"{lockDefinition.PlayerName} acquired lock {lockDefinition}");
+                }
             }
             else
             {

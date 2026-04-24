@@ -57,6 +57,8 @@ namespace LmpClient.Systems.SettingsSys
                 return;
             }
 
+            KerbalKonstructsLaunchPadHarmony.TryRegister(HarmonyPatcher.HarmonyInstance);
+
             if (msgData.LaunchPadCoordMode == LaunchPadCoordinationMode.Off)
             {
                 LaunchPadCoordinationSystem.Singleton.ClearFromSettings();

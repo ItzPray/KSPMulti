@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using LmpCommon.Enums;
+using LmpCommon.Locks;
 using LmpCommon.Message.Data.LaunchPad;
 using LmpCommon.Message.Server;
 using Server.Client;
@@ -193,6 +194,22 @@ namespace Server.System.LaunchSite
         public static void OnVesselRemoved(Guid vesselId)
         {
             LaunchPadVesselActivityTracker.Remove(vesselId);
+        }
+
+        public static void BroadcastIfLockCanChangeOccupancy(LockDefinition lockDefinition)
+        {
+            if (!CanLockChangeOccupancy(lockDefinition))
+                return;
+
+            BroadcastSmart();
+        }
+
+        internal static bool CanLockChangeOccupancy(LockDefinition lockDefinition)
+        {
+            if (lockDefinition == null || lockDefinition.VesselId == Guid.Empty)
+                return false;
+
+            return lockDefinition.Type == LockType.Control || lockDefinition.Type == LockType.Update;
         }
 
         private static bool TryBuildDelta(
