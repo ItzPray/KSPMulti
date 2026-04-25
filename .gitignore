@@ -29,3 +29,4 @@ Scripts/SetDirectories.bat
 Scripts/SetKspmpDevVersionBelowRelease.bat
 Scripts/SetKspmpDevVersionBelowRelease.ps1
 Scripts/SetKspmpReleaseVersion.ps1
+/ReleaseNotes

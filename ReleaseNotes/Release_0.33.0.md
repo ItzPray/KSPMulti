@@ -1,58 +1,56 @@
 # KSPMP 0.33.0
 
-Build 0.33.0 (configuration: Release). In-game KSP mod + standalone KSPMPServer. The client zip path matches the GitHub autoupdate asset name.
+**KSPMP** (Kerbal Space Program Multiplayer) — in-game mod plus **standalone KSPMPServer**, with in-game and server update flows aligned to [GitHub Releases](https://github.com/ItzPray/KSPMulti/releases).
 
-**Full Changelog**: [0.32.0…0.33.0 on GitHub](https://github.com/ItzPray/KSPMulti/compare/0.32.0...0.33.0)
+Build **0.33.0** (configuration: **Release**). The client and server zips are staged the same way as in CI, and the **client zip path matches the GitHub autoupdate** asset name (`KSPMultiplayer-Client-Release.zip` for Release).
 
----
-
-## Highlights
-
-0.33.0 is an **infrastructure and packaging** release: **automatic updates** (client + dedicated server) tied to [GitHub Releases](https://github.com/ItzPray/KSPMulti/releases), with clearer **KSPMP** server branding, **version alignment** between the mod and the server, and small **tooling** additions for local testing. Gameplay and sync work from 0.32.0 is unchanged; this build is the natural follow-up for anyone who needs **reliable, repeatable upgrades** from published zips.
+**Full changelog (commits):** https://github.com/ItzPray/KSPMulti/compare/0.32.0...0.33.0
 
 ---
 
-## Client (KSP)
+## Highlights in 0.33.0
 
-- **In-game autoupdate** — Update flow and UI (including localization hooks) to download and install new **KSPMP** client zips, with a Windows **external** update path where needed and safer integration with the install layout.
-- **UpdateHandler / repo wiring** — Release checks, asset naming, and `RepoConstants` aligned with **ItzPray/KSPMulti** so the in-game “latest” view matches the published `KSPMultiplayer-Client-*.zip` on GitHub.
-- **KSP-AVC** — `KSPMultiplayer.version` and client assembly metadata bumped to **0.33.0** so the mod reports and checks the right version.
+### In-game and dedicated-server updates
 
----
+- **Client auto-update** — From the in-game **Update** UI: fetch the latest **GitHub** client zip, back up the current `GameData/KSPMultiplayer` (and `000_Harmony` as applicable), and merge a new build with a clear Windows helper path (`UpdateHandler` + `ClientModUpdateInstaller`, PowerShell helper, update window copy).
+- **Dedicated server auto-update** — On start (and optional shutdown), compare your **local server build** to the **latest published release**; on approval, **download the server zip** and **merge** into the install while **preserving** `Universe`, `Config`, `logs`, `Plugins`, `Backup`, and similar. On **Windows**, a **`Kspmp-Apply-Server-Update.cmd`** step runs after exit so **locked native DLLs** (e.g. Lidgren) are replaced safely **via robocopy**; the window shows **staged and installed** `Server.dll` assembly version and **pauses** so you can read the log.
+- **KSPMP branding** — Console and logs use **KSPMP**-oriented names/titles; **session admission** still enforces a common protocol fork id, and **exact build** matching treats **`x.y.z`** and **`x.y.z-compiled`** informational versions as the **same** release (client vs dedicated server).
+- **Release tooling** — `SetKspmpReleaseVersion` / `SetKspmpDevServerVersionBelowRelease` help keep **client, server, and** `KSPMultiplayer.version` in sync; server tests cover handshake and updater merge rules.
 
-## Dedicated server (KSPMPServer)
+### Vessels, networking, and server correctness
 
-- **Self-update on start / on exit (optional)** — The standalone server can check the latest **GitHub** release, download the server zip, and **merge** it into the current install while **preserving** your data (`Universe`, `Universe_Backup`, `Config`, `logs`, `Backup`, `Plugins`, and the bans file policy already documented in code).
-- **Windows deferred apply** — Because the running process locks native DLLs, the helper **`Kspmp-Apply-Server-Update.cmd`** (robocopy) runs after the process exits, with on-screen **steps and pauses** so the window is not a silent flash; PowerShell is used to print **Server.dll** assembly version before/after the merge.
-- **Console / process identity** — Titles and log lines use **KSPMP**; server and client `AssemblyInfo` and **session handshake** are aligned so **0.32.x/0.33.x**-style `AssemblyInformationalVersion` differences (e.g. `x.y.z` vs `x.y.z-compiled`) do not block handshakes.
-
----
-
-## Tooling and release scripts
-
-- **`SetKspmpDevServerVersionBelowRelease.ps1`** — Optional path (default e.g. `C:\KSPMultiServer`); steps the **server** version down, publishes, and robocopy-merges like `PublishServerToTest` so you can **test the self-updater** against a newer GitHub tag.
-- **`SetKspmpReleaseVersion.ps1`** — Also updates the **dedicated server** `AssemblyInfo` in lockstep with the client and `KSPMultiplayer.version` (avoids “update loop” and empty fork/version mistakes on future tags).
-- **`PublishGitHubRelease.ps1` / packaging** — Tweaks so the release process matches the new asset names and team repo layout.
-- **Tests** — `ServerTest` coverage for the server self-updater and handshake admission; `VersionChecker` noise reduced on the server.
+- **Network send path** — **Batching** in the send loop (capped per tick), with explicit **“needs flush”** so unnecessary queue flushes are reduced.
+- **Flight state sync** — Fewer **redundant** flight-state messages (tolerances, forced resend window, last-sent tracking, **reset** hooks); on **control lock** acquisition: zero throttle, reset state tracking, and a **timely** position update where appropriate.
+- **Removed vessels (server)** — `RemovedVessels` is kept in a **thread-safe** store; the server no longer **reinserts** vessels that were **removed** from the session, with **updaters** bailing out early for removed craft and a **regression test** in `ServerTest`.
+- **Vessel update message size** — `VesselUpdateMsgData` accounts for **extra float** payload correctly.
+- **Harmony** — Patching is **idempotent** so re-entry does not break startup.
+- **Chat** — Formatting is simplified.
+- **Version** — `KSPMultiplayer.version`, `LmpClient` and `Server` assemblies, and release notes for this file land at **0.33.0** together in the same release line.
 
 ---
 
-## Install and upgrade (short)
+## Install (short)
 
-- **Client** — Unzip the client so `GameData\KSPMultiplayer` and Harmony are as in **`KSPMP Readme.txt`**; keep the game and the published **0.33.0** client in sync.
-- **Server** — Unzip the server zip to a **folder of your choice** (not inside KSP’s `GameData`). On first use of self-update, read the helper window: it will show **staged** vs **installed** `Server.dll` version and wait for a keypress when finished.
-- **First time from 0.32.x** — You can stay on 0.32.0, or move both client and server to 0.33.0 for the new update flows; **back up** saves and server `Universe` before major upgrades as usual.
+- **Client:** Unzip so you have **`GameData/KSPMultiplayer`** and, if you use it, **`GameData/000_Harmony`** (see **`KSPMP Readme.txt`** in the client zip).
+- **Server:** Run the published **server** output **outside** the KSP game folder (e.g. a dedicated folder such as `C:\KSPMPServer` or your own path). After a self-update, keep using the **same** folder; user data is preserved by design.
+
+We still **cannot guarantee compatibility** with every mod in multiplayer; align **client, server, and** mod allowlists / **mod control** with your group.
+
+---
+
+## Upgrading from 0.32.0
+
+- **Back up** your KSP save directory and, for hosts, the **entire** server install (especially `Universe` / `Universe_Backup` and `Config`) before changing versions.
+- Run **0.33.0** on **both** the **game mod** and the **standalone server** (or a matching pair from the same tag). The **in-game and server** updaters are built to move you between published builds without manually hunting zips, but a **manual** zip install from the [releases page](https://github.com/ItzPray/KSPMulti/releases) is always an option.
+- If you use **Luna**-era paths, note that the project’s save layout and migration story were documented in **0.32.0**; first-time migration from `saves/LunaMultiplayer` to **`saves/KSPMultiplayer`** may already have run on 0.32.0. Keep backups when jumping versions.
 
 ---
 
 ## Thanks
 
-- Everyone testing **0.32.0** in the wild, and to the **KSPMP** contributors and reporters who helped validate packaging and handshakes.
-- The **Luna Multiplayer** lineage; this release is built on that foundation.
+- Everyone who tested **updater** flows, **KSPMPServer** on Windows, and long **multihour** career sessions; your reports drive these fixes.
+- The **Luna Multiplayer** lineage for the open foundation this fork continues to build on.
 
 ---
 
-**Compare range (after tagging 0.33.0 on GitHub):**  
-<https://github.com/ItzPray/KSPMulti/compare/0.32.0...0.33.0>
-
-**Prior release (high-level list):** see [`FirstRelease_0.32.0.md`](./FirstRelease_0.32.0.md) for the full 0.32.0 “what changed from legacy LMP” narrative.
+**Repository:** [ItzPray/KSPMulti](https://github.com/ItzPray/KSPMulti)
