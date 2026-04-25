@@ -57,7 +57,6 @@ For common issues, start with the [Troubleshooting](../../wiki/Troubleshooting) 
 
 Contributions are welcome, especially fixes that improve stability, maintainability, compatibility, and quality of life.
 
-`main` ― [GitHub Actions](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml) runs the **dedicated server** `dotnet test` (`ServerTest`) and does **not** require KSP/Unity `Managed` DLLs. For a full **LmpClient** build, use your local `External/KSPLibraries` (see [AGENTS.md](AGENTS.md)) or a separate AppVeyor/VM pipeline; you do not need AppVeyor for this badge.
 
 |   Branch  |  Build  |  Tests  |  Last commit  |   Activity    |    Commits    |
 | --------- | ------- | ------- | ------------- | ------------- | ------------- |

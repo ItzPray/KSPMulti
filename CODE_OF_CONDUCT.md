@@ -1,46 +1,49 @@
-# Contributor Covenant Code of Conduct
+# Code of Conduct
 
-## Our Pledge
+## Purpose
 
-In the interest of fostering an open and welcoming environment, we as contributors and maintainers pledge to making participation in our project and our community a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, or sexual identity and orientation.
+KSP Multiplayer is maintained as a practical open-source project for improving multiplayer support in Kerbal Space Program. This Code of Conduct exists to keep project spaces productive, readable, and focused on development, testing, support, and documentation.
 
-## Our Standards
+## Expected behavior
 
-Examples of behavior that contributes to creating a positive environment include:
+Participants are expected to:
 
-* Using welcoming and inclusive language
-* Being respectful of differing viewpoints and experiences
-* Gracefully accepting constructive criticism
-* Focusing on what is best for the community
-* Showing empathy towards other community members
+- Stay on topic in issues, pull requests, discussions, and wiki edits.
+- Treat other contributors, maintainers, and users with basic respect.
+- Provide useful bug reports, logs, reproduction steps, and technical details when possible.
+- Accept constructive feedback on code, documentation, and project decisions.
+- Keep disagreements focused on the work rather than personal attacks.
+- Avoid spam, trolling, harassment, threats, doxxing, and intentionally disruptive behavior.
 
-Examples of unacceptable behavior by participants include:
+## Unacceptable behavior
 
-* The use of sexualized language or imagery and unwelcome sexual attention or advances
-* Trolling, insulting/derogatory comments, and personal or political attacks
-* Public or private harassment
-* Publishing others' private information, such as a physical or electronic address, without explicit permission
-* Other conduct which could reasonably be considered inappropriate in a professional setting
+The following behavior may be removed or moderated:
 
-## Our Responsibilities
+- Personal attacks, threats, or harassment.
+- Spam, scams, or unrelated promotion.
+- Repeated off-topic arguments after being asked to stop.
+- Posting private information without permission.
+- Intentionally misleading bug reports or malicious contributions.
+- Abusive conduct that interferes with normal project maintenance.
 
-Project maintainers are responsible for clarifying the standards of acceptable behavior and are expected to take appropriate and fair corrective action in response to any instances of unacceptable behavior.
+## Maintainer authority
 
-Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, or to ban temporarily or permanently any contributor for other behaviors that they deem inappropriate, threatening, offensive, or harmful.
+Project maintainers may remove, edit, or reject comments, commits, pull requests, issues, wiki edits, releases, or other contributions that are disruptive, unsafe, irrelevant, or harmful to the project.
+
+Maintainers may temporarily or permanently restrict participation from users who repeatedly ignore project rules or interfere with normal maintenance.
+
+## Reporting issues
+
+Project issues should be reported through the repository issue tracker when possible:
+
+https://github.com/ItzPray/KSPMulti/issues
+
+For security-sensitive reports or private matters, contact the current project maintainer through the contact methods listed on the repository owner's GitHub profile.
 
 ## Scope
 
-This Code of Conduct applies both within project spaces and in public spaces when an individual is representing the project or its community. Examples of representing a project or community include using an official project e-mail address, posting via an official social media account, or acting as an appointed representative at an online or offline event. Representation of a project may be further defined and clarified by project maintainers.
+This Code of Conduct applies to official KSP Multiplayer project spaces, including the repository, issues, pull requests, wiki pages, release pages, and project-managed community spaces.
 
-## Enforcement
+## Changes
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team at gavazquz@gmail.com. The project team will review and investigate all complaints, and will respond in a way that it deems appropriate to the circumstances. The project team is obligated to maintain confidentiality with regard to the reporter of an incident. Further details of specific enforcement policies may be posted separately.
-
-Project maintainers who do not follow or enforce the Code of Conduct in good faith may face temporary or permanent repercussions as determined by other members of the project's leadership.
-
-## Attribution
-
-This Code of Conduct is adapted from the [Contributor Covenant][homepage], version 1.4, available at [http://contributor-covenant.org/version/1/4][version]
-
-[homepage]: http://contributor-covenant.org
-[version]: http://contributor-covenant.org/version/1/4/
+The maintainers may update this Code of Conduct as the project evolves.
