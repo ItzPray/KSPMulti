@@ -35,7 +35,7 @@ namespace Server.Utilities
             {
                 if (LatestVersion > LmpVersioning.CurrentVersion)
                 {
-                    LunaLog.Warning($"There is a new version of LMP! Please download it! Current: {LmpVersioning.CurrentVersion} Latest: {LatestVersion}");
+                    LunaLog.Warning($"There is a new version of KSPMP! Please download it! Current: {LmpVersioning.CurrentVersion} Latest: {LatestVersion}");
                     if (LmpVersioning.IsCompatible(LatestVersion))
                     {
                         LunaLog.Debug("Your version is compatible with the latest version so you will still be listed in the master servers.");

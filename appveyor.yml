@@ -1,6 +1,10 @@
 # Reference: http://www.appveyor.com/docs/appveyor-yml
 # Notes:
 #   - Indent each level of configuration with 2 spaces. Do not use tabs!
+#   - GitHub Releases: the KSP client/server use GET https://api.github.com/repos/ItzPray/KSPMulti/releases/latest
+#     which only returns a *published* non-prerelease "latest". If deploy uses `draft: true` below, publish
+#     the release on GitHub (or remove draft) so in-game / API update checks can see the build.
+#   - Release assets must be named to match the zips in `artifacts` (e.g. KSPMultiplayer-Client-Release.zip).
 
 #---------------------------------#
 #      general configuration      #
@@ -114,11 +118,13 @@ artifacts:
 #     deployment configuration    #
 #---------------------------------#
 
+# CI token must be authorized for the target repo: https://github.com/ItzPray/KSPMulti
+# Remember to *publish* draft releases (or set draft: false) so /releases/latest API works.
 deploy:
  - provider: GitHub
    tag: $(smallversion)-Draft
    release: KSP Multiplayer $(smallversion)-Draft
-   description: 'Build $(appveyor_build_version)'
+   description: 'Build $(appveyor_build_version). In-game KSPMP update check uses the latest *published* GitHub release: https://github.com/ItzPray/KSPMulti/releases/latest'
    artifact: KSPMultiplayer-Client-$(configuration).zip, KSPMultiplayer-Server-$(configuration).zip
    auth_token:
     secure: zWJqDvz3LjR2J358JIJKICwghW/DWRzs73KWb3KApTLOreA4c8DN1tos+O3qBMR7

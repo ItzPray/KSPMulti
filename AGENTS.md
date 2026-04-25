@@ -52,6 +52,13 @@ Repository source of truth for working in `KSPMulti`.
   - `Build\<Configuration>\Client\` — same layout as `GameData\KSPMultiplayer\` (root `KSPMultiplayer.version` for KSP-AVC, plus Plugins, Button, Localization, PartSync, Icons, Flags), ready to copy into KSP
   - `Build\<Configuration>\Server\` — `dotnet publish` output for the standalone server
 
+### Publish a GitHub Release (zips + `gh`)
+
+Prerequisites: 7-Zip, MSBuild/dotnet, [GitHub CLI](https://cli.github.com/) (`gh auth login`).
+
+- Package AppVeyor-matching zips: `.\Scripts\PackageKspmpReleaseZips.cmd` or `pwsh -File .\Scripts\PackageKspmpReleaseZips.ps1` (zips use 7-Zip, env `7Z_EXE`, or Windows `tar` fallback; add `-Configuration Debug` or `-IncludeMasterServer` as needed)
+- One command — build, zip, and create a release: `.\Scripts\PublishGitHubRelease.cmd` or `pwsh -File .\Scripts\PublishGitHubRelease.ps1` (do **not** use `cmd /c something.ps1`; arguments will not apply). Tag defaults from [KSPMultiplayer.version](KSPMultiplayer.version) `VERSION`; use `-Draft` then **Publish** on GitHub so `releases/latest` works. Long-form notes: e.g. `-NotesFile ReleaseNotes\FirstRelease_0.32.0.md` (update or duplicate per version).
+
 ### One-click full local test stack
 
 - Run `Scripts\BuildAndDeployTestStack.bat Debug`
@@ -62,6 +69,7 @@ Repository source of truth for working in `KSPMulti`.
 - `msbuild` for `LmpClient\LmpClient.csproj`
 - `.NET Framework 4.7.2` targeting pack/reference assemblies for the client
 - `dotnet` SDK/runtime capable of publishing `Server\Server.csproj` (`net5`)
+- Optional for scripted releases: [GitHub CLI](https://cli.github.com/) (`gh`) and 7-Zip for [Scripts\PublishGitHubRelease.ps1](Scripts/PublishGitHubRelease.ps1) / [Scripts\PackageKspmpReleaseZips.ps1](Scripts/PackageKspmpReleaseZips.ps1)
 - KSP/Unity DLLs in `External\KSPLibraries`
 - Harmony dependency in `External\Dependencies\Harmony\000_Harmony\0Harmony.dll`
 

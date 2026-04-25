@@ -24,3 +24,8 @@ command = "cmd /c Scripts\\BuildOnly.bat Debug"
 name = "Build & Test KSPMulti Debug"
 icon = "run"
 command = "cmd /c Scripts\\BuildAndDeployFreshStack.bat Debug"
+
+[[actions]]
+name = "Github Release Draft"
+icon = "tool"
+command = ".\\Scripts\\PublishGitHubRelease.cmd -Tag \"0.32.0\" -Draft"
