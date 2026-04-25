@@ -1,4 +1,5 @@
 ﻿using LmpCommon;
+using LmpGlobal;
 using LmpUpdater.Github;
 using Server.Context;
 using Server.Log;
@@ -13,6 +14,9 @@ namespace Server.Utilities
 
         public static async void RefreshLatestVersion()
         {
+            if (!RepoConstants.GithubReleaseUpdateChecksEnabled)
+                return;
+
             while (ServerContext.ServerRunning)
             {
                 LatestVersion = GithubUpdateChecker.GetLatestVersion();
@@ -24,6 +28,9 @@ namespace Server.Utilities
 
         public static async void DisplayNewVersionMsg()
         {
+            if (!RepoConstants.GithubReleaseUpdateChecksEnabled)
+                return;
+
             while (ServerContext.ServerRunning)
             {
                 if (LatestVersion > LmpVersioning.CurrentVersion)

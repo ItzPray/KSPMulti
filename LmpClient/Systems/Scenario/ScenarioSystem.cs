@@ -71,12 +71,28 @@ namespace LmpClient.Systems.Scenario
 
         public void LoadMissingScenarioDataIntoGame()
         {
+            LoadMissingScenarioDataIntoGame(_ => true);
+        }
+
+        public void LoadMissingScenarioDataIntoGame(IEnumerable<string> scenarioNames)
+        {
+            if (scenarioNames == null) return;
+
+            var requiredScenarioNames = new HashSet<string>(scenarioNames);
+            if (requiredScenarioNames.Count == 0) return;
+
+            LoadMissingScenarioDataIntoGame(s => requiredScenarioNames.Contains(s.ModuleType.Name));
+        }
+
+        private void LoadMissingScenarioDataIntoGame(Func<KSPScenarioType, bool> scenarioFilter)
+        {
             //ResourceScenario.Instance.Load();
 
             var validScenarios = KSPScenarioType.GetAllScenarioTypesInAssemblies()
                 .Where(s => !HighLogic.CurrentGame.scenarios.Exists(psm => psm.moduleName == s.ModuleType.Name) 
                             && LoadModuleByGameMode(s)
-                            && IsDlcScenarioInstalled(s.ModuleType.Name));
+                            && IsDlcScenarioInstalled(s.ModuleType.Name)
+                            && scenarioFilter(s));
 
             foreach (var validScenario in validScenarios)
             {

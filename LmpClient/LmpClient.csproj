@@ -471,6 +471,7 @@
     <Compile Include="Utilities\CoroutineUtil.cs" />
     <Compile Include="Utilities\Detourer.cs" />
     <Compile Include="Utilities\Json.cs" />
+    <Compile Include="Utilities\LoadingScreenPhaseInjector.cs" />
     <Compile Include="Utilities\VectorUtil.cs" />
     <Compile Include="Systems\VesselProtoSys\VesselProtoEvents.cs" />
     <Compile Include="Systems\VesselUpdateSys\VesselUpdateMessageHandler.cs" />
@@ -901,6 +902,8 @@
     <Content Include="ModuleStore\XML\Squad\ModuleWheelDeployment.xml" />
     <Content Include="ModuleStore\XML\Squad\ModuleWheelMotor.xml" />
     <Content Include="ModuleStore\XML\Squad\ModuleWheelSuspension.xml" />
+    <Content Include="Resources\LoadingScreens\KSPMultiLoadingScreen.png" />
+    <Content Include="Resources\LoadingScreens\README.txt" />
     <Content Include="Resources\LMPButton.png" />
   </ItemGroup>
   <ItemGroup>

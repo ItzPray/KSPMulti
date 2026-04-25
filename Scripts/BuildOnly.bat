@@ -49,6 +49,7 @@ mkdir "%CLIENT_OUT%\Localization"
 mkdir "%CLIENT_OUT%\PartSync"
 mkdir "%CLIENT_OUT%\Icons"
 mkdir "%CLIENT_OUT%\Flags"
+mkdir "%CLIENT_OUT%\LoadingScreens"
 
 xcopy /Y "%REPOROOT%\LmpClient\bin\%SOLUTIONCONFIGURATION%\*.*" "%CLIENT_OUT%\Plugins\"
 xcopy /Y "%REPOROOT%\External\Dependencies\*.*" "%CLIENT_OUT%\Plugins\"
@@ -57,6 +58,7 @@ xcopy /Y /S "%REPOROOT%\LmpClient\Localization\XML\*.*" "%CLIENT_OUT%\Localizati
 xcopy /Y /S "%REPOROOT%\LmpClient\ModuleStore\XML\*.xml" "%CLIENT_OUT%\PartSync\"
 xcopy /Y "%REPOROOT%\LmpClient\Resources\Icons\*.*" "%CLIENT_OUT%\Icons\"
 xcopy /Y "%REPOROOT%\LmpClient\Resources\Flags\*.*" "%CLIENT_OUT%\Flags\"
+xcopy /Y "%REPOROOT%\LmpClient\Resources\LoadingScreens\*.*" "%CLIENT_OUT%\LoadingScreens\"
 
 REM KSP / AVC uses ModName.version at GameData\LunaMultiplayer\ root (full name: LunaMultiplayer.version — not a Unix ".version" dotfile).
 if not exist "%REPOROOT%\LunaMultiplayer.version" (

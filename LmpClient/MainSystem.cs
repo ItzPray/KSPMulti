@@ -377,6 +377,10 @@ namespace LmpClient
             //Load kerbals BEFORE loading the vessels or the loading of vessels will fail!
             KerbalSystem.Singleton.LoadKerbalsIntoGame();
 
+            // Kerbalism reads stock R&D subjects during OnLoad. R&D is owned by PersistentSync and skipped by
+            // generic scenario receive, so ensure its proto exists before received third-party scenarios load.
+            ScenarioSystem.Singleton.LoadMissingScenarioDataIntoGame(new[] { "ResearchAndDevelopment" });
+
             //Load the scenarios from the server
             ScenarioSystem.Singleton.LoadScenarioDataIntoGame();
 

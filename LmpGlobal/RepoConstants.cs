@@ -2,6 +2,7 @@
 {
     public static class RepoConstants
     {
+        public static bool GithubReleaseUpdateChecksEnabled => false;
         public static string OfficialWebsite => "https://lunamultiplayer.com";
         public static string RepoUrl => "https://github.com/LunaMultiplayer/LunaMultiplayer/";
         public static string LatestGithubReleaseUrl => "https://github.com/LunaMultiplayer/LunaMultiplayer/releases/latest";

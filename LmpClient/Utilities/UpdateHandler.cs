@@ -12,6 +12,9 @@ namespace LmpClient.Utilities
     {
         public static IEnumerator CheckForUpdates()
         {
+            if (!RepoConstants.GithubReleaseUpdateChecksEnabled)
+                yield break;
+
             using (var www = UnityWebRequest.Get(RepoConstants.ApiLatestGithubReleaseUrl))
             {
                 yield return www.SendWebRequest();
