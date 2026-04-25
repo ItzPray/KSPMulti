@@ -7,12 +7,12 @@
                    "REPOSITORY":  "KSPMulti"
                },
     "VERSION":  {
-                    "MAJOR":  0,
-                    "MINOR":  32,
-                    "PATCH":  0
+                    "MAJOR": 0,
+                    "MINOR": 34,
+                    "PATCH": 0
                 },
     "KSP_VERSION":  {
-                        "MAJOR":  0,
-                        "MINOR":  32
+                        "MAJOR": 0,
+                        "MINOR": 34
                     }
 }
