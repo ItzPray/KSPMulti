@@ -245,6 +245,7 @@
     <Compile Include="Harmony\Strategy_Activate.cs" />
     <Compile Include="Harmony\TimeWarp_setMode.cs" />
     <Compile Include="Harmony\TimeWarp_setRate.cs" />
+    <Compile Include="Harmony\LoadingScreen_StartLoadingScreens.cs" />
     <Compile Include="Harmony\TrackingStationWidget_Update.cs" />
     <Compile Include="Harmony\TrackingStationWidget_Update_AfterLmpDiagnostic.cs" />
     <Compile Include="Harmony\ModuleWheelDamage_FixedUpdate.cs" />
@@ -471,7 +472,6 @@
     <Compile Include="Utilities\CoroutineUtil.cs" />
     <Compile Include="Utilities\Detourer.cs" />
     <Compile Include="Utilities\Json.cs" />
-    <Compile Include="Utilities\LoadingScreenPhaseInjector.cs" />
     <Compile Include="Utilities\VectorUtil.cs" />
     <Compile Include="Systems\VesselProtoSys\VesselProtoEvents.cs" />
     <Compile Include="Systems\VesselUpdateSys\VesselUpdateMessageHandler.cs" />

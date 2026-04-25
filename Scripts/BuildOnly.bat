@@ -31,6 +31,7 @@ if defined DOTNET_EXE (
 set "BUILD_ROOT=%REPOROOT%\Build\%SOLUTIONCONFIGURATION%"
 set "CLIENT_OUT=%BUILD_ROOT%\Client"
 set "SERVER_OUT=%BUILD_ROOT%\Server"
+set "USER_LOADING_OUT=%BUILD_ROOT%\UserLoadingScreens"
 
 echo.
 echo ===== Building Client =====
@@ -43,6 +44,7 @@ if errorlevel 1 (
 echo.
 echo ===== Staging Client mod layout under Build\... =====
 if exist "%CLIENT_OUT%" rmdir /s /q "%CLIENT_OUT%"
+if exist "%USER_LOADING_OUT%" rmdir /s /q "%USER_LOADING_OUT%"
 mkdir "%CLIENT_OUT%\Plugins"
 mkdir "%CLIENT_OUT%\Button"
 mkdir "%CLIENT_OUT%\Localization"
@@ -50,6 +52,7 @@ mkdir "%CLIENT_OUT%\PartSync"
 mkdir "%CLIENT_OUT%\Icons"
 mkdir "%CLIENT_OUT%\Flags"
 mkdir "%CLIENT_OUT%\LoadingScreens"
+mkdir "%USER_LOADING_OUT%"
 
 xcopy /Y "%REPOROOT%\LmpClient\bin\%SOLUTIONCONFIGURATION%\*.*" "%CLIENT_OUT%\Plugins\"
 xcopy /Y "%REPOROOT%\External\Dependencies\*.*" "%CLIENT_OUT%\Plugins\"
@@ -59,6 +62,7 @@ xcopy /Y /S "%REPOROOT%\LmpClient\ModuleStore\XML\*.xml" "%CLIENT_OUT%\PartSync\
 xcopy /Y "%REPOROOT%\LmpClient\Resources\Icons\*.*" "%CLIENT_OUT%\Icons\"
 xcopy /Y "%REPOROOT%\LmpClient\Resources\Flags\*.*" "%CLIENT_OUT%\Flags\"
 xcopy /Y "%REPOROOT%\LmpClient\Resources\LoadingScreens\*.*" "%CLIENT_OUT%\LoadingScreens\"
+xcopy /Y "%REPOROOT%\LmpClient\Resources\LoadingScreens\KSPMultiLoadingScreen.png" "%USER_LOADING_OUT%\"
 
 REM KSP / AVC uses ModName.version at GameData\LunaMultiplayer\ root (full name: LunaMultiplayer.version — not a Unix ".version" dotfile).
 if not exist "%REPOROOT%\LunaMultiplayer.version" (
@@ -92,6 +96,7 @@ echo.
 echo ===== Build Only Complete =====
 echo KSP deployment skipped. Use Build\%SOLUTIONCONFIGURATION%\Client as GameData\LunaMultiplayer
 echo   ^(LunaMultiplayer.version + Plugins, Button, Localization, PartSync, Icons, Flags^).
+echo Copy Build\%SOLUTIONCONFIGURATION%\UserLoadingScreens into the KSP root UserLoadingScreens folder for startup loading art.
 echo Harmony: use GameData\000_Harmony from KSP, or run with COPYHARMONY=true to also emit Build\...\000_Harmony\.
 echo Server runtime: %SERVER_OUT%
 

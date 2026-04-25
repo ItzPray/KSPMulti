@@ -71,6 +71,9 @@ IF DEFINED KSPPATH2 (mkdir "%KSPPATH2%\GameData\LunaMultiplayer\LoadingScreens")
 del "%KSPPATH%\GameData\LunaMultiplayer\LoadingScreens\*.*" /Q /F
 IF DEFINED KSPPATH2 (del "%KSPPATH2%\GameData\LunaMultiplayer\LoadingScreens\*.*" /Q /F)
 
+mkdir "%KSPPATH%\UserLoadingScreens"
+IF DEFINED KSPPATH2 (mkdir "%KSPPATH2%\UserLoadingScreens")
+
 IF /I "%COPYHARMONY%"=="true" (
   xcopy /Y /s /e "%~dp0..\External\Dependencies\Harmony\" "%KSPPATH%\GameData\"
   IF DEFINED KSPPATH2 (xcopy /Y /s /e "%~dp0..\External\Dependencies\Harmony\" "%KSPPATH2%\GameData\")
@@ -108,3 +111,6 @@ IF DEFINED KSPPATH2 (xcopy /Y "%~dp0..\LmpClient\Resources\Flags\*.*" "%KSPPATH2
 
 xcopy /Y "%~dp0..\LmpClient\Resources\LoadingScreens\*.*" "%KSPPATH%\GameData\LunaMultiplayer\LoadingScreens"
 IF DEFINED KSPPATH2 (xcopy /Y "%~dp0..\LmpClient\Resources\LoadingScreens\*.*" "%KSPPATH2%\GameData\LunaMultiplayer\LoadingScreens")
+
+xcopy /Y "%~dp0..\LmpClient\Resources\LoadingScreens\KSPMultiLoadingScreen.png" "%KSPPATH%\UserLoadingScreens"
+IF DEFINED KSPPATH2 (xcopy /Y "%~dp0..\LmpClient\Resources\LoadingScreens\KSPMultiLoadingScreen.png" "%KSPPATH2%\UserLoadingScreens")
