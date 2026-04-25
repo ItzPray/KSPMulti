@@ -30,7 +30,7 @@ namespace LmpClient.Network
                     //DO NOT set networkstate as disconnected as we are in another thread!
                     MainSystem.NetworkState = ClientState.DisconnectRequested;
 
-                    LunaLog.Log($"[LMP]: Disconnected, reason: {reason}");
+                    LunaLog.Log($"[KSPMP]: Disconnected, reason: {reason}");
                     if (!HighLogic.LoadedSceneIsEditor && !HighLogic.LoadedSceneIsFlight)
                     {
                         MainSystem.Singleton.ForceQuit = true;
@@ -58,7 +58,7 @@ namespace LmpClient.Network
             if (endpoints.Length == 0)
             {
                 MainSystem.Singleton.Status = "Hostname resolution failed, check for typos";
-                LunaLog.LogError($"[LMP]: Hostname resolution failed, check for typos");
+                LunaLog.LogError($"[KSPMP]: Hostname resolution failed, check for typos");
                 Disconnect("Hostname resolution failed");
             }
             ConnectToServer(endpoints, password);
@@ -84,7 +84,7 @@ namespace LmpClient.Network
                     if (endpoint == null)
                         continue;
                     MainSystem.Singleton.Status = $"Connecting to {endpoint.Address}:{endpoint.Port}";
-                    LunaLog.Log($"[LMP]: Connecting to {endpoint.Address} port {endpoint.Port}");
+                    LunaLog.Log($"[KSPMP]: Connecting to {endpoint.Address} port {endpoint.Port}");
 
                     try
                     {
@@ -92,7 +92,7 @@ namespace LmpClient.Network
 
                         if (client.Status == NetPeerStatus.NotRunning)
                         {
-                            LunaLog.Log("[LMP]: Starting client");
+                            LunaLog.Log("[KSPMP]: Starting client");
                             client.Start();
                         }
 
@@ -109,7 +109,7 @@ namespace LmpClient.Network
                         if (conn == null)
                         {
                             // Lidgren says we're already connected, that's not possible
-                            LunaLog.LogError($"[LMP]: Invalid connection state, connected without connection");
+                            LunaLog.LogError($"[KSPMP]: Invalid connection state, connected without connection");
                             client.Disconnect("Invalid state");
                             break;
                         }
@@ -123,13 +123,13 @@ namespace LmpClient.Network
 
                         if (client.ConnectionStatus == NetConnectionStatus.Connected)
                         {
-                            LunaLog.Log($"[LMP]: Connected to {endpoint.Address}:{endpoint.Port}");
+                            LunaLog.Log($"[KSPMP]: Connected to {endpoint.Address}:{endpoint.Port}");
                             MainSystem.NetworkState = ClientState.Connected;
                             break;
                         }
                         else
                         {
-                            LunaLog.Log($"[LMP]: Initial connection timeout to {endpoint.Address}:{endpoint.Port}");
+                            LunaLog.Log($"[KSPMP]: Initial connection timeout to {endpoint.Address}:{endpoint.Port}");
                             client.Disconnect("Initial connection timeout");
                         }
                     }

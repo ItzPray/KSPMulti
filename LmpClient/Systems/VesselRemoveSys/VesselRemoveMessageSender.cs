@@ -33,7 +33,7 @@ namespace LmpClient.Systems.VesselRemoveSys
         /// </summary>
         public void SendVesselRemove(Guid vesselId, bool keepVesselInRemoveList = true)
         {
-            LunaLog.Log($"[LMP]: Removing {vesselId} from the server");
+            LunaLog.Log($"[KSPMP]: Removing {vesselId} from the server");
             var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<VesselRemoveMsgData>();
             msgData.GameTime = TimeSyncSystem.UniversalTime;
             msgData.VesselId = vesselId;

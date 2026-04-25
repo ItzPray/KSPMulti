@@ -2,6 +2,6 @@
 
 <RevertDialogText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <CannotRevertTitle>Ei pysty palauttamaan</CannotRevertTitle>
-  <CannotRevertText>LMP:n rajoitusten takia et pysty palauttamaan alusta aluksen vaihtamisen jälkeen tai kun katselet toisen pelaamista. Lisätietoja Wikistä.</CannotRevertText>
+  <CannotRevertText>KSPMP:n rajoitusten takia et pysty palauttamaan alusta aluksen vaihtamisen jälkeen tai kun katselet toisen pelaamista. Lisätietoja Wikistä.</CannotRevertText>
   <CloseBtn>Sulje</CloseBtn>
 </RevertDialogText>

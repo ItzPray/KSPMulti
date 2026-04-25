@@ -168,7 +168,7 @@ namespace LmpClient.Systems.TimeSync
                     // |error| is in milliseconds. Step sync is normal after pauses, hitches, or subspace catch-up when
                     // drift exceeds MaxPhysicsClockMsError (physics nudge only works for smaller errors).
                     LunaLog.Log(
-                        $"[LMP] Step clock sync: UT {UniversalTime:F3} -> {targetTime:F3} s (|clock error| {Math.Abs(currentError):F0} ms > {MaxPhysicsClockMsError} ms nudge range; not a fault).");
+                        $"[KSPMP] Step clock sync: UT {UniversalTime:F3} -> {targetTime:F3} s (|clock error| {Math.Abs(currentError):F0} ms > {MaxPhysicsClockMsError} ms nudge range; not a fault).");
                     SetGameTime(targetTime);
                 }
             }

@@ -24,7 +24,7 @@ namespace LmpClient.Systems.ShareExperimentalParts
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.ExperimentalPart) return;
             if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.ExperimentalParts))
             {
-                LunaLog.LogWarning("[LMP] Ignoring legacy ExperimentalPart because persistent sync owns experimental-parts convergence.");
+                LunaLog.LogWarning("[KSPMP] Ignoring legacy ExperimentalPart because persistent sync owns experimental-parts convergence.");
                 return;
             }
 

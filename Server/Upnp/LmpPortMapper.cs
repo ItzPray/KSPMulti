@@ -18,10 +18,10 @@ namespace Server.Upnp
         private static readonly AsyncLazy<NatDevice> Device = new AsyncLazy<NatDevice>(DiscoverDevice);
 
         private static Mapping LmpPortMapping => new Mapping(Protocol.Udp, ConnectionSettings.SettingsStore.Port, ConnectionSettings.SettingsStore.Port,
-            LifetimeInSeconds, $"LMPServer {ConnectionSettings.SettingsStore.Port}");
+            LifetimeInSeconds, $"KSPMPServer {ConnectionSettings.SettingsStore.Port}");
 
         private static Mapping LmpWebPortMapping => new Mapping(Protocol.Tcp, WebsiteSettings.SettingsStore.Port, WebsiteSettings.SettingsStore.Port,
-            LifetimeInSeconds, $"LMPServerWeb {WebsiteSettings.SettingsStore.Port}");
+            LifetimeInSeconds, $"KSPMPServerWeb {WebsiteSettings.SettingsStore.Port}");
 
         private static async Task<NatDevice> DiscoverDevice()
         {

@@ -71,7 +71,7 @@ namespace LmpClient.Systems.ShareAchievements
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while saving achievement: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while saving achievement: {e}");
                 return null;
             }
 

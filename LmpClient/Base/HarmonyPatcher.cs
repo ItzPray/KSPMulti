@@ -5,7 +5,7 @@ namespace LmpClient.Base
 {
     public static class HarmonyPatcher
     {
-        public static HarmonyLib.Harmony HarmonyInstance = new HarmonyLib.Harmony("LunaMultiplayer");
+        public static HarmonyLib.Harmony HarmonyInstance = new HarmonyLib.Harmony("KSPMultiplayer");
 
         public static void Awake()
         {

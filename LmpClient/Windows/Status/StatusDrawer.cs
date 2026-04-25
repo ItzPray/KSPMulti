@@ -214,7 +214,7 @@ namespace LmpClient.Windows.Status
                 SettingsSystem.CurrentSettings.Debug8,
                 new GUIContent(
                     StatusTexts.Debug8BtnTxt,
-                    "D8: vessel HUD / lock label diagnostics in KSP.log — grep token LMP_VESSEL_LABEL_HUD_DIAG (Harmony order, stale text, map caption, tracking). Throttled."),
+                    "D8: vessel HUD / lock label diagnostics in KSP.log — grep token KSPMP_VESSEL_LABEL_HUD_DIAG (Harmony order, stale text, map caption, tracking). Throttled."),
                 ToggleButtonStyle);
             if (d8 != SettingsSystem.CurrentSettings.Debug8)
             {

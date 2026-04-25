@@ -4,7 +4,7 @@
     {
         public string CraftUploaded { get; set; } = "Craft uploaded!";
         public string CraftSaved { get; set; } = "Craft saved!";
-        public string ModFileGenerated { get; set; } = "LMPModControl.xml file generated in your KSP folder";
+        public string ModFileGenerated { get; set; } = "KSPModControl.xml file generated in your KSP folder";
         public string Disconected { get; set; } = "You have been disconnected!";
         public string Spectating { get; set; } = "This vessel is being controlled by";
         public string SafetyBubble { get; set; } = "Remember!! While you're inside the safety bubble you won't be seen by other players!!";
@@ -18,10 +18,10 @@
         public string ScreenshotInterval { get; set; } = "Interval between screenshots is $1 seconds. Cannot upload the screenshot at this moment";
         public string CraftLibraryInterval { get; set; } = "Interval between craft library requests is $1 seconds. Cannot process the request at this moment";
         public string ScreenshotTaken { get; set; } = "Screenshot uploaded!";
-        public string ImageSaved { get; set; } = "Image saved to GameData/LunaMultiplayer/Screenshots";
+        public string ImageSaved { get; set; } = "Image saved to GameData/KSPMultiplayer/Screenshots";
         public string IncreasedInterpolationOffset { get; set; } = "Warning! Your interpolation offset has been increased as it was too low for this server";
         public string SackingKerbalsNotAllowed { get; set; } = "This server does not allow firing kerbals";
-        public string CannotLoadGames { get; set; } = "LMP does not allow loading savegames";
+        public string CannotLoadGames { get; set; } = "KSP Multiplayer does not allow loading savegames";
         public string KerbalNotYours { get; set; } = "Another player is using this kerbal";
         public string UnsafeToSync { get; set; } = "Cannot sync while in unstable orbit or spectating as you might crash! You can turn off this check in settings";
         public string SessionSubspaceSynced { get; set; } = "Session time synchronized with the latest player timeline.";

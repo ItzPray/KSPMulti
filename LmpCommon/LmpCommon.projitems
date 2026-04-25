@@ -35,6 +35,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)GithubCertification.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GlobalSuppressions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)IgnoredScenarios.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ModLayoutConstants.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LmpVersioning.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SessionAdmission.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Locks\LockDefinition.cs" />

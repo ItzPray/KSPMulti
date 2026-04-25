@@ -16,7 +16,7 @@ namespace LmpClient.Harmony
     [HarmonyPatch("StartLoadingScreens")]
     public class LoadingScreen_StartLoadingScreens
     {
-        internal const string LoadingScreenRelativePath = "GameData/LunaMultiplayer/LoadingScreens/KSPMultiLoadingScreen.png";
+        internal const string LoadingScreenRelativePath = "GameData/KSPMultiplayer/LoadingScreens/KSPMultiLoadingScreen.png";
         internal const string TextureName = "KSPMultiLoadingScreen";
         internal const string LoadingTip = "KSPMulti";
         private const int PreferredScreenIndex = 1;
@@ -51,7 +51,7 @@ namespace LmpClient.Harmony
             }
             catch (Exception ex)
             {
-                Debug.Log($"[LMP]: Failed to add KSPMulti loading screen: {ex}");
+                Debug.Log($"[KSPMP]: Failed to add KSPMulti loading screen: {ex}");
             }
         }
 
@@ -78,7 +78,7 @@ namespace LmpClient.Harmony
             var imagePath = Path.Combine(KSPUtil.ApplicationRootPath, LoadingScreenRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (!File.Exists(imagePath))
             {
-                Debug.Log($"[LMP]: KSPMulti loading screen image not found at {imagePath}");
+                Debug.Log($"[KSPMP]: KSPMulti loading screen image not found at {imagePath}");
                 return null;
             }
 
@@ -86,7 +86,7 @@ namespace LmpClient.Harmony
             if (!texture.LoadImage(File.ReadAllBytes(imagePath)))
             {
                 UnityEngine.Object.Destroy(texture);
-                Debug.Log($"[LMP]: Failed to load KSPMulti loading screen image at {imagePath}");
+                Debug.Log($"[KSPMP]: Failed to load KSPMulti loading screen image at {imagePath}");
                 return null;
             }
 
@@ -112,7 +112,7 @@ namespace LmpClient.Harmony
             var insertIndex = Math.Min(PreferredScreenIndex, loadingScreen.Screens.Count);
             loadingScreen.Screens.Insert(insertIndex, state);
 
-            Debug.Log($"[LMP]: Injected KSPMulti loading screen at cycle index {insertIndex} from {imagePath}");
+            Debug.Log($"[KSPMP]: Injected KSPMulti loading screen at cycle index {insertIndex} from {imagePath}");
         }
     }
 

@@ -30,10 +30,11 @@ namespace LmpUpdater.Appveyor
             switch (product)
             {
                 case AppveyorProduct.Client:
+                    return "KSPMultiplayer-Client";
                 case AppveyorProduct.Server:
-                    return "LunaMultiplayer";
+                    return "KSPMultiplayer-Server";
                 case AppveyorProduct.MasterServer:
-                    return "LunaMultiplayerMasterServer";
+                    return "KSPMultiplayerMasterServer";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(product), product, null);
             }

@@ -70,7 +70,7 @@ namespace LmpCommon
         public void Normal(string message)
         {
             Console.ForegroundColor = ConsoleColor.Gray;
-            WriteLog(LogLevels.Normal, "LMP", message);
+            WriteLog(LogLevels.Normal, "KSPMP", message);
             Console.ResetColor();
         }
 

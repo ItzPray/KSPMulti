@@ -3,9 +3,9 @@
     public class DefaultFlags
     {
         public static string[] DefaultFlagList = {
-            "LunaMultiplayer/Flags/lmp",
-            "LunaMultiplayer/Flags/republican_spain",
-            "LunaMultiplayer/Flags/skwod",
+            "KSPMultiplayer/Flags/lmp",
+            "KSPMultiplayer/Flags/republican_spain",
+            "KSPMultiplayer/Flags/skwod",
             "Squad/Flags/09",
             "Squad/Flags/B612_Foundation_flag",
             "Squad/Flags/blorbs",

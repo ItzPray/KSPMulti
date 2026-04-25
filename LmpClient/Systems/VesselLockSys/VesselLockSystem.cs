@@ -16,7 +16,7 @@ namespace LmpClient.Systems.VesselLockSys
     {
         #region Fields & properties
 
-        public const string SpectateLock = "LMP_Spectating";
+        public const string SpectateLock = "KSPMP_Spectating";
         public const ControlTypes BlockAllControls = ControlTypes.ALLBUTCAMERAS ^ ControlTypes.MAP ^ ControlTypes.PAUSE ^
                                                      ControlTypes.APPLAUNCHER_BUTTONS ^ ControlTypes.VESSEL_SWITCHING ^ ControlTypes.GUI;
 

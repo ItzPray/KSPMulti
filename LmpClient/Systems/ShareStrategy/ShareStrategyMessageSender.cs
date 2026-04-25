@@ -63,7 +63,7 @@ namespace LmpClient.Systems.ShareStrategy
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while saving strategy: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while saving strategy: {e}");
                 return null;
             }
 

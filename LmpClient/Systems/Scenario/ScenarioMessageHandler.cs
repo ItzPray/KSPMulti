@@ -58,7 +58,7 @@ namespace LmpClient.Systems.Scenario
             }
             else
             {
-                LunaLog.LogError($"[LMP]: Scenario data has been lost for {scenarioModule}");
+                LunaLog.LogError($"[KSPMP]: Scenario data has been lost for {scenarioModule}");
             }
         }
     }

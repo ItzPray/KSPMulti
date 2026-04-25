@@ -19,8 +19,8 @@ namespace LmpClient.Utilities
             var saveFolder = CommonUtil.CombinePaths(SavesFolder, saveName);
             if (!Directory.Exists(saveFolder))
             {
-                LunaLog.Log($"[LMP]: Failed to generate a LMP universe for '{saveName}', Save directory doesn't exist");
-                LunaScreenMsg.PostScreenMessage($"Failed to generate a LMP universe for '{saveName}', Save directory doesn't exist", 5f,
+                LunaLog.Log($"[KSPMP]: Failed to generate a KSPMP universe for '{saveName}', Save directory doesn't exist");
+                LunaScreenMsg.PostScreenMessage($"Failed to generate a KSPMP universe for '{saveName}', Save directory doesn't exist", 5f,
                     ScreenMessageStyle.UPPER_CENTER);
                 return;
             }
@@ -28,8 +28,8 @@ namespace LmpClient.Utilities
             var persistentFile = CommonUtil.CombinePaths(saveFolder, "persistent.sfs");
             if (!File.Exists(persistentFile))
             {
-                LunaLog.Log($"[LMP]: Failed to generate a LMP universe for '{saveName}', persistent.sfs doesn't exist");
-                LunaScreenMsg.PostScreenMessage($"Failed to generate a LMP universe for '{saveName}', persistent.sfs doesn't exist", 5f,
+                LunaLog.Log($"[KSPMP]: Failed to generate a KSPMP universe for '{saveName}', persistent.sfs doesn't exist");
+                LunaScreenMsg.PostScreenMessage($"Failed to generate a KSPMP universe for '{saveName}', persistent.sfs doesn't exist", 5f,
                     ScreenMessageStyle.UPPER_CENTER);
                 return;
             }
@@ -46,16 +46,16 @@ namespace LmpClient.Utilities
             var persistentData = ConfigNode.Load(persistentFile);
             if (persistentData == null)
             {
-                LunaLog.Log($"[LMP]: Failed to generate a LMP universe for '{saveName}', failed to load persistent data");
-                LunaScreenMsg.PostScreenMessage($"Failed to generate a LMP universe for '{saveName}', failed to load persistent data", 5f, ScreenMessageStyle.UPPER_CENTER);
+                LunaLog.Log($"[KSPMP]: Failed to generate a KSPMP universe for '{saveName}', failed to load persistent data");
+                LunaScreenMsg.PostScreenMessage($"Failed to generate a KSPMP universe for '{saveName}', failed to load persistent data", 5f, ScreenMessageStyle.UPPER_CENTER);
                 return;
             }
 
             var gameData = persistentData.GetNode("GAME");
             if (gameData == null)
             {
-                LunaLog.Log($"[LMP]: Failed to generate a LMP universe for '{saveName}', failed to load game data");
-                LunaScreenMsg.PostScreenMessage($"Failed to generate a LMP universe for '{saveName}', failed to load game data", 5f,
+                LunaLog.Log($"[KSPMP]: Failed to generate a KSPMP universe for '{saveName}', failed to load game data");
+                LunaScreenMsg.PostScreenMessage($"Failed to generate a KSPMP universe for '{saveName}', failed to load game data", 5f,
                     ScreenMessageStyle.UPPER_CENTER);
                 return;
             }
@@ -64,8 +64,8 @@ namespace LmpClient.Utilities
             var flightState = gameData.GetNode("FLIGHTSTATE");
             if (flightState == null)
             {
-                LunaLog.Log($"[LMP]: Failed to generate a LMP universe for '{saveName}', failed to load flight state data");
-                LunaScreenMsg.PostScreenMessage($"Failed to generate a LMP universe for '{saveName}', failed to load flight state data", 5f,
+                LunaLog.Log($"[KSPMP]: Failed to generate a KSPMP universe for '{saveName}', failed to load flight state data");
+                LunaScreenMsg.PostScreenMessage($"Failed to generate a KSPMP universe for '{saveName}', failed to load flight state data", 5f,
                     ScreenMessageStyle.UPPER_CENTER);
                 return;
             }
@@ -79,7 +79,7 @@ namespace LmpClient.Utilities
                 foreach (var cn in vesselNodes)
                 {
                     var vesselId = Common.ConvertConfigStringToGuidString(cn.GetValue("pid"));
-                    LunaLog.Log($"[LMP]: Saving vessel {vesselId}, Name: {cn.GetValue("name")}");
+                    LunaLog.Log($"[KSPMP]: Saving vessel {vesselId}, Name: {cn.GetValue("name")}");
 
                     File.WriteAllText(CommonUtil.CombinePaths(vesselFolder, $"{vesselId}.txt"), Encoding.UTF8.GetString(cn.Serialize()));
                 }
@@ -94,7 +94,7 @@ namespace LmpClient.Utilities
                     var scenarioName = cn.GetValue("name");
                     if (string.IsNullOrEmpty(scenarioName)) continue;
 
-                    LunaLog.Log($"[LMP]: Saving scenario: {scenarioName}");
+                    LunaLog.Log($"[KSPMP]: Saving scenario: {scenarioName}");
 
                     File.WriteAllText(CommonUtil.CombinePaths(scenarioFolder, $"{scenarioName}.txt"), Encoding.UTF8.GetString(cn.Serialize()));
                 }
@@ -107,13 +107,13 @@ namespace LmpClient.Utilities
                 foreach (var cn in kerbalNodes)
                 {
                     var kerbalName = cn.GetValue("name");
-                    LunaLog.Log($"[LMP]: Saving kerbal: {kerbalName}");
+                    LunaLog.Log($"[KSPMP]: Saving kerbal: {kerbalName}");
 
                     cn.Save(CommonUtil.CombinePaths(kerbalFolder, $"{kerbalName}.txt"));
                 }
             }
 
-            LunaLog.Log($"[LMP]: Generated KSP_folder/Universe from {saveName}");
+            LunaLog.Log($"[KSPMP]: Generated KSP_folder/Universe from {saveName}");
             LunaScreenMsg.PostScreenMessage($"Generated KSP_folder/Universe from {saveName}", 5f, ScreenMessageStyle.UPPER_CENTER);
         }
 

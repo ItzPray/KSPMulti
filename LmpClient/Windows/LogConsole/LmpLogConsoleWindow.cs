@@ -8,7 +8,7 @@ using UnityEngine;
 namespace LmpClient.Windows.LogConsole
 {
     /// <summary>
-    /// Dedicated LunaLog viewer docked under the main LMP status panel. Not the Unity Alt+F12 console.
+    /// Dedicated LunaLog viewer docked under the main KSPMP status panel. Not the Unity Alt+F12 console.
     /// </summary>
     public partial class LmpLogConsoleWindow : Window<LmpLogConsoleWindow>
     {
@@ -112,7 +112,7 @@ namespace LmpClient.Windows.LogConsole
             try
             {
                 WindowRect = FixWindowPos(GUILayout.Window(WindowControlId + MainSystem.WindowOffset, WindowRect, DrawContent,
-                    "LMP Console", LayoutOptions));
+                    "KSPMP Console", LayoutOptions));
             }
             finally
             {
@@ -186,7 +186,7 @@ namespace LmpClient.Windows.LogConsole
             if (IsWindowLocked)
             {
                 IsWindowLocked = false;
-                InputLockManager.RemoveControlLock("LMP_LogConsoleLock");
+                InputLockManager.RemoveControlLock("KSPMP_LogConsoleLock");
             }
         }
 
@@ -207,7 +207,7 @@ namespace LmpClient.Windows.LogConsole
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_LogConsoleLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "KSPMP_LogConsoleLock");
                     IsWindowLocked = true;
                 }
                 else if (!shouldLock && IsWindowLocked)
@@ -230,7 +230,7 @@ namespace LmpClient.Windows.LogConsole
         }
 
         /// <summary>
-        /// Hit test for input lock: console plus the main LMP status strip above it (covers the dock gap).
+        /// Hit test for input lock: console plus the main KSPMP status strip above it (covers the dock gap).
         /// </summary>
         private Rect GetConsoleDockHitRect()
         {

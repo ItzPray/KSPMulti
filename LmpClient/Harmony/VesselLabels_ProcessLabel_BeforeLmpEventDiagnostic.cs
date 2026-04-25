@@ -9,7 +9,7 @@ using LmpCommon.Enums;
 namespace LmpClient.Harmony
 {
     /// <summary>
-    /// D8: runs after stock <c>VesselLabels.ProcessLabel</c> returns, before LMP injects the owner line.
+    /// D8: runs after stock <c>VesselLabels.ProcessLabel</c> returns, before KSPMP injects the owner line.
     /// </summary>
     [HarmonyPatch(typeof(VesselLabels))]
     [HarmonyPatch("ProcessLabel")]

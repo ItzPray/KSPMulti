@@ -1,5 +1,9 @@
 ﻿namespace LmpGlobal
 {
+    /// <summary>
+    /// Default public URLs and CI endpoints. The upstream project historically used the LunaMultiplayer
+    /// GitHub org; replace these with your fork, AppVeyor project slug, and own update feeds when you ship KSPMP builds.
+    /// </summary>
     public static class RepoConstants
     {
         public static bool GithubReleaseUpdateChecksEnabled => false;

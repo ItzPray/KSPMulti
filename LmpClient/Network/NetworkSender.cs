@@ -21,7 +21,7 @@ namespace LmpClient.Network
         /// </summary>
         public static void SendMain()
         {
-            LunaLog.Log("[LMP]: Send thread started");
+            LunaLog.Log("[KSPMP]: Send thread started");
             try
             {
                 while (!NetworkConnection.ResetRequested)
@@ -38,9 +38,9 @@ namespace LmpClient.Network
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Send thread error: {e}");
+                LunaLog.LogError($"[KSPMP]: Send thread error: {e}");
             }
-            LunaLog.Log("[LMP]: Send thread exited");
+            LunaLog.Log("[KSPMP]: Send thread exited");
         }
 
         /// <summary>

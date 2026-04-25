@@ -5,7 +5,7 @@ using Server.System;
 namespace Server.System.PersistentSync
 {
     /// <summary>
-    /// Ensures the LMP-only <c>LmpGameLaunchId</c> scenario exists in <see cref="ScenarioStoreSystem.CurrentScenarios"/>
+    /// Ensures the KSPMP-only <c>LmpGameLaunchId</c> scenario exists in <see cref="ScenarioStoreSystem.CurrentScenarios"/>
     /// before <see cref="GameLaunchIdPersistentSyncDomainStore"/> loads (older universes predate this file).
     /// </summary>
     internal static class GameLaunchIdScenarioBootstrap

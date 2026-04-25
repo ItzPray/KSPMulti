@@ -41,7 +41,7 @@ namespace LmpUpdater.Appveyor
         private static void ExtractMasterServer(string tempFolder)
         {
             var destFolder = Path.Combine(tempFolder, "..");
-            foreach (var file in Directory.GetFiles(Path.Combine(tempFolder, "LMPMasterServer")))
+            foreach (var file in Directory.GetFiles(Path.Combine(tempFolder, "KSPMPMasterServer")))
             {
                 if (!Path.GetExtension(file).ToLower().Contains("exe"))
                 {
@@ -60,7 +60,7 @@ namespace LmpUpdater.Appveyor
         private static void ExtractServer(string tempFolder)
         {
             var destFolder = Path.Combine(tempFolder, "..");
-            foreach (var file in Directory.GetFiles(Path.Combine(tempFolder, "LMPServer")))
+            foreach (var file in Directory.GetFiles(Path.Combine(tempFolder, "KSPMPServer")))
             {
                 if (!Path.GetExtension(file).ToLower().Contains("exe"))
                 {
@@ -79,7 +79,7 @@ namespace LmpUpdater.Appveyor
         private static void ExtractClient(string tempFolder)
         {
             var destFolder = Path.Combine(tempFolder, "..");
-            foreach (var file in Directory.GetFiles(Path.Combine(tempFolder, "LMPClient")))
+            foreach (var file in Directory.GetFiles(Path.Combine(tempFolder, "KSPMPClient")))
             {
                 if (!Path.GetExtension(file).ToLower().Contains("exe"))
                 {

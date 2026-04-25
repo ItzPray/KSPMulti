@@ -187,7 +187,7 @@ namespace LmpClient.Systems.SafetyBubble
 
             GameEvents.onLevelWasLoadedGUIReady.Add(DeferredFillAfterLevelGuiReady);
             _deferredFillRegistered = true;
-            LunaLog.LogWarning("[LMP]: SafetyBubbleSystem: PSystemSetup not ready yet; will retry spawn list fill after level GUI is ready.");
+            LunaLog.LogWarning("[KSPMP]: SafetyBubbleSystem: PSystemSetup not ready yet; will retry spawn list fill after level GUI is ready.");
         }
 
         private void DeferredFillAfterLevelGuiReady(GameScenes data)

@@ -107,7 +107,7 @@ namespace LmpClient.Windows.Vessels
             if (IsWindowLocked)
             {
                 IsWindowLocked = false;
-                InputLockManager.RemoveControlLock("LMP_VesselsWindowsLock");
+                InputLockManager.RemoveControlLock("KSPMP_VesselsWindowsLock");
             }
         }
 
@@ -128,7 +128,7 @@ namespace LmpClient.Windows.Vessels
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_VesselsWindowsLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "KSPMP_VesselsWindowsLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

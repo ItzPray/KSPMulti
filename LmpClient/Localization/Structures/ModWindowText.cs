@@ -2,7 +2,7 @@
 {
     public class ModWindowText
     {
-        public string Title { get; set; } = "LunaMultiplayer - Failed Mod Validation";
+        public string Title { get; set; } = "KSP Multiplayer - Failed Mod Validation";
         public string MandatoryModsNotFound { get; set; } = "Mandatory mods not found:";
         public string MissingExpansions { get; set; } = "Missing expansions:";
         public string MandatoryModsDifferentShaFound { get; set; } = "Mandatory mods with different SHA found:";

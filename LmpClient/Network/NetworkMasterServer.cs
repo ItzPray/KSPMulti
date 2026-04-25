@@ -19,7 +19,7 @@ namespace LunaClient.Network
         private static readonly Random Random = new Random();
         public static MasterServerMessageFactory MstSrvMsgFactory { get; } = new MasterServerMessageFactory();
 
-        public static NetPeerConfiguration Config { get; } = new NetPeerConfiguration("LMP")
+        public static NetPeerConfiguration Config { get; } = new NetPeerConfiguration("KSPMP")
         {
             UseMessageRecycling = true,
             ReceiveBufferSize = 500000, //500Kb
@@ -93,7 +93,7 @@ namespace LunaClient.Network
         {
             var token = RandomString(10);
             var ownEndpoint = new IPEndPoint(LunaNetUtils.GetMyAddress(), NetworkMain.Config.Port);
-            LunaLog.Log($"[LMP]: Sending NAT introduction to server. Token: {token}");
+            LunaLog.Log($"[KSPMP]: Sending NAT introduction to server. Token: {token}");
 
             var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<MsIntroductionMsgData>();
             msgData.Id = currentEntryId;
@@ -113,7 +113,7 @@ namespace LunaClient.Network
                 }
                 catch (Exception e)
                 {
-                    LunaLog.LogError($"[LMP]: Error connecting to server: {e}");
+                    LunaLog.LogError($"[KSPMP]: Error connecting to server: {e}");
                 }
             }
 
@@ -153,12 +153,12 @@ namespace LunaClient.Network
             try
             {
                 var token = msg.ReadString();
-                LunaLog.Log($"[LMP]: Nat introduction success to {msg.SenderEndPoint} token is: {token}");
+                LunaLog.Log($"[KSPMP]: Nat introduction success to {msg.SenderEndPoint} token is: {token}");
                 NetworkConnection.ConnectToServer(msg.SenderEndPoint.Address.ToString(), msg.SenderEndPoint.Port);
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error handling NAT introduction: {e}");
+                LunaLog.LogError($"[KSPMP]: Error handling NAT introduction: {e}");
             }
         }
 
@@ -205,7 +205,7 @@ namespace LunaClient.Network
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Invalid server list reply msg: {e}");
+                LunaLog.LogError($"[KSPMP]: Invalid server list reply msg: {e}");
             }
         }
     }

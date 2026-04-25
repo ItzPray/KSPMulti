@@ -51,7 +51,7 @@ namespace LmpClient.Windows.Chat
             if (IsWindowLocked)
             {
                 IsWindowLocked = false;
-                InputLockManager.RemoveControlLock("LMP_ChatLock");
+                InputLockManager.RemoveControlLock("KSPMP_ChatLock");
             }
         }
 
@@ -101,7 +101,7 @@ namespace LmpClient.Windows.Chat
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_ChatLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "KSPMP_ChatLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

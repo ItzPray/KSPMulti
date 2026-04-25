@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-16"?>
+﻿<?xml version="1.0" encoding="utf-16"?>
 
 <OptionsWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Title>Nastavení</Title>
@@ -12,7 +12,7 @@
   <InterpolationSettings>Interpolační nastavení</InterpolationSettings>
   <EnableInterpolation>Zapnout Interpolaci</EnableInterpolation>
   <InterpolationOffset>Interpolační kompenzace:</InterpolationOffset>
-  <GenerateLmpModControl>Generovat server LMPModControl.xml</GenerateLmpModControl>
+  <GenerateLmpModControl>Generovat server KSPModControl.xml</GenerateLmpModControl>
   <GenerateUniverse>Generovat vesmír</GenerateUniverse>
   <NetworkSettings>Nastavení sítě</NetworkSettings>
   <CannotChangeWhileConnected>Hodnota nelze měnit a současně být připojen na jakýkoliv server.</CannotChangeWhileConnected>

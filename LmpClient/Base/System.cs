@@ -89,7 +89,7 @@ namespace LmpClient.Base
         {
             if (routine == null)
             {
-                LunaLog.LogError("[LMP]: Cannot set a null routine!");
+                LunaLog.LogError("[KSPMP]: Cannot set a null routine!");
                 return;
             }
 
@@ -107,7 +107,7 @@ namespace LmpClient.Base
             }
             else
             {
-                LunaLog.LogError($"[LMP]: Routine {routine.Name} already defined");
+                LunaLog.LogError($"[KSPMP]: Routine {routine.Name} already defined");
             }
         }
 
@@ -138,7 +138,7 @@ namespace LmpClient.Base
             }
             else
             {
-                LunaLog.LogError($"[LMP]: Routine {execution}/{routineName} not defined");
+                LunaLog.LogError($"[KSPMP]: Routine {execution}/{routineName} not defined");
             }
 
         }

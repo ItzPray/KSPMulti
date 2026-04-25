@@ -128,7 +128,7 @@ namespace LmpClient.Windows.Screenshots
             if (IsWindowLocked)
             {
                 IsWindowLocked = false;
-                InputLockManager.RemoveControlLock("LMP_ScreenshotLock");
+                InputLockManager.RemoveControlLock("KSPMP_ScreenshotLock");
             }
         }
 
@@ -151,7 +151,7 @@ namespace LmpClient.Windows.Screenshots
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_ScreenshotLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "KSPMP_ScreenshotLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

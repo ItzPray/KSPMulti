@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 
 <BannedPartsResourcesWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Title>LunaMultiplayer - Banned parts/resources</Title>
+  <Title>KSPMultiplayer - Banned parts/resources</Title>
   <Text>contains the following banned parts/resources and cannot be launched</Text>
   <BannedParts>Banned parts:</BannedParts>
   <BannedResources>Banned resources:</BannedResources>

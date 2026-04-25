@@ -78,7 +78,7 @@ namespace LmpClient.Systems.VesselPositionSys
             }
             catch (Exception e)
             {
-                LunaLog.Log($"[LMP]: Failed to get vessel position update, exception: {e}");
+                LunaLog.Log($"[KSPMP]: Failed to get vessel position update, exception: {e}");
             }
 
             return null;

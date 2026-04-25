@@ -1,11 +1,11 @@
 ﻿using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("Luna Multiplayer Mod")]
-[assembly: AssemblyDescription("Luna Multiplayer Mod (master server dll)")]
+[assembly: AssemblyTitle("KSP Multiplayer Mod")]
+[assembly: AssemblyDescription("KSP Multiplayer Mod (master server dll)")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("LMP")]
+[assembly: AssemblyProduct("KSPMP")]
 [assembly: AssemblyCopyright("Copyright © 2018")]
 [assembly: AssemblyTrademark("Gabriel Vazquez")]
 [assembly: AssemblyCulture("")]

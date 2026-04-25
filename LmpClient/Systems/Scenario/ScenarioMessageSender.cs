@@ -35,7 +35,7 @@ namespace LmpClient.Systems.Scenario
             data.ScenariosData = scenarios;
             data.ScenarioCount = scenarios.Length;
 
-            LunaLog.Log($"[LMP]: Sending {data.ScenarioCount} scenario modules");
+            LunaLog.Log($"[KSPMP]: Sending {data.ScenarioCount} scenario modules");
             SendMessage(data);
         }
     }

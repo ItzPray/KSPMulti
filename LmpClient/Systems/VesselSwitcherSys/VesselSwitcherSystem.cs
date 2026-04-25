@@ -38,7 +38,7 @@ namespace LmpClient.Systems.VesselSwitcherSys
             if (vessel != null)
             {
                 VesselToSwitchTo = vessel;
-                LunaLog.Log($"[LMP]: Switching to vessel {vessel.vesselName}");
+                LunaLog.Log($"[KSPMP]: Switching to vessel {vessel.vesselName}");
                 MainSystem.Singleton.StartCoroutine(SwitchToVessel());
             }
         }

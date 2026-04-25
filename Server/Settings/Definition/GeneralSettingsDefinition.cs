@@ -8,16 +8,16 @@ namespace Server.Settings.Definition
     public class GeneralSettingsDefinition
     {
         [XmlComment(Value = "Name of the server. Max 30 char")]
-        public string ServerName { get; set; } = "Luna Server";
+        public string ServerName { get; set; } = "KSP Server";
 
         [XmlComment(Value = "Description of the server. Max 200 char")]
-        public string Description { get; set; } = "Luna Server Description";
+        public string Description { get; set; } = "KSP Multiplayer server";
 
         [XmlComment(Value = "By default this will be given by the masterserver but you can override it here if you want. Max 2 char")]
         public string CountryCode { get; set; } = "";
 
         [XmlComment(Value = "Website text to display (discord, website, forum, etc). Can be left empty. Max 15 char")]
-        public string WebsiteText { get; set; } = "LMP";
+        public string WebsiteText { get; set; } = "KSPMP";
 
         [XmlComment(Value = "Actual website URL. Can be left empty. Max 60 char")]
         public string Website { get; set; } = "lunamultiplayer.com";
@@ -63,7 +63,7 @@ namespace Server.Settings.Definition
 
         [XmlComment(Value = "Enable mod control. WARNING: Only consider turning off mod control for private servers. " +
                             "The game will constantly complain about missing parts if there are missing mods. " +
-                            "Read this wiki page: https://github.com/LunaMultiplayer/LunaMultiplayer/wiki/Mod-file to understand how it works")]
+                            "Read your project/wiki documentation for the mod control file (KSPModControl.xml) and LMPModControl.xml fallback.")]
         public bool ModControl { get; set; } = true;
 
         [XmlComment(Value = "How many untracked asteroids to spawn into the universe. 0 = Disabled")]

@@ -79,7 +79,7 @@ namespace LmpClient.Systems.ShareContracts
                 if (ContractRuntimeDiagnostics.IsEnabled)
                 {
                     LunaLog.LogWarning(
-                        $"[LMP][ContractDiag] SendProducerProposal dropped (snapshot unchanged vs tracker) kind={kind} " +
+                        $"[KSPMP][ContractDiag] SendProducerProposal dropped (snapshot unchanged vs tracker) kind={kind} " +
                         $"reason={reason} guid={contract?.ContractGuid:N} title={contract?.Title}");
                     if (contract != null)
                     {
@@ -287,7 +287,7 @@ namespace LmpClient.Systems.ShareContracts
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while saving contract: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while saving contract: {e}");
                 return null;
             }
 

@@ -24,7 +24,7 @@ namespace LmpClient.Systems.ShareAchievements
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.AchievementsUpdate) return;
             if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Achievements))
             {
-                LunaLog.LogWarning("[LMP] Ignoring legacy AchievementsUpdate because persistent sync owns achievements convergence.");
+                LunaLog.LogWarning("[KSPMP] Ignoring legacy AchievementsUpdate because persistent sync owns achievements convergence.");
                 return;
             }
 
@@ -102,13 +102,13 @@ namespace LmpClient.Systems.ShareAchievements
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while deserializing achievement configNode: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while deserializing achievement configNode: {e}");
                 return null;
             }
 
             if (node == null)
             {
-                LunaLog.LogError("[LMP]: Error, the achievement configNode was null.");
+                LunaLog.LogError("[KSPMP]: Error, the achievement configNode was null.");
                 return null;
             }
 
@@ -120,7 +120,7 @@ namespace LmpClient.Systems.ShareAchievements
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while deserializing achievement: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while deserializing achievement: {e}");
                 return null;
             }
 

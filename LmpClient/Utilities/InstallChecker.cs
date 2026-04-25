@@ -15,7 +15,7 @@ namespace LmpClient.Utilities
 
             var assemblyInstalledAt = new DirectoryInfo(assembly.Location).FullName;
             var kspPath = new DirectoryInfo(MainSystem.KspPath).FullName;
-            var shouldBeInstalledAt = CommonUtil.CombinePaths(kspPath, "GameData", "LunaMultiplayer", "Plugins", "LmpClient.dll");
+            var shouldBeInstalledAt = CommonUtil.CombinePaths(kspPath, "GameData", "KSPMultiplayer", "Plugins", "LmpClient.dll");
 
             _currentPath = assemblyInstalledAt;
             _correctPath = shouldBeInstalledAt;
@@ -31,7 +31,7 @@ namespace LmpClient.Utilities
             if (IsCorrectlyInstalled()) return;
 
             LunaLog.Log($"[InstallChecker] Mod '{Assembly.GetExecutingAssembly().GetName().Name}' is not correctly installed.");
-            LunaLog.Log($"[InstallChecker] LMP is Currently installed on '{_currentPath}', should be installed at '{_correctPath}'");
+            LunaLog.Log($"[InstallChecker] KSPMP is currently installed on '{_currentPath}', should be installed at '{_correctPath}'");
             PopupDialog.SpawnPopupDialog(new MultiOptionDialog("InstallChecker", LocalizationContainer.InstallDialogText.IncorrectInstall + "\n\n" +
                                                                                  LocalizationContainer.InstallDialogText.CurrentLoc + " " + _currentPath + "\n\n" +
                                                                                  LocalizationContainer.InstallDialogText.CorrectLoc + " " + _correctPath + "\n",

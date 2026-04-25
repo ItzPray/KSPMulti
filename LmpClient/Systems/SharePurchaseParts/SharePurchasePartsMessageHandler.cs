@@ -23,7 +23,7 @@ namespace LmpClient.Systems.SharePurchaseParts
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.PartPurchase) return;
             if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.PartPurchases))
             {
-                LunaLog.LogWarning("[LMP] Ignoring legacy PartPurchase because persistent sync owns part-purchase convergence.");
+                LunaLog.LogWarning("[KSPMP] Ignoring legacy PartPurchase because persistent sync owns part-purchase convergence.");
                 return;
             }
 

@@ -8,7 +8,7 @@ namespace LmpClient.Systems.SettingsSys
     {
         #region Path properties
 
-        private static string DataFolderPath => CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Data");
+        private static string DataFolderPath => CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "KSPMultiplayer", "Data");
 
         private static string SettingsFilePath => CommonUtil.CombinePaths(DataFolderPath, SettingsFileName);
         private static string BackupSettingsFilePath => CommonUtil.CombinePaths(DataFolderPath, BackupSettingsFileName);
@@ -31,7 +31,7 @@ namespace LmpClient.Systems.SettingsSys
 
             if (!File.Exists(BackupSettingsFilePath))
             {
-                LunaLog.Log("[LMP]: Backing up settings file!");
+                LunaLog.Log("[KSPMP]: Backing up settings file!");
                 File.Copy(SettingsFilePath, BackupSettingsFilePath);
             }
 
@@ -65,7 +65,7 @@ namespace LmpClient.Systems.SettingsSys
         {
             if (File.Exists(BackupSettingsFilePath) && !File.Exists(SettingsFilePath))
             {
-                LunaLog.Log("[LMP]: Restoring player settings file!");
+                LunaLog.Log("[KSPMP]: Restoring player settings file!");
                 File.Copy(BackupSettingsFilePath, SettingsFilePath);
             }
         }

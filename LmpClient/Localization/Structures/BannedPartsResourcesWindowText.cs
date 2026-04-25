@@ -2,7 +2,7 @@
 {
     public class BannedPartsResourcesWindowText
     {
-        public string Title { get; set; } = "LunaMultiplayer - Banned parts/resources";
+        public string Title { get; set; } = "KSP Multiplayer - Banned parts/resources";
         public string Text { get; set; } = "contains the following banned parts/resources and cannot be launched:";
         public string BannedParts { get; set; } = "Banned parts:";
         public string BannedResources { get; set; } = "Banned resources:";

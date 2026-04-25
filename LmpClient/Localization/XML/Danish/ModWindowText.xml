@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="utf-16"?>
+﻿<?xml version="1.0" encoding="utf-16"?>
 
 <ModWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Title>LunaMultiplayer - Fejllagt mod validering</Title>
+  <Title>KSPMultiplayer - Fejllagt mod validering</Title>
   <MandatoryModsNotFound>Obligatoriske mods ikke fundet:</MandatoryModsNotFound>
   <MissingExpansions>Manglende udvidelser:</MissingExpansions>
   <MandatoryModsDifferentShaFound>Obligatoriske mods med forskellige SHA fundet:</MandatoryModsDifferentShaFound>

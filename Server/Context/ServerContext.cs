@@ -1,4 +1,5 @@
 ﻿using Lidgren.Network;
+using LmpCommon;
 using LmpCommon.Message;
 using Server.Client;
 using Server.Log;
@@ -28,11 +29,12 @@ namespace Server.Context
         public static Stopwatch ServerClock = new Stopwatch();
         public static string UniverseDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Universe");
         public static string ConfigDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config");
-        public static string ModFilePath = Path.Combine(ConfigDirectory, "LMPModControl.xml");
-        public static string OldModFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "LMPModControl.xml");
+        public static string ModFilePath = Path.Combine(ConfigDirectory, ModLayoutConstants.ModControlFileName);
+        public static string LegacyModFilePath = Path.Combine(ConfigDirectory, ModLayoutConstants.LegacyModControlFileName);
+        public static string OldModFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ModLayoutConstants.LegacyModControlFileName);
 
         // Configuration object
-        public static NetPeerConfiguration Config { get; } = new NetPeerConfiguration("LMP")
+        public static NetPeerConfiguration Config { get; } = new NetPeerConfiguration("KSPMP")
         {
             SendBufferSize = 1500000, //500kb
             ReceiveBufferSize = 1500000, //500kb

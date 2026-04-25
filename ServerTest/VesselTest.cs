@@ -3,13 +3,19 @@ using Server.System.Vessel.Classes;
 using ServerTest.Extension;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 
 namespace ServerTest
 {
     [TestClass]
     public class VesselTest
     {
-        private static readonly string XmlExamplePath = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "XmlExampleFiles", "Others");
+        /// <summary>Root of <c>XmlExampleFiles</c> copied next to the test assembly (net5.0 output).</summary>
+        private static readonly string XmlExampleRoot = Path.Combine(
+            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".",
+            "XmlExampleFiles");
+
+        private static readonly string XmlExamplePath = Path.Combine(XmlExampleRoot, "Others");
 
         [TestMethod]
         public void TestCreateVessel()
@@ -37,7 +43,7 @@ namespace ServerTest
         [TestMethod]
         public void PartAllowsDuplicateModuleTypeNames()
         {
-            var path = Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "XmlExampleFiles", "Special", "duplicate-fx-modules-vessel.txt");
+            var path = Path.Combine(XmlExampleRoot, "Special", "duplicate-fx-modules-vessel.txt");
             var vessel = new Vessel(File.ReadAllText(path));
             var modules = vessel.GetPart(99).GetModulesNamed("FXModuleThrottleEffects").ToList();
             Assert.AreEqual(2, modules.Count);

@@ -123,7 +123,7 @@ namespace LmpClient.Windows.LogConsole
                 _logRichDisplayBuffer = LunaLog.GetRecentLogRichTextTailForDisplay(2500, LunaLog.ImguiTextAreaMaxUtf16CodeUnits);
                 if (string.IsNullOrEmpty(_logRichDisplayBuffer))
                 {
-                    _logRichDisplayBuffer = "<color=#DCE6F0>(no LMP log lines yet)</color>";
+                    _logRichDisplayBuffer = "<color=#DCE6F0>(no KSPMP log lines yet)</color>";
                 }
 
                 _logRichDisplayRevision = historyRev;

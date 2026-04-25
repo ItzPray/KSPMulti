@@ -47,18 +47,18 @@ namespace LmpClient.Systems.Handshake
                     {
                         if (ModSystem.Singleton.ModFileHandler.ParseModFile(ModFileParser.ReadModFileFromString(data.ModFileData)))
                         {
-                            LunaLog.Log("[LMP]: Handshake successful");
+                            LunaLog.Log("[KSPMP]: Handshake successful");
                             MainSystem.NetworkState = ClientState.Handshaked;
                         }
                         else
                         {
-                            LunaLog.LogError("[LMP]: Failed to pass mod validation");
-                            NetworkConnection.Disconnect("[LMP]: Failed mod validation");
+                            LunaLog.LogError("[KSPMP]: Failed to pass mod validation");
+                            NetworkConnection.Disconnect("[KSPMP]: Failed mod validation");
                         }
                     }
                     else
                     {
-                        LunaLog.Log("[LMP]: Handshake successful");
+                        LunaLog.Log("[KSPMP]: Handshake successful");
                         MainSystem.NetworkState = ClientState.Handshaked;
                     }
                     break;

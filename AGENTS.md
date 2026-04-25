@@ -49,7 +49,7 @@ Repository source of truth for working in `KSPMulti`.
 
 - Run `Scripts\BuildOnly.bat Debug` or `Scripts\BuildOnly.bat Release`
 - Output layout:
-  - `Build\<Configuration>\Client\` — same layout as `GameData\LunaMultiplayer\` (root `LunaMultiplayer.version` for KSP-AVC, plus Plugins, Button, Localization, PartSync, Icons, Flags), ready to copy into KSP
+  - `Build\<Configuration>\Client\` — same layout as `GameData\KSPMultiplayer\` (root `KSPMultiplayer.version` for KSP-AVC, plus Plugins, Button, Localization, PartSync, Icons, Flags), ready to copy into KSP
   - `Build\<Configuration>\Server\` — `dotnet publish` output for the standalone server
 
 ### One-click full local test stack
@@ -127,6 +127,21 @@ Remove temporary diagnostics before finishing unless asked to keep them.
 - Prefer focused tests in `LmpCommonTest` or `ServerTest` when applicable.
 - For client/server integration changes, validate with the relevant script under `Scripts`.
 - For environment/setup work, validate with `Scripts\VerifyEnvironment.bat`.
+
+### Automated tests (local / CI)
+
+- **Shared + protocol (classic MSBuild / VSTest):** build `LmpCommonTest\LmpCommonTest.csproj` and run the test assembly (e.g. Visual Studio Test Explorer or `vstest.console.exe` on `LmpCommonTest\bin\Debug\LmpCommonTest.dll`).
+- **Dedicated server:** `dotnet test ServerTest\ServerTest.csproj -c Debug` (SDK-style `net5.0`, references `Server`). AppVeyor runs the same `dotnet test` in the `test_script` phase.
+
+### KSP manual smoke (after mod or server changes)
+
+Use a throwaway or backup KSP install when possible.
+
+1. Deploy client to `GameData\KSPMultiplayer\` (e.g. `Scripts\BuildClientAndCopy.bat` or copy from `Build\<Config>\Client\`) and ensure `KSPMultiplayer.version` is at the mod root.
+2. Start KSP: confirm the mod list shows the plugin as **KSPMP**, disclaimer/options show **KSP Multiplayer** copy, and the toolbar / button assets load.
+3. **Save migration (optional):** with only `saves\LunaMultiplayer\` present and no `saves\KSPMultiplayer\`, launch once; confirm the game creates/uses `saves\KSPMultiplayer\` and prior data is preserved (or migrate manually if you disabled auto-migration).
+4. Start the **same build** dedicated server (Lidgren app id **KSPMP**), connect from the in-game server browser or direct address, complete a short join (handshake, load into flight or space center as designed).
+5. Do **not** expect a match with servers or clients still on the legacy **LMP** wire id; this is a coordinated client + server release.
 
 ## Scenario Sync Domain Contract
 

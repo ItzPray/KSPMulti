@@ -24,7 +24,8 @@ namespace LmpCommon.PersistentSync
             PersistentSyncDomainId.ExperimentalParts,
             PersistentSyncDomainId.PartPurchases,
             PersistentSyncDomainId.UpgradeableFacilities,
-            PersistentSyncDomainId.Contracts
+            PersistentSyncDomainId.Contracts,
+            PersistentSyncDomainId.GameLaunchId
         };
 
         public static bool IsDomainApplicableForInitialSync(
@@ -32,6 +33,12 @@ namespace LmpCommon.PersistentSync
             GameMode serverGameMode,
             in PersistentSyncSessionCapabilities caps)
         {
+            if (domain == PersistentSyncDomainId.GameLaunchId)
+            {
+                // Sandbox sessions have no stock progression scenarios; they still need the KSPMP launch-id high-water mark.
+                return (serverGameMode & (GameMode.Career | GameMode.Science)) == 0;
+            }
+
             if ((serverGameMode & (GameMode.Career | GameMode.Science)) == 0)
             {
                 return false;

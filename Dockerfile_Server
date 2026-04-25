@@ -51,9 +51,9 @@ RUN dotnet publish -c Release -r ${OS_BASE}.${OS_VERSION}-${OS_ARCH} -o Publish
 
 FROM ${OS_BASE}:${OS_VERSION}
 RUN apk add icu-libs libstdc++ libgcc
-COPY --from=builder /LunaMultiplayer/Server/Publish/ /LMPServer/
+COPY --from=builder /LunaMultiplayer/Server/Publish/ /KSPMPServer/
 EXPOSE 8800/udp 8900/tcp
-VOLUME "/LMPServer/Config" "/LMPServer/Plugins" "/LMPServer/Universe" "/LMPServer/logs"
+VOLUME "/KSPMPServer/Config" "/KSPMPServer/Plugins" "/KSPMPServer/Universe" "/KSPMPServer/logs"
 STOPSIGNAL sigint
-WORKDIR /LMPServer
+WORKDIR /KSPMPServer
 CMD ./Server

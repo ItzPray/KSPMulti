@@ -30,7 +30,7 @@ namespace LmpClient.Systems.VesselRemoveSys
                     VesselLockEvents.PrepareSkipSpectateAfterOwnActiveVesselDestroyed();
 
                 var reason = dyingVessel.id == _recoveringTerminatingVesselId ? "Recovered/Terminated" : "Destroyed";
-                LunaLog.Log($"[LMP]: Removing vessel {dyingVessel.id}-{dyingVessel.persistentId}, Name: {dyingVessel.vesselName} from the server: {reason}");
+                LunaLog.Log($"[KSPMP]: Removing vessel {dyingVessel.id}-{dyingVessel.persistentId}, Name: {dyingVessel.vesselName} from the server: {reason}");
 
                 if (!ownVesselDying)
                 {
@@ -76,7 +76,7 @@ namespace LmpClient.Systems.VesselRemoveSys
             }
 
             _recoveringTerminatingVesselId = recoveredVessel.vesselID;
-            LunaLog.Log($"[LMP]: Removing vessel {recoveredVessel.vesselID}, Name: {recoveredVessel.vesselName} from the server: Recovered");
+            LunaLog.Log($"[KSPMP]: Removing vessel {recoveredVessel.vesselID}, Name: {recoveredVessel.vesselName} from the server: Recovered");
 
             System.MessageSender.SendVesselRemove(recoveredVessel.vesselID);
 
@@ -102,7 +102,7 @@ namespace LmpClient.Systems.VesselRemoveSys
             }
 
             _recoveringTerminatingVesselId = terminatedVessel.vesselID;
-            LunaLog.Log($"[LMP]: Removing vessel {terminatedVessel.vesselID}, Name: {terminatedVessel.vesselName} from the server: Terminated");
+            LunaLog.Log($"[KSPMP]: Removing vessel {terminatedVessel.vesselID}, Name: {terminatedVessel.vesselName} from the server: Terminated");
 
             System.MessageSender.SendVesselRemove(terminatedVessel.vesselID);
 
@@ -123,7 +123,7 @@ namespace LmpClient.Systems.VesselRemoveSys
         {
             if (FlightGlobals.ActiveVessel != null && !VesselCommon.IsSpectating)
             {
-                LunaLog.Log("[LMP]: Detected a revert to launch!");
+                LunaLog.Log("[KSPMP]: Detected a revert to launch!");
                 RemoveOldVesselAndItsDebris(FlightGlobals.ActiveVessel, ProtoCrewMember.RosterStatus.Assigned);
                 System.MessageSender.SendVesselRemove(FlightGlobals.ActiveVessel, false);
                 VesselCommon.RemoveVesselFromSystems(FlightGlobals.ActiveVessel.id);
@@ -137,7 +137,7 @@ namespace LmpClient.Systems.VesselRemoveSys
         {
             if (FlightGlobals.ActiveVessel != null && !VesselCommon.IsSpectating)
             {
-                LunaLog.Log($"[LMP]: Detected a revert to editor! {data}");
+                LunaLog.Log($"[KSPMP]: Detected a revert to editor! {data}");
                 RemoveOldVesselAndItsDebris(FlightGlobals.ActiveVessel, ProtoCrewMember.RosterStatus.Available);
                 System.MessageSender.SendVesselRemove(FlightGlobals.ActiveVessel);
 

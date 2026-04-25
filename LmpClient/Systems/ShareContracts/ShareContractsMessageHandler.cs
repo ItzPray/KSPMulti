@@ -107,13 +107,13 @@ namespace LmpClient.Systems.ShareContracts
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while deserializing contract configNode: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while deserializing contract configNode: {e}");
                 return null;
             }
 
             if (node == null)
             {
-                LunaLog.LogError("[LMP]: Error, the contract configNode was null.");
+                LunaLog.LogError("[KSPMP]: Error, the contract configNode was null.");
                 return null;
             }
 
@@ -127,7 +127,7 @@ namespace LmpClient.Systems.ShareContracts
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while deserializing contract: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while deserializing contract: {e}");
                 return null;
             }
 

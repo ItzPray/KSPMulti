@@ -28,7 +28,7 @@ namespace LmpClient.Utilities
                             new DialogGUIButton(LocalizationContainer.DisclaimerDialogText.Decline,
                                 delegate
                                 {
-                                    LunaLog.LogError("[LMP]: User did not accept disclaimer");
+                                    LunaLog.LogError("[KSPMP]: User did not accept disclaimer");
                                 }
                             ),
                             new DialogGUIFlexibleSpace(),

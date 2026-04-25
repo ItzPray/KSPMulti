@@ -115,7 +115,7 @@ namespace LmpClient.Systems.VesselRemoveSys
             if (killVessel == null || killVessel.state == Vessel.State.DEAD)
                 return;
 
-            LunaLog.Log($"[LMP]: Killing vessel {killVessel.id}. Reason: {reason}");
+            LunaLog.Log($"[KSPMP]: Killing vessel {killVessel.id}. Reason: {reason}");
             SwitchVesselIfKillingActiveVessel(killVessel);
 
             try
@@ -137,7 +137,7 @@ namespace LmpClient.Systems.VesselRemoveSys
             }
             catch (Exception killException)
             {
-                LunaLog.LogError($"[LMP]: Error destroying vessel: {killException}");
+                LunaLog.LogError($"[KSPMP]: Error destroying vessel: {killException}");
             }
         }
 

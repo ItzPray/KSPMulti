@@ -79,7 +79,7 @@ namespace LmpClient.Network
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Invalid server list reply msg: {e}");
+                LunaLog.LogError($"[KSPMP]: Invalid server list reply msg: {e}");
             }
         }
 
@@ -127,12 +127,12 @@ namespace LmpClient.Network
                         var introduceMsg = NetworkMain.MstSrvMsgFactory.CreateNew<MainMstSrvMsg>(msgData);
 
                         MainSystem.Singleton.Status = string.Empty;
-                        LunaLog.Log($"[LMP]: Sending NAT introduction to master servers. Token: {MainSystem.UniqueIdentifier}");
+                        LunaLog.Log($"[KSPMP]: Sending NAT introduction to master servers. Token: {MainSystem.UniqueIdentifier}");
                         NetworkSender.QueueOutgoingMessage(introduceMsg);
                     }
                     catch (Exception e)
                     {
-                        LunaLog.LogError($"[LMP]: Error connecting to server: {e}");
+                        LunaLog.LogError($"[KSPMP]: Error connecting to server: {e}");
                     }
                 }
             }
@@ -171,12 +171,12 @@ namespace LmpClient.Network
         {
             if (MainSystem.UniqueIdentifier == msg.ReadString())
             {
-                LunaLog.Log($"[LMP]: Nat introduction success against {msg.SenderEndPoint}. Token: {MainSystem.UniqueIdentifier}");
+                LunaLog.Log($"[KSPMP]: Nat introduction success against {msg.SenderEndPoint}. Token: {MainSystem.UniqueIdentifier}");
                 NetworkConnection.ConnectToServer(new []{ msg.SenderEndPoint }, Password);
             }
             else
             {
-                LunaLog.LogError($"[LMP]: Nat introduction failed against {msg.SenderEndPoint}. Token: {MainSystem.UniqueIdentifier}");
+                LunaLog.LogError($"[KSPMP]: Nat introduction failed against {msg.SenderEndPoint}. Token: {MainSystem.UniqueIdentifier}");
             }
         }
     }

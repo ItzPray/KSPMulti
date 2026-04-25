@@ -43,7 +43,7 @@ namespace LmpClient.Systems.PlayerColorSys
                         var playerName = data.PlayerColor.PlayerName;
                         var playerColor = data.PlayerColor.Color;
 
-                        LunaLog.Log($"[LMP]: Color Message, Name: {playerName} , color: {playerColor}");
+                        LunaLog.Log($"[KSPMP]: Color Message, Name: {playerName} , color: {playerColor}");
                         System.PlayerColors[playerName] = new Color(playerColor[0], playerColor[1], playerColor[2]);
                         UpdateVesselColors(playerName);
 

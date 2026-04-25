@@ -30,9 +30,9 @@ namespace LmpClient.Windows.Connection
         protected const float WindowWidth = 400;
 
 #if DEBUG
-        private readonly string _title = $"Luna Multiplayer {LmpVersioning.CurrentVersion} PID: {CommonUtil.ProcessId}";
+        private readonly string _title = $"KSP Multiplayer {LmpVersioning.CurrentVersion} PID: {CommonUtil.ProcessId}";
 #else
-        private readonly string _title = $"Luna Multiplayer {LmpVersioning.CurrentVersion}";
+        private readonly string _title = $"KSP Multiplayer {LmpVersioning.CurrentVersion}";
 #endif
 
         #endregion

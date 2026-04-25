@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="../master/External/logo.png" alt="Luna multiplayer logo"/>
+    <img src="../master/External/logo.png" alt="KSP Multiplayer logo"/>
     <a href="https://www.youtube.com/watch?v=rmJL_c-EJK8"><img src="https://img.youtube.com/vi/rmJL_c-EJK8/0.jpg" alt="Video" height="187" width="250"/></a>    
     <a href="https://www.youtube.com/watch?v=gf6xyLnpnoM"><img src="https://img.youtube.com/vi/gf6xyLnpnoM/0.jpg" alt="Video" height="187" width="250"/></a>
 </p>
@@ -25,7 +25,7 @@
 
 ---
 
-# Luna Multiplayer Mod (LMP)
+# KSP Multiplayer (KSPMP)
 
 *Multiplayer mod for [Kerbal Space Program (KSP)](https://kerbalspaceprogram.com)*
 
@@ -49,12 +49,12 @@
 - [x] Cached [QuickLZ](http://www.quicklz.com) for fast compression without generating garbage.
 - [ ] Support for groups/companies inside career and science modes.
 
-Please check the [wiki](../../wiki) to see how to [install](../../wiki/How-to-install-LMP), [run](../../wiki/How-to-play-with-LMP), [build](../../wiki/How-to-compile-LMP) or [debug](../../wiki/Debugging-in-Visual-studio) LMP among other things
+Please check the [wiki](../../wiki) for how to install, play, build, and debug (documentation still references the original fork naming in some URLs; the mod in-game and in this repo is **KSP Multiplayer / KSPMP**).
 
 ---
 ### Troubleshooting:
 
-Please visit [this page](../../wiki/Troubleshooting) in the wiki to solve the most common issues with LMP 
+Please visit [this page](../../wiki/Troubleshooting) in the wiki to solve the most common issues with KSP Multiplayer 
 [![Analytics](https://ga-beacon.appspot.com/UA-118326748-1/Home?pixel&useReferer)](https://github.com/igrigorik/ga-beacon)
 
 ---

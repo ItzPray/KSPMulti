@@ -13,7 +13,7 @@ namespace LmpCommon
         /// <summary>
         /// Stable identifier for this custom multiplayer fork family. Must match between client and server.
         /// </summary>
-        public const string LocalProtocolForkId = "LMP.KSPMulti";
+        public const string LocalProtocolForkId = "KSPMP.KSPMulti";
 
         /// <summary>
         /// Exact build identity for this assembly (informational version when present, else full assembly version).
@@ -97,11 +97,11 @@ namespace LmpCommon
             switch (reply)
             {
                 case HandshakeReply.ProtocolForkMismatch:
-                    return $"[LMP] Protocol mismatch. {detailReason}";
+                    return $"[KSPMP] Protocol mismatch. {detailReason}";
                 case HandshakeReply.ProtocolBuildMismatch:
-                    return $"[LMP] Incompatible client version. {detailReason}";
+                    return $"[KSPMP] Incompatible client version. {detailReason}";
                 default:
-                    return $"[LMP] Handshake failure: {detailReason}";
+                    return $"[KSPMP] Handshake failure: {detailReason}";
             }
         }
     }

@@ -43,7 +43,7 @@ namespace LmpClient.Systems.KerbalSys
             var kerbalBytes = ConfigNode.Serialize();
             if (kerbalBytes == null || kerbalBytes.Length == 0)
             {
-                LunaLog.LogError("[LMP]: Error sending kerbal - bytes are null or 0");
+                LunaLog.LogError("[KSPMP]: Error sending kerbal - bytes are null or 0");
                 return;
             }
 
@@ -63,7 +63,7 @@ namespace LmpClient.Systems.KerbalSys
             }
             else
             {
-                LunaLog.LogError($"[LMP]: Failed to create byte[] data for kerbal {kerbalName}");
+                LunaLog.LogError($"[KSPMP]: Failed to create byte[] data for kerbal {kerbalName}");
             }
         }
     }

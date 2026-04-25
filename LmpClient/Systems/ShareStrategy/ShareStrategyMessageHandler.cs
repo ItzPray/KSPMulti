@@ -26,7 +26,7 @@ namespace LmpClient.Systems.ShareStrategy
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.StrategyUpdate) return;
             if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Strategy))
             {
-                LunaLog.LogWarning("[LMP] Ignoring legacy StrategyUpdate because persistent sync owns strategy convergence.");
+                LunaLog.LogWarning("[KSPMP] Ignoring legacy StrategyUpdate because persistent sync owns strategy convergence.");
                 return;
             }
 
@@ -64,19 +64,19 @@ namespace LmpClient.Systems.ShareStrategy
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while deserializing strategy configNode: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while deserializing strategy configNode: {e}");
                 return null;
             }
 
             if (node == null)
             {
-                LunaLog.LogError("[LMP]: Error, the strategy configNode was null.");
+                LunaLog.LogError("[KSPMP]: Error, the strategy configNode was null.");
                 return null;
             }
 
             if (!node.HasValue("isActive"))
             {
-                LunaLog.LogError("[LMP]: Error, the strategy configNode is invalid (isActive missing).");
+                LunaLog.LogError("[KSPMP]: Error, the strategy configNode is invalid (isActive missing).");
                 return null;
             }
 

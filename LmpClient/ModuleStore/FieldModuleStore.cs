@@ -18,7 +18,7 @@ namespace LmpClient.ModuleStore
     /// </summary>
     public class FieldModuleStore
     {
-        private static readonly string CustomPartSyncFolder = CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "PartSync");
+        private static readonly string CustomPartSyncFolder = CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "KSPMultiplayer", "PartSync");
 
         /// <summary>
         /// Here we store our customized part modules behaviors
@@ -42,14 +42,14 @@ namespace LmpClient.ModuleStore
 
             if (!Directory.Exists(CustomPartSyncFolder))
             {
-                LunaLog.LogWarning($"[LMP]: PartSync folder missing; skipping module customizations: {CustomPartSyncFolder}");
+                LunaLog.LogWarning($"[KSPMP]: PartSync folder missing; skipping module customizations: {CustomPartSyncFolder}");
                 CustomizedModuleBehaviours = new Dictionary<string, ModuleDefinition>();
                 return;
             }
 
             foreach (var file in Directory.GetFiles(CustomPartSyncFolder, "*.xml", SearchOption.AllDirectories))
             {
-                // Ship layout is GameData/LunaMultiplayer/PartSync/<ModName>/*.xml (see BuildOnly / ModuleStore/XML).
+                // Ship layout is GameData/KSPMultiplayer/PartSync/<ModName>/*.xml (see BuildOnly / ModuleStore/XML).
                 // Some installs accidentally copy UI localization trees under PartSync (e.g. PartSync/Localization/...).
                 // Those files are not ModuleDefinition XML and must never be fed to the PartSync deserializer.
                 if (IsNonPartSyncCustomizationPath(file))
@@ -60,7 +60,7 @@ namespace LmpClient.ModuleStore
                 if (!LooksLikeModuleDefinitionXml(file))
                 {
                     LunaLog.LogWarning(
-                        $"[LMP]: Skipping non-PartSync XML under PartSync (expected root <ModuleDefinition>): {file}");
+                        $"[KSPMP]: Skipping non-PartSync XML under PartSync (expected root <ModuleDefinition>): {file}");
                     continue;
                 }
 
@@ -71,7 +71,7 @@ namespace LmpClient.ModuleStore
                 }
                 catch (Exception ex)
                 {
-                    LunaLog.LogWarning($"[LMP]: Skipping unreadable PartSync XML {file}: {ex.Message}");
+                    LunaLog.LogWarning($"[KSPMP]: Skipping unreadable PartSync XML {file}: {ex.Message}");
                     continue;
                 }
 

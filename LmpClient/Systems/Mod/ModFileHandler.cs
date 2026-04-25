@@ -26,7 +26,7 @@ namespace LmpClient.Systems.Mod
             SetAllPathsToLowercase(modFileData);
             if (!CheckFilesAndExpansions(modFileData))
             {
-                LunaLog.LogError("[LMP]: Mod check failed!");
+                LunaLog.LogError("[KSPMP]: Mod check failed!");
                 LunaLog.LogError(Sb.ToString());
                 ModWindow.Singleton.Display = true;
                 return false;
@@ -34,7 +34,7 @@ namespace LmpClient.Systems.Mod
 
             System.AllowedParts = modFileData.AllowedParts;
             System.AllowedResources = modFileData.AllowedResources;
-            LunaLog.Log("[LMP]: Mod check passed!");
+            LunaLog.Log("[KSPMP]: Mod check passed!");
             return true;
         }
 
@@ -50,7 +50,7 @@ namespace LmpClient.Systems.Mod
 
         private static void SaveCurrentModConfigurationFile()
         {
-            var tempModFilePath = CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Data", "LMPModControl.xml");
+            var tempModFilePath = CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "KSPMultiplayer", "Data", "KSPModControl.xml");
             LunaXmlSerializer.WriteToXmlFile(System.ModControlData, tempModFilePath);
         }
 

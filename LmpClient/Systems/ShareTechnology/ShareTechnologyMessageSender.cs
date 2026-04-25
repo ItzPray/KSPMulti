@@ -119,7 +119,7 @@ namespace LmpClient.Systems.ShareTechnology
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while saving tech node: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while saving tech node: {e}");
                 return null;
             }
 
@@ -241,7 +241,7 @@ namespace LmpClient.Systems.ShareTechnology
                 }
             }
 
-            LunaLog.LogWarning("[LMP] ResearchAndDevelopment.UnlockProtoTechNode has no compatible overload or tree node type; stock unlock skipped.");
+            LunaLog.LogWarning("[KSPMP] ResearchAndDevelopment.UnlockProtoTechNode has no compatible overload or tree node type; stock unlock skipped.");
         }
 
         private static ProtoTechNode ProtoTechNodeFromRnDTech(RDTech tech)

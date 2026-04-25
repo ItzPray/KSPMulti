@@ -20,7 +20,7 @@ namespace LmpClient.VesselUtilities
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while deserializing vessel: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while deserializing vessel: {e}");
                 return null;
             }
         }
@@ -65,7 +65,7 @@ namespace LmpClient.VesselUtilities
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Damaged vessel {protoVesselId}, exception: {e}");
+                LunaLog.LogError($"[KSPMP]: Damaged vessel {protoVesselId}, exception: {e}");
                 return null;
             }
         }
@@ -78,7 +78,7 @@ namespace LmpClient.VesselUtilities
 
             if (protoVessel == null)
             {
-                LunaLog.LogError("[LMP]: Cannot serialize a null protovessel");
+                LunaLog.LogError("[KSPMP]: Cannot serialize a null protovessel");
                 return false;
             }
 
@@ -88,7 +88,7 @@ namespace LmpClient.VesselUtilities
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while saving vessel: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while saving vessel: {e}");
                 return false;
             }
 
@@ -97,7 +97,7 @@ namespace LmpClient.VesselUtilities
             //Defend against NaN orbits
             if (configNode.VesselHasNaNPosition())
             {
-                LunaLog.LogError($"[LMP]: Vessel {vesselId} has NaN position");
+                LunaLog.LogError($"[KSPMP]: Vessel {vesselId} has NaN position");
                 return false;
             }
 

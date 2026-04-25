@@ -3,7 +3,7 @@
 <ScreenText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <CraftUploaded>Vozidlo nahráno!</CraftUploaded>
   <CraftSaved>Vozidlo uloženo!</CraftSaved>
-  <ModFileGenerated>LMPModControl.xml bylo vygenerováno do vaší složky.</ModFileGenerated>
+  <ModFileGenerated>KSPModControl.xml bylo vygenerováno do vaší složky.</ModFileGenerated>
   <Disconected>Byli jste odpojeni!</Disconected>
   <Spectating>Vozidlo je řízeno jiným hráčem.</Spectating>
   <SafetyBubble>Pakliže jste uvnitř startovní sféry, nejste viděni ostatními hráči!</SafetyBubble>
@@ -17,7 +17,7 @@
   <ScreenshotInterval>Foto nelze pořídit jelikož je interval mezi pořízením screenshotu $1 sekund.</ScreenshotInterval>
   <CraftLibraryInterval>Interakci nelze provést jelikož je interval mezi interakcemi knihovny lodí $1 sekund.</CraftLibraryInterval>
   <ScreenshotTaken>Screenshot nahrán!</ScreenshotTaken>
-  <ImageSaved>Fotka byla uložena do GameData/LunaMultiplayer/Screenshots</ImageSaved>
+  <ImageSaved>Fotka byla uložena do GameData/KSPMultiplayer/Screenshots</ImageSaved>
   <IncreasedInterpolationOffset>Pozor! Interpolačni kompenzace byla zvýšena!</IncreasedInterpolationOffset>
   <SackingKerbalsNotAllowed>Tento server nepodporuje zabíjení kerbálků!</SackingKerbalsNotAllowed>
   <CannotLoadGames>Nelze načíst uloženou hru</CannotLoadGames>

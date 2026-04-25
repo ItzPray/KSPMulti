@@ -37,7 +37,7 @@ namespace LmpUpdater.Github
 
         private static void ExtractServer(string tempFolder)
         {
-            var destFolder = Path.Combine(Path.Combine(tempFolder, ".."), "LMPServer");
+            var destFolder = Path.Combine(Path.Combine(tempFolder, ".."), "KSPMPServer");
             foreach (var file in Directory.GetFiles(tempFolder))
             {
                 if (!Path.GetExtension(file).ToLower().Contains("exe"))
@@ -56,7 +56,7 @@ namespace LmpUpdater.Github
 
         private static void ExtractClient(string tempFolder)
         {
-            var destFolder = Path.Combine(Path.Combine(tempFolder, ".."), "LMPClient");
+            var destFolder = Path.Combine(Path.Combine(tempFolder, ".."), "KSPMPClient");
             foreach (var file in Directory.GetFiles(tempFolder))
             {
                 if (!Path.GetExtension(file).ToLower().Contains("exe"))

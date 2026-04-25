@@ -26,7 +26,7 @@ namespace LmpClient.Network
         private static Task ReceiveThread { get; set; }
         private static Task SendThread { get; set; }
 
-        public static NetPeerConfiguration Config { get; } = new NetPeerConfiguration("LMP")
+        public static NetPeerConfiguration Config { get; } = new NetPeerConfiguration("KSPMP")
         {
             UseMessageRecycling = true,
             ReceiveBufferSize = 500000, //500Kb
@@ -46,7 +46,7 @@ namespace LmpClient.Network
 
         public static void DeleteAllTheControlLocksSoTheSpaceCentreBugGoesAway()
         {
-            LunaLog.Log($"[LMP]: Clearing {InputLockManager.lockStack.Count} control locks");
+            LunaLog.Log($"[KSPMP]: Clearing {InputLockManager.lockStack.Count} control locks");
             InputLockManager.ClearControlLocks();
         }
 
@@ -124,12 +124,12 @@ namespace LmpClient.Network
         {
             if (e.InnerException != null)
             {
-                LunaLog.LogError($"[LMP]: Connection error: {e.Message}, {e.InnerException}");
+                LunaLog.LogError($"[KSPMP]: Connection error: {e.Message}, {e.InnerException}");
                 NetworkConnection.Disconnect($"Connection error: {e.Message}, {e.InnerException.Message}");
             }
             else
             {
-                LunaLog.LogError($"[LMP]: Connection error: {e}");
+                LunaLog.LogError($"[KSPMP]: Connection error: {e}");
                 NetworkConnection.Disconnect($"Connection error: {e.Message}");
             }
         }

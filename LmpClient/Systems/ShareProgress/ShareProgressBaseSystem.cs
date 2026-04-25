@@ -115,7 +115,7 @@ namespace LmpClient.Systems.ShareProgress
             // bool-flag implementation provided implicitly. Logic lives in <see cref="ReentrantEventSuppressor"/>.
             if (!_suppressor.Stop(RestoreState, restoreOldValue))
             {
-                LunaLog.LogWarning($"[LMP] {SystemName}.StopIgnoringEvents called with depth=0; ignoring unbalanced Stop.");
+                LunaLog.LogWarning($"[KSPMP] {SystemName}.StopIgnoringEvents called with depth=0; ignoring unbalanced Stop.");
             }
         }
 

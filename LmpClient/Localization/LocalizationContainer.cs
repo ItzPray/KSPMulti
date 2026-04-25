@@ -32,7 +32,7 @@ namespace LmpClient.Localization
         public static RevertDialogText RevertDialogText = new RevertDialogText();
         public static ServerListFiltersText ServerListFiltersText = new ServerListFiltersText();
 
-        private static readonly string LocalizationFolder = CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Localization");
+        private static readonly string LocalizationFolder = CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "KSPMultiplayer", "Localization");
 
         public static string GetCurrentLanguageAsText()
         {
@@ -153,7 +153,7 @@ namespace LmpClient.Localization
                     // Overwrite with defaults so LMP UI strings load; user can re-edit translations afterward.
                     LunaXmlSerializer.WriteToXmlFile(new T(), filePath);
                     classToReplace = LunaXmlSerializer.ReadXmlFromPath<T>(filePath);
-                    LunaLog.LogWarning($"[LMP] Regenerated corrupt or unreadable '{typeName}.xml' for language '{language}'.");
+                    LunaLog.LogWarning($"[KSPMP] Regenerated corrupt or unreadable '{typeName}.xml' for language '{language}'.");
                 }
                 catch (Exception e2)
                 {

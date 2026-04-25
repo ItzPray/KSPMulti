@@ -53,7 +53,7 @@ namespace LmpClient.Systems.SettingsSys
 
             if (LaunchPadKsceCompatibility.StrictKsceDllCheckFailed)
             {
-                NetworkConnection.Disconnect("[LMP]: Launch pad optional DLL pin failed — see KSP.log.");
+                NetworkConnection.Disconnect("[KSPMP]: Launch pad optional DLL pin failed — see KSP.log.");
                 return;
             }
 

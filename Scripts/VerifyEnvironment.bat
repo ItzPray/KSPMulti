@@ -5,7 +5,7 @@ call "%~dp0SetDirectories.bat"
 
 set "ERRORS=0"
 
-echo === Verifying LunaMultiplayer local environment ===
+echo === Verifying KSP Multiplayer local environment ===
 
 if defined MSBUILD_EXE (
   if exist "%MSBUILD_EXE%" (

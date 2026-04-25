@@ -89,7 +89,7 @@ namespace LmpClient.Windows.Options
             if (IsWindowLocked)
             {
                 IsWindowLocked = false;
-                InputLockManager.RemoveControlLock("LMP_OptionsLock");
+                InputLockManager.RemoveControlLock("KSPMP_OptionsLock");
             }
         }
 
@@ -110,7 +110,7 @@ namespace LmpClient.Windows.Options
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_OptionsLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "KSPMP_OptionsLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

@@ -64,7 +64,7 @@ namespace LmpClient.Systems.ShareScienceSubject
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while saving science subject: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while saving science subject: {e}");
                 return null;
             }
 

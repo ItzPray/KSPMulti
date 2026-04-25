@@ -61,7 +61,7 @@ namespace LmpClient
 
         public static void LogWarning(string message)
         {
-            var msg = message.Contains("[LMP]") ? message : $"[LMP]: {message}";
+            var msg = message.Contains("[KSPMP]") ? message : $"[KSPMP]: {message}";
             if (MainSystem.IsUnityThread)
             {
                 AppendLogHistory(LogType.Warning, msg);
@@ -75,7 +75,7 @@ namespace LmpClient
 
         public static void LogError(string message)
         {
-            var msg = message.Contains("[LMP]") ? message : $"[LMP]: {message}";
+            var msg = message.Contains("[KSPMP]") ? message : $"[KSPMP]: {message}";
             if (MainSystem.IsUnityThread)
             {
                 AppendLogHistory(LogType.Error, msg);
@@ -89,7 +89,7 @@ namespace LmpClient
 
         public static void Log(string message)
         {
-            var msg = message.StartsWith("[LMP]") ? message : $"[LMP]: {message}";
+            var msg = message.StartsWith("[KSPMP]") ? message : $"[KSPMP]: {message}";
             if (MainSystem.IsUnityThread)
             {
                 AppendLogHistory(LogType.Info, msg);
@@ -103,7 +103,7 @@ namespace LmpClient
 
         #endregion
 
-        #region Log history (LMP console)
+        #region Log history (KSPMP console)
 
         private static string ColorHexForHistory(LogType type)
         {

@@ -92,7 +92,7 @@ namespace LmpClient.Systems.Network
                     MainSystem.Singleton.Status = "Waiting for handshake response";
                     if (ConnectionIsStuck(60000))
                     {
-                        LunaLog.Log("[LMP]: Failed to get a handshake response after 60 seconds. Sending the handshake again...");
+                        LunaLog.Log("[KSPMP]: Failed to get a handshake response after 60 seconds. Sending the handshake again...");
                         MainSystem.NetworkState = ClientState.Connected;
                     }
                     break;
@@ -245,7 +245,7 @@ namespace LmpClient.Systems.Network
                     ChangeRoutineExecutionInterval(RoutineExecution.Update, nameof(NetworkUpdate), 1500);
                     MainSystem.Singleton.Status = "Running";
                     CommonUtil.Reserve20Mb();
-                    LunaLog.Log("[LMP]: All systems up and running. Поехали!");
+                    LunaLog.Log("[KSPMP]: All systems up and running. Поехали!");
                     if (HighLogic.LoadedScene == GameScenes.SPACECENTER)
                     {
                         MainSystem.NetworkState = ClientState.Running;

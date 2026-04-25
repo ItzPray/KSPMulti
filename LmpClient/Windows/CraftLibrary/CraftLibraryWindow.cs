@@ -148,7 +148,7 @@ namespace LmpClient.Windows.CraftLibrary
             if (IsWindowLocked)
             {
                 IsWindowLocked = false;
-                InputLockManager.RemoveControlLock("LMP_CraftLibraryLock");
+                InputLockManager.RemoveControlLock("KSPMP_CraftLibraryLock");
             }
         }
 
@@ -171,7 +171,7 @@ namespace LmpClient.Windows.CraftLibrary
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_CraftLibraryLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "KSPMP_CraftLibraryLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

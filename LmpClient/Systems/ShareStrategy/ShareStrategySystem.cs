@@ -90,7 +90,7 @@ namespace LmpClient.Systems.ShareStrategy
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Mission Control UI refresh after strategy change failed: {e}");
+                LunaLog.LogError($"[KSPMP]: Mission Control UI refresh after strategy change failed: {e}");
             }
         }
 
@@ -127,7 +127,7 @@ namespace LmpClient.Systems.ShareStrategy
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while applying strategy snapshot {strategyInfo.Name} from {source}: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while applying strategy snapshot {strategyInfo.Name} from {source}: {e}");
                 return false;
             }
             finally

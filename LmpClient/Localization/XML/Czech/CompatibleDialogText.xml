@@ -2,6 +2,6 @@
 
 <CompatibleDialogText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Title>KSP kompatibilita</Title>
-  <Text>Tato verze LMP není kompatibilní s vaší aktuální instalací KSP. Očekávejte nesprávný chod módu.</Text>
+  <Text>Tato verze KSPMP není kompatibilní s vaší aktuální instalací KSP. Očekávejte nesprávný chod módu.</Text>
   <Accept>Potvrdit</Accept>
 </CompatibleDialogText>

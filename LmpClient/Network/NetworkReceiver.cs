@@ -64,7 +64,7 @@ namespace LmpClient.Network
         /// </summary>
         public static void ReceiveMain()
         {
-            LunaLog.Log("[LMP]: Receive thread started");
+            LunaLog.Log("[KSPMP]: Receive thread started");
             try
             {
                 while (!NetworkConnection.ResetRequested)
@@ -107,7 +107,7 @@ namespace LmpClient.Network
                                 }
                                 catch (Exception e)
                                 {
-                                    LunaLog.LogError($"[LMP]: Error deserializing message! {e}");
+                                    LunaLog.LogError($"[KSPMP]: Error deserializing message! {e}");
                                 }
                                 break;
                             case NetIncomingMessageType.StatusChanged:
@@ -120,7 +120,7 @@ namespace LmpClient.Network
                                 }
                                 break;
                             default:
-                                LunaLog.Log($"[LMP]: LIDGREN: {msg.MessageType} -- {msg.PeekString()}");
+                                LunaLog.Log($"[KSPMP]: LIDGREN: {msg.MessageType} -- {msg.PeekString()}");
                                 break;
                         }
                         NetworkMain.ClientConnection.Recycle(msg);
@@ -133,10 +133,10 @@ namespace LmpClient.Network
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Receive thread error: {e}");
+                LunaLog.LogError($"[KSPMP]: Receive thread error: {e}");
                 NetworkMain.HandleDisconnectException(e);
             }
-            LunaLog.Log("[LMP]: Receive thread exited");
+            LunaLog.Log("[KSPMP]: Receive thread exited");
         }
 
         /// <summary>
@@ -296,7 +296,7 @@ namespace LmpClient.Network
                     LaunchPadCoordinationSystem.Singleton.EnqueueMessage(msg);
                     break;
                 default:
-                    LunaLog.LogError($"[LMP]: Unhandled Message type {msg.MessageType}");
+                    LunaLog.LogError($"[KSPMP]: Unhandled Message type {msg.MessageType}");
                     break;
             }
         }

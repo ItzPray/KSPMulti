@@ -76,7 +76,7 @@ namespace LmpClient.Windows.Admin
             if (IsWindowLocked)
             {
                 IsWindowLocked = false;
-                InputLockManager.RemoveControlLock("LMP_AdminLock");
+                InputLockManager.RemoveControlLock("KSPMP_AdminLock");
             }
         }
 
@@ -98,7 +98,7 @@ namespace LmpClient.Windows.Admin
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_AdminLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "KSPMP_AdminLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

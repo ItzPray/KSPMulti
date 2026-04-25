@@ -18,8 +18,8 @@ services:
             # uncomment to enable website
             # - '8900:8900'
         volumes:
-            - '/opt/LMPServer/Config:/LMPServer/Config'
-            - '/opt/LMPServer/Universe:/LMPServer/Universe'
-            - '/opt/LMPServer/Plugins:/LMPServer/Plugins'
-            - '/opt/LMPServer/logs:/LMPServer/logs'
+            - '/opt/KSPMPServer/Config:/KSPMPServer/Config'
+            - '/opt/KSPMPServer/Universe:/KSPMPServer/Universe'
+            - '/opt/KSPMPServer/Plugins:/KSPMPServer/Plugins'
+            - '/opt/KSPMPServer/logs:/KSPMPServer/logs'
         restart: unless-stopped

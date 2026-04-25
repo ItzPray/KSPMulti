@@ -15,7 +15,7 @@ namespace LmpClient.Systems.Flag
         #region Fields
 
         public FlagEvents FlagEvents { get; } = new FlagEvents();
-        public static string LmpFlagPath { get; } = CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Flags");
+        public static string LmpFlagPath { get; } = CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "KSPMultiplayer", "Flags");
         public ConcurrentDictionary<string, ExtendedFlagInfo> ServerFlags { get; } = new ConcurrentDictionary<string, ExtendedFlagInfo>();
         private bool FlagSystemReady => Enabled && HighLogic.CurrentGame?.flagURL != null;
 
@@ -98,7 +98,7 @@ namespace LmpClient.Systems.Flag
                 //Don't send the flag when the SHA sum already matches as that would mean that the server already has it
                 if (existingFlag != null && existingFlag.ShaSum == Common.CalculateSha256Hash(flagData)) return;
 
-                LunaLog.Log($"[LMP]: Uploading {Path.GetFileName(flagUrl)} flag");
+                LunaLog.Log($"[KSPMP]: Uploading {Path.GetFileName(flagUrl)} flag");
                 MessageSender.SendMessage(MessageSender.GetFlagMessageData(flagUrl, flagData));
             }
         }
@@ -127,11 +127,11 @@ namespace LmpClient.Systems.Flag
                 };
 
                 GameDatabase.Instance.databaseTexture.Add(textureInfo);
-                LunaLog.Log($"[LMP]: Loaded flag {flagTexture.name}");
+                LunaLog.Log($"[KSPMP]: Loaded flag {flagTexture.name}");
             }
             else
             {
-                LunaLog.LogError($"[LMP]: Failed to load flag {flagInfo.FlagName}");
+                LunaLog.LogError($"[KSPMP]: Failed to load flag {flagInfo.FlagName}");
             }
         }
 

@@ -41,7 +41,7 @@ namespace LmpClient.Systems.ModApi
                 return;
             if (messageData == null)
             {
-                LunaLog.LogError($"[LMP]: {modName} attemped to send a null Message");
+                LunaLog.LogError($"[KSPMP]: {modName} attemped to send a null Message");
                 return;
             }
 

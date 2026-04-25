@@ -101,7 +101,7 @@ namespace LmpClient.Systems.Mod
                 });
             }
 
-            LunaXmlSerializer.WriteToXmlFile(modCtrlStructure, CommonUtil.CombinePaths(MainSystem.KspPath, "LMPModControl.xml"));
+            LunaXmlSerializer.WriteToXmlFile(modCtrlStructure, CommonUtil.CombinePaths(MainSystem.KspPath, ModLayoutConstants.ModControlFileName));
             LunaScreenMsg.PostScreenMessage(LocalizationContainer.ScreenText.ModFileGenerated, 5f, ScreenMessageStyle.UPPER_CENTER);
         }
 
@@ -113,22 +113,22 @@ namespace LmpClient.Systems.Mod
             modFile.SetDefaultAllowedParts();
             modFile.SetDefaultAllowedResources();
 
-            LunaLog.Log("[LMP]: Missing parts start");
+            LunaLog.Log("[KSPMP]: Missing parts start");
             foreach (var part in PartLoader.LoadedPartsList.Where(p => !modFile.AllowedParts.Contains(p.name)))
             {
                 missingPartsCount++;
-                LunaLog.Log($"[LMP]: Missing part: '{part.name}'");
+                LunaLog.Log($"[KSPMP]: Missing part: '{part.name}'");
             }
-            LunaLog.Log("[LMP]: Missing parts end");
+            LunaLog.Log("[KSPMP]: Missing parts end");
 
-            LunaLog.Log("[LMP]: Missing resources start");
+            LunaLog.Log("[KSPMP]: Missing resources start");
             foreach (var resource in PartResourceLibrary.Instance.resourceDefinitions.Cast<PartResourceDefinition>().Select(r => r.name)
                 .Where(r => !modFile.AllowedResources.Contains(r)))
             {
                 missingResourcesCount++;
-                LunaLog.Log($"[LMP]: Missing resource: '{resource}'");
+                LunaLog.Log($"[KSPMP]: Missing resource: '{resource}'");
             }
-            LunaLog.Log("[LMP]: Missing resources end");
+            LunaLog.Log("[KSPMP]: Missing resources end");
 
             if (missingPartsCount > 0 && missingResourcesCount <= 0)
             {

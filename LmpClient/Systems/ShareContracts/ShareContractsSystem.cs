@@ -613,7 +613,7 @@ namespace LmpClient.Systems.ShareContracts
         }
 
         /// <summary>
-        /// True for the exact duration of an LMP-controlled <c>ContractSystem.RefreshContracts</c> call
+        /// True for the exact duration of a KSPMP-controlled <c>ContractSystem.RefreshContracts</c> call
         /// (opened by <see cref="ReplenishStockOffersAfterPersistentSnapshotApply"/> via
         /// <see cref="_allowStockContractRefreshWindow"/>). The PersistentSync Contracts domain wraps the
         /// entire snapshot apply in <see cref="StartIgnoringEvents"/>/<see cref="StopIgnoringEvents"/> to

@@ -115,7 +115,7 @@ namespace LmpClient.Systems.VesselProtoSys
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error in SendVesselDefinition {e}");
+                LunaLog.LogError($"[KSPMP]: Error in SendVesselDefinition {e}");
             }
 
         }
@@ -166,7 +166,7 @@ namespace LmpClient.Systems.VesselProtoSys
                     {
                         if (VesselLoader.LoadVessel(protoVessel, forceReload))
                         {
-                            LunaLog.Log($"[LMP]: Vessel {protoVessel.vesselID} loaded");
+                            LunaLog.Log($"[KSPMP]: Vessel {protoVessel.vesselID} loaded");
                             VesselLoadEvent.onLmpVesselLoaded.Fire(protoVessel.vesselRef);
                         }
                     }
@@ -174,7 +174,7 @@ namespace LmpClient.Systems.VesselProtoSys
                     {
                         if (VesselLoader.LoadVessel(protoVessel, forceReload))
                         {
-                            LunaLog.Log($"[LMP]: Vessel {protoVessel.vesselID} reloaded");
+                            LunaLog.Log($"[KSPMP]: Vessel {protoVessel.vesselID} reloaded");
                             VesselReloadEvent.onLmpVesselReloaded.Fire(protoVessel.vesselRef);
                         }
                     }
@@ -182,7 +182,7 @@ namespace LmpClient.Systems.VesselProtoSys
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error in CheckVesselsToLoad {e}");
+                LunaLog.LogError($"[KSPMP]: Error in CheckVesselsToLoad {e}");
             }
         }
 
@@ -203,7 +203,7 @@ namespace LmpClient.Systems.VesselProtoSys
             {
                 QueuedVesselsToSend.Remove(vesselId);
 
-                LunaLog.Log($"[LMP]: Sending delayed proto vessel {vesselId}");
+                LunaLog.Log($"[KSPMP]: Sending delayed proto vessel {vesselId}");
                 MessageSender.SendVesselMessage(FlightGlobals.FindVessel(vesselId));
             }, delayInSec);
         }

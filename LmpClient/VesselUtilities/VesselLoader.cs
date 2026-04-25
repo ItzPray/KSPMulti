@@ -19,7 +19,7 @@ namespace LmpClient.VesselUtilities
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error loading vessel: {e}");
+                LunaLog.LogError($"[KSPMP]: Error loading vessel: {e}");
                 return false;
             }
         }
@@ -46,7 +46,7 @@ namespace LmpClient.VesselUtilities
                     return true;
                 }
 
-                LunaLog.Log($"[LMP]: Reloading vessel {vesselProto.vesselID}");
+                LunaLog.Log($"[KSPMP]: Reloading vessel {vesselProto.vesselID}");
                 if (reloadingOwnVessel)
                     existingVessel.RemoveAllCrew();
 
@@ -59,13 +59,13 @@ namespace LmpClient.VesselUtilities
             }
             else
             {
-                LunaLog.Log($"[LMP]: Loading vessel {vesselProto.vesselID}");
+                LunaLog.Log($"[KSPMP]: Loading vessel {vesselProto.vesselID}");
             }
 
             vesselProto.Load(HighLogic.CurrentGame.flightState);
             if (vesselProto.vesselRef == null)
             {
-                LunaLog.Log($"[LMP]: Protovessel {vesselProto.vesselID} failed to create a vessel!");
+                LunaLog.Log($"[KSPMP]: Protovessel {vesselProto.vesselID} failed to create a vessel!");
                 return false;
             }
 
@@ -89,7 +89,7 @@ namespace LmpClient.VesselUtilities
 
             if (double.IsNaN(vesselProto.vesselRef.orbitDriver.pos.x))
             {
-                LunaLog.Log($"[LMP]: Protovessel {vesselProto.vesselID} has an invalid orbit");
+                LunaLog.Log($"[KSPMP]: Protovessel {vesselProto.vesselID} has an invalid orbit");
                 return false;
             }
 

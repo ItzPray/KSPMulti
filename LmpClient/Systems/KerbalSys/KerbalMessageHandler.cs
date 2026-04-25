@@ -33,7 +33,7 @@ namespace LmpClient.Systems.KerbalSys
                     HandleKerbalProto(msgData as KerbalProtoMsgData);
                     break;
                 default:
-                    LunaLog.LogError("[LMP]: Invalid Kerbal message type");
+                    LunaLog.LogError("[KSPMP]: Invalid Kerbal message type");
                     break;
             }
         }
@@ -57,7 +57,7 @@ namespace LmpClient.Systems.KerbalSys
                 System.KerbalsToProcess.Enqueue(kerbalNode);
             }
             else
-                LunaLog.LogError("[LMP]: Failed to load kerbal!");
+                LunaLog.LogError("[KSPMP]: Failed to load kerbal!");
         }
 
         /// <summary>
@@ -71,7 +71,7 @@ namespace LmpClient.Systems.KerbalSys
                 ProcessKerbal(messageData.Kerbals[i].KerbalData, messageData.Kerbals[i].NumBytes);
             }
 
-            LunaLog.Log("[LMP]: Kerbals Synced!");
+            LunaLog.Log("[KSPMP]: Kerbals Synced!");
             MainSystem.NetworkState = ClientState.KerbalsSynced;
         }
     }

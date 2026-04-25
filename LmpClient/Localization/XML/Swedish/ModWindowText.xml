@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="utf-16"?>
+﻿<?xml version="1.0" encoding="utf-16"?>
 
 <ModWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Title>LunaMultiplayer - Misslyckades med modifikations validering</Title>
+  <Title>KSPMultiplayer - Misslyckades med modifikations validering</Title>
   <MandatoryModsNotFound>Obligatoriska modifikationer ej installerade:</MandatoryModsNotFound>
   <MissingExpansions>Saknar modifikationer:</MissingExpansions>
   <MandatoryModsDifferentShaFound>Obligatoriska modifikationer med olika SHA hittade:</MandatoryModsDifferentShaFound>

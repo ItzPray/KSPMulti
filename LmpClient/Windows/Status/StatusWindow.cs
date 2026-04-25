@@ -39,9 +39,9 @@ namespace LmpClient.Windows.Status
         private static readonly List<SubspaceDisplayEntry> SubspaceDisplay = new List<SubspaceDisplayEntry>();
 
 #if DEBUG
-        private static readonly string Title = $"LMP - PID: {CommonUtil.ProcessId}";
+        private static readonly string Title = $"KSP Multiplayer (PID: {CommonUtil.ProcessId})";
 #else
-        private static readonly string Title = $"LMP - Luna Multiplayer";
+        private static readonly string Title = "KSP Multiplayer";
 #endif
 
         #endregion
@@ -124,7 +124,7 @@ namespace LmpClient.Windows.Status
             if (IsWindowLocked)
             {
                 IsWindowLocked = false;
-                InputLockManager.RemoveControlLock("LMP_PlayerStatusLock");
+                InputLockManager.RemoveControlLock("KSPMP_PlayerStatusLock");
             }
         }
 
@@ -144,7 +144,7 @@ namespace LmpClient.Windows.Status
                 var shouldLock = WindowRect.Contains(mousePos);
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_PlayerStatusLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "KSPMP_PlayerStatusLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)
@@ -156,7 +156,7 @@ namespace LmpClient.Windows.Status
         }
 
         /// <summary>
-        /// Screen-space rectangle of the LMP status panel, for docking other UI (e.g. log console).
+        /// Screen-space rectangle of the KSPMP status panel, for docking other UI (e.g. log console).
         /// </summary>
         public Rect GetStatusPanelScreenRect()
         {

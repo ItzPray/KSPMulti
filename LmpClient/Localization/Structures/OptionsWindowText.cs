@@ -15,7 +15,7 @@ namespace LmpClient.Localization.Structures
         public string InterpolationSettings { get; set; } = "Interpolation settings";
         public string EnableInterpolation { get; set; } = "Enable interpolation";
         public string InterpolationOffset { get; set; } = "Interpolation offset:";
-        public string GenerateLmpModControl { get; set; } = "Generate a server LMPModControl.xml";
+        public string GenerateLmpModControl { get; set; } = "Generate a server KSPModControl.xml";
         public string GenerateUniverse { get; set; } = "Generate Universe from saved game";
         public string NetworkSettings { get; set; } = "Network settings";
         public string CannotChangeWhileConnected { get; set; } = "Cannot change values while connected";

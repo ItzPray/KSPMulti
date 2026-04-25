@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="utf-16"?>
+﻿<?xml version="1.0" encoding="utf-16"?>
 
 <ModWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Title>LunaMultiplayer - MOD认证失败</Title>
+  <Title>KSPMultiplayer - MOD认证失败</Title>
   <MandatoryModsNotFound>强制性MOD未找到：</MandatoryModsNotFound>
   <MissingExpansions>缺少扩展：</MissingExpansions>
   <MandatoryModsDifferentShaFound>发现不同SHA的强制性MOD：</MandatoryModsDifferentShaFound>

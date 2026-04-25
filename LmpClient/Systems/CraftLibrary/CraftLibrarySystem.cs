@@ -17,7 +17,7 @@ namespace LmpClient.Systems.CraftLibrary
     {
         #region Fields and properties
 
-        private static readonly string SaveFolder = CommonUtil.CombinePaths(MainSystem.KspPath, "saves", "LunaMultiplayer");
+        private static readonly string SaveFolder = CommonUtil.CombinePaths(MainSystem.KspPath, "saves", "KSPMultiplayer");
 
         private static DateTime _lastRequest = DateTime.MinValue;
 

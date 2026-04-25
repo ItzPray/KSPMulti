@@ -1,6 +1,7 @@
 ﻿using LmpClient.Localization;
 using LmpClient.Utilities;
 using LmpClient.Windows;
+using LmpCommon;
 using UnityEngine;
 
 namespace LmpClient.Base
@@ -96,221 +97,221 @@ namespace LmpClient.Base
                 //Icons
                 SettingsIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "settings.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.SettingsIcon);
                 SettingsBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "settingsBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.SettingsIcon);
                 ServerIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "server.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.ServerIcon);
                 ServerBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "serverBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.ServerIcon);
                 SystemIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "system.png"), 16, 16),
                     "SYSTEM");
                 ConnectIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "connect.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.ConnectIcon);
                 ConnectBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "connectBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.ConnectIcon);
                 DebugIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "debug.png"), 16, 16),
                     "DEBUG");
                 DisconnectIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "disconnect.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.DisconnectIcon);
                 DisconnectBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "disconnectBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.DisconnectIcon);
                 LockIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons", "lock.png"),
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons", "lock.png"),
                         16, 16),
                     "LOCK");
                 SyncIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons", "sync.png"),
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons", "sync.png"),
                         16, 16),
                     LocalizationContainer.ButtonTooltips.SyncIcon);
                 ResizeIcon =
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "resize.png"), 16, 16);
                 CloseIcon = WindowUtil.LoadIcon(
-                    CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                    CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                         "close_small.png"), 10, 10);
                 RefreshIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "refresh.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.RefreshIcon);
                 RefreshBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "refreshBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.RefreshIcon);
                 UploadIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "upload.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.UploadIcon);
                 DeleteIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "delete.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.DeleteIcon);
                 PlusIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons", "plus.png"),
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons", "plus.png"),
                         16, 16),
                     LocalizationContainer.ButtonTooltips.PlusIcon);
                 SaveIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons", "save.png"),
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons", "save.png"),
                         16, 16),
                     LocalizationContainer.ButtonTooltips.SaveIcon);
                 WaitGiantIcon =
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "waitGiant.png"), 16, 16);
                 WaitIcon = WindowUtil.LoadIcon(
-                    CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons", "wait.png"), 16,
+                    CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons", "wait.png"), 16,
                     16);
                 KeyIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons", "key.png"),
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons", "key.png"),
                         16, 16),
                     LocalizationContainer.ButtonTooltips.KeyIcon);
                 GlobeIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "globe.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.GlobeIcon);
                 ChatIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "chatWhite.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.ChatIcon);
                 ChatRedIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "chatRed.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.ChatIcon);
                 CameraIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "camera.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.CameraIcon);
                 CameraRedIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "cameraRed.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.CameraIcon);
                 RocketIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "rocket.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.RocketIcon);
                 RocketRedIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "rocketRed.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.RocketIcon);
                 AdminIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "admin.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.AdminIcon);
                 KickIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons", "kick.png"),
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons", "kick.png"),
                         16, 16),
                     LocalizationContainer.ButtonTooltips.KickIcon);
                 KickBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "kickBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.KickIcon);
                 BanIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons", "ban.png"),
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons", "ban.png"),
                         16, 16),
                     LocalizationContainer.ButtonTooltips.BanIcon);
                 BanBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "banBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.BanIcon);
                 DekesslerIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "dekessler.png"), 16, 16),
                     LocalizationContainer.ButtonTooltips.DekesslerIcon);
                 NukeIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons", "nuke.png"),
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons", "nuke.png"),
                         16, 16),
                     LocalizationContainer.ButtonTooltips.NukeIcon);
                 DekesslerBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "dekesslerBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.DekesslerIcon);
                 NukeBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "nukeBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.NukeIcon);
                 RestartServerIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "restartServerBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.RestartServerIcon);
                 DownloadBigIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "downloadBig.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.DownloadIcon);
                 CycleFirstIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "cycleFirstIcon.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.CycleFirstIcon);
                 CyclePreviousIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "cyclePreviousIcon.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.CyclePreviousIcon);
                 CycleNextIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "cycleNextIcon.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.CycleNextIcon);
                 CycleLastIcon = new GUIContent(
                     WindowUtil.LoadIcon(
-                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", "LunaMultiplayer", "Icons",
+                        CommonUtil.CombinePaths(MainSystem.KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Icons",
                             "cycleLastIcon.png"), 32, 32),
                     LocalizationContainer.ButtonTooltips.CycleLastIcon);
 

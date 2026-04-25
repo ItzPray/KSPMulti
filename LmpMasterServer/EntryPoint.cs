@@ -14,7 +14,7 @@ namespace LmpMasterServer
     /// <summary>
     /// This program is the one who does the punchtrough between a nat client and a nat server.
     /// You should only run if you agree in the forum to do so and your server ip is listed in:
-    /// https://github.com/LunaMultiplayer/LunaMultiplayer/raw/master/MasterServersList/MasterServersList.txt
+    /// Default master list path in repo: MasterServersList/MasterServersList.txt (URL depends on your fork).
     /// </summary>
     public static class EntryPoint
     {

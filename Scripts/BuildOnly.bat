@@ -64,20 +64,20 @@ xcopy /Y "%REPOROOT%\LmpClient\Resources\Flags\*.*" "%CLIENT_OUT%\Flags\"
 xcopy /Y "%REPOROOT%\LmpClient\Resources\LoadingScreens\*.*" "%CLIENT_OUT%\LoadingScreens\"
 xcopy /Y "%REPOROOT%\LmpClient\Resources\LoadingScreens\KSPMultiLoadingScreen.png" "%USER_LOADING_OUT%\"
 
-REM KSP / AVC uses ModName.version at GameData\LunaMultiplayer\ root (full name: LunaMultiplayer.version — not a Unix ".version" dotfile).
-if not exist "%REPOROOT%\LunaMultiplayer.version" (
-  echo ERROR: LunaMultiplayer.version is missing at repo root. It is required for the same layout as stock LunaMultiplayer under GameData\LunaMultiplayer\.
+REM KSP / AVC uses ModName.version at GameData\KSPMultiplayer\ root (KSPMultiplayer.version).
+if not exist "%REPOROOT%\KSPMultiplayer.version" (
+  echo ERROR: KSPMultiplayer.version is missing at repo root. It is required for GameData\KSPMultiplayer\.
   exit /b 1
 )
-copy /Y "%REPOROOT%\LunaMultiplayer.version" "%CLIENT_OUT%\LunaMultiplayer.version" >nul
-if not exist "%CLIENT_OUT%\LunaMultiplayer.version" (
-  echo ERROR: Failed to copy LunaMultiplayer.version into Build\...\Client\.
+copy /Y "%REPOROOT%\KSPMultiplayer.version" "%CLIENT_OUT%\KSPMultiplayer.version" >nul
+if not exist "%CLIENT_OUT%\KSPMultiplayer.version" (
+  echo ERROR: Failed to copy KSPMultiplayer.version into Build\...\Client\.
   exit /b 1
 )
-echo Staged LunaMultiplayer.version into Client\ ^(merge Client\ into KSP GameData\LunaMultiplayer\^).
+echo Staged KSPMultiplayer.version into Client\ ^(merge Client\ into KSP GameData\KSPMultiplayer\^).
 
 if /I "%COPYHARMONY%"=="true" (
-  echo COPYHARMONY=true: also staging Harmony under Build\...\000_Harmony\ ^(copy next to LunaMultiplayer under GameData^)
+  echo COPYHARMONY=true: also staging Harmony under Build\...\000_Harmony\ ^(copy next to KSPMultiplayer under GameData^)
   if exist "%BUILD_ROOT%\000_Harmony" rmdir /s /q "%BUILD_ROOT%\000_Harmony"
   xcopy /Y /s /e "%REPOROOT%\External\Dependencies\Harmony\" "%BUILD_ROOT%\000_Harmony\"
 )
@@ -94,8 +94,8 @@ if errorlevel 1 (
 
 echo.
 echo ===== Build Only Complete =====
-echo KSP deployment skipped. Use Build\%SOLUTIONCONFIGURATION%\Client as GameData\LunaMultiplayer
-echo   ^(LunaMultiplayer.version + Plugins, Button, Localization, PartSync, Icons, Flags^).
+echo KSP deployment skipped. Use Build\%SOLUTIONCONFIGURATION%\Client as GameData\KSPMultiplayer
+echo   ^(KSPMultiplayer.version + Plugins, Button, Localization, PartSync, Icons, Flags^).
 echo Copy Build\%SOLUTIONCONFIGURATION%\UserLoadingScreens into the KSP root UserLoadingScreens folder for startup loading art.
 echo Harmony: use GameData\000_Harmony from KSP, or run with COPYHARMONY=true to also emit Build\...\000_Harmony\.
 echo Server runtime: %SERVER_OUT%

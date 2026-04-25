@@ -234,7 +234,7 @@ namespace LmpClient.Systems.KerbalSys
             var protoCrew = new ProtoCrewMember(HighLogic.CurrentGame.Mode, crewNode);
             if (string.IsNullOrEmpty(protoCrew.name))
             {
-                LunaLog.LogError("[LMP]: protoName is blank!");
+                LunaLog.LogError("[KSPMP]: protoName is blank!");
                 return;
             }
 
@@ -262,7 +262,7 @@ namespace LmpClient.Systems.KerbalSys
             }
             else
             {
-                LunaLog.Log($"[LMP]: Career log node for {protoCrew.name} is empty!");
+                LunaLog.Log($"[KSPMP]: Career log node for {protoCrew.name} is empty!");
             }
 
             var flightLogNode = crewNode.GetNode("FLIGHT_LOG");

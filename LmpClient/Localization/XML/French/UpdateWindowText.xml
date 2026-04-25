@@ -2,9 +2,9 @@
 
 <UpdateWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Title>Nouvelle mise à jour disponible</Title>
-  <Text>Une nouvelle version de LMP est disponible au téléchargement.</Text>
-  <StillCompatible> Votre version de LMP est compatible avec la dernière version.</StillCompatible>
-  <NotCompatible>Votre version de LMP n'est pas compatible avec la dernière version.</NotCompatible>
+  <Text>Une nouvelle version de KSPMP est disponible au téléchargement.</Text>
+  <StillCompatible> Votre version de KSPMP est compatible avec la dernière version.</StillCompatible>
+  <NotCompatible>Votre version de KSPMP n'est pas compatible avec la dernière version.</NotCompatible>
   <Changelog>Journal des modifications</Changelog>
   <CurrentVersion>Votre version :</CurrentVersion>
   <LatestVersion>Dernière version :</LatestVersion>

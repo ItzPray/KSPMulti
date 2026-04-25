@@ -46,12 +46,12 @@ namespace LmpClient.Systems.Toolbar
             Texture buttonTexture = null;
             if (GameDatabase.Instance != null)
             {
-                buttonTexture = GameDatabase.Instance.GetTexture("LunaMultiplayer/Button/LMPButton", false);
+                buttonTexture = GameDatabase.Instance.GetTexture("KSPMultiplayer/Button/LMPButton", false);
             }
 
             if (buttonTexture == null)
             {
-                LmpClient.LunaLog.LogError("[LMP] Toolbar icon not found at GameData/LunaMultiplayer/Button/LMPButton - using a fallback. Copy Button/LMPButton.png from the LMP release into your GameData/LunaMultiplayer folder.");
+                LmpClient.LunaLog.LogError("[KSPMP] Toolbar icon not found at GameData/KSPMultiplayer/Button/LMPButton - using a fallback. Copy Button/LMPButton.png from the KSP Multiplayer release into your GameData/KSPMultiplayer folder.");
                 buttonTexture = CreateFallbackLauncherTexture();
             }
 
@@ -63,7 +63,7 @@ namespace LmpClient.Systems.Toolbar
             }
             catch (Exception ex)
             {
-                LmpClient.LunaLog.LogError($"[LMP] Failed to add ApplicationLauncher button: {ex.Message}");
+                LmpClient.LunaLog.LogError($"[KSPMP] Failed to add ApplicationLauncher button: {ex.Message}");
                 GameEvents.onGUIApplicationLauncherReady.Add(EnableToolBar);
             }
         }

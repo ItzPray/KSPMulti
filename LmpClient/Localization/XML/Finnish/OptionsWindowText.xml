@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-16"?>
+﻿<?xml version="1.0" encoding="utf-16"?>
 
 <OptionsWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Title>Asetukset</Title>
@@ -12,7 +12,7 @@
   <InterpolationSettings>Interpolointiasetukset</InterpolationSettings>
   <EnableInterpolation>Kytke interpolointi päälle</EnableInterpolation>
   <InterpolationOffset>Interpoloinnin offset:</InterpolationOffset>
-  <GenerateLmpModControl>Luo LMPModControl.xml (Modatuille palvelimille.)</GenerateLmpModControl>
+  <GenerateLmpModControl>Luo KSPModControl.xml (Modatuille palvelimille.)</GenerateLmpModControl>
   <GenerateUniverse>Luo universumi tallennetusta pelistä</GenerateUniverse>
   <NetworkSettings>Nettiasetukset</NetworkSettings>
   <CannotChangeWhileConnected>Ei pysty muuttamaan yhdistettynä palvelimelle.</CannotChangeWhileConnected>

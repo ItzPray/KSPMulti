@@ -12,7 +12,7 @@ namespace LmpClient.Systems.ShareReputation
                 // silently dropped a legitimate Reputation change. Logging the suppressed branch makes it
                 // possible to distinguish "suppression scope leaked past its owner" (log line present) from
                 // "main thread froze inside the unsuppressed branch" (log line absent) in future reports.
-                LunaLog.Log($"[LMP] Reputation event suppressed (IgnoreEvents=true) reputation={reputation} reason={reason}");
+                LunaLog.Log($"[KSPMP] Reputation event suppressed (IgnoreEvents=true) reputation={reputation} reason={reason}");
                 return;
             }
 

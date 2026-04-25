@@ -229,8 +229,8 @@ namespace LmpClient
             //We are sure that we are in the unity thread as Awake() should only be called in a unity thread.
             _mainThreadId = Thread.CurrentThread.ManagedThreadId;
 
-            LunaLog.Log($"[LMP]: LMP {LmpVersioning.CurrentVersion} Starting at: {KspPath}");
-            LunaLog.Log($"[LMP]: Process ID: {CommonUtil.ProcessId}");
+            LunaLog.Log($"[KSPMP]: KSP Multiplayer {LmpVersioning.CurrentVersion} Starting at: {KspPath}");
+            LunaLog.Log($"[KSPMP]: Process ID: {CommonUtil.ProcessId}");
 
             if (!CompatibilityChecker.IsCompatible() || !InstallChecker.IsCorrectlyInstalled())
             {
@@ -242,6 +242,7 @@ namespace LmpClient
             LmpBaseEvent.Awake();
             HarmonyPatcher.Awake();
             PartModuleRunner.Awake();
+            MigrateLegacySavesIfNeeded();
             SetupDirectoriesIfNeeded();
             HandleCommandLineArgs();
 
@@ -249,7 +250,7 @@ namespace LmpClient
 
             ModSystem.Singleton.BuildDllFileList();
 
-            LunaLog.Log("[LMP]: LMP Finished awakening");
+            LunaLog.Log("[KSPMP]: KSP Multiplayer finished awakening");
 
             //Trigger a reset!
             NetworkState = ClientState.Disconnected;
@@ -313,7 +314,7 @@ namespace LmpClient
 
         public void HandleException(Exception e, string eventName)
         {
-            LunaLog.LogError($"[LMP]: Threw in {eventName} event, exception: {e}");
+            LunaLog.LogError($"[KSPMP]: Threw in {eventName} event, exception: {e}");
             NetworkConnection.Disconnect($"Unhandled error in {eventName} event! exception: {eventName}");
             ForceQuit = true;
             NetworkState = ClientState.Disconnected;
@@ -332,7 +333,7 @@ namespace LmpClient
 
         private static void StopGame()
         {
-            HighLogic.SaveFolder = "LunaMultiplayer";
+            HighLogic.SaveFolder = ModLayoutConstants.SaveFolderName;
 
             if (HighLogic.LoadedScene != GameScenes.MAINMENU)
                 HighLogic.LoadScene(GameScenes.MAINMENU);
@@ -387,7 +388,7 @@ namespace LmpClient
             //Load the missing scenarios as well (Eg, Contracts and stuff for career mode
             ScenarioSystem.Singleton.LoadMissingScenarioDataIntoGame();
 
-            LunaLog.Log($"[LMP]: Starting {SettingsSystem.ServerSettings.GameMode} game...");
+            LunaLog.Log($"[KSPMP]: Starting {SettingsSystem.ServerSettings.GameMode} game...");
 
             // Intentionally do NOT pre-populate ContractSystem's ProtoScenarioModule.moduleValues here. Writing raw
             // snapshot ConfigNodes into the proto before Start() reliably breaks stock ContractSystem.OnLoadRoutine
@@ -402,7 +403,7 @@ namespace LmpClient
                 PersistentSyncSystem.Singleton.FlushLivePendingPersistentSyncState("StartGameNow:AfterGameStart");
             }
 
-            LunaLog.Log("[LMP]: Started!");
+            LunaLog.Log("[KSPMP]: Started!");
         }
 
         public void SetAdvancedParams(Game currentGame)
@@ -494,27 +495,45 @@ namespace LmpClient
                     if (valid)
                     {
                         CommandLineServer = new ServerEntry { Address = address, Port = port };
-                        LunaLog.Log($"[LMP]: Connecting via command line to: {address}, port: {port}");
+                        LunaLog.Log($"[KSPMP]: Connecting via command line to: {address}, port: {port}");
                     }
                     else
                     {
-                        LunaLog.LogError($"[LMP]: Command line address is invalid: {address}, port: {port}");
+                        LunaLog.LogError($"[KSPMP]: Command line address is invalid: {address}, port: {port}");
                     }
                 }
             }
         }
 
+        private static void MigrateLegacySavesIfNeeded()
+        {
+            try
+            {
+                var newDir = CommonUtil.CombinePaths(KspPath, "saves", ModLayoutConstants.SaveFolderName);
+                var oldDir = CommonUtil.CombinePaths(KspPath, "saves", ModLayoutConstants.LegacySaveFolderName);
+                if (Directory.Exists(oldDir) && !Directory.Exists(newDir))
+                {
+                    Directory.Move(oldDir, newDir);
+                    LunaLog.Log("[KSPMP]: Migrated multiplayer saves from saves/LunaMultiplayer to saves/KSPMultiplayer");
+                }
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[KSPMP]: Save folder migration failed: {e.Message}");
+            }
+        }
+
         private static void SetupDirectoriesIfNeeded()
         {
-            var lunaMultiplayerSavesDirectory = CommonUtil.CombinePaths(KspPath, "saves", "LunaMultiplayer");
-            CreateIfNeeded(lunaMultiplayerSavesDirectory);
-            CreateIfNeeded(CommonUtil.CombinePaths(lunaMultiplayerSavesDirectory, "Ships"));
-            CreateIfNeeded(CommonUtil.CombinePaths(lunaMultiplayerSavesDirectory, CommonUtil.CombinePaths("Ships", "VAB")));
-            CreateIfNeeded(CommonUtil.CombinePaths(lunaMultiplayerSavesDirectory, CommonUtil.CombinePaths("Ships", "SPH")));
-            CreateIfNeeded(CommonUtil.CombinePaths(lunaMultiplayerSavesDirectory, "Subassemblies"));
+            var savesDirectory = CommonUtil.CombinePaths(KspPath, "saves", ModLayoutConstants.SaveFolderName);
+            CreateIfNeeded(savesDirectory);
+            CreateIfNeeded(CommonUtil.CombinePaths(savesDirectory, "Ships"));
+            CreateIfNeeded(CommonUtil.CombinePaths(savesDirectory, CommonUtil.CombinePaths("Ships", "VAB")));
+            CreateIfNeeded(CommonUtil.CombinePaths(savesDirectory, CommonUtil.CombinePaths("Ships", "SPH")));
+            CreateIfNeeded(CommonUtil.CombinePaths(savesDirectory, "Subassemblies"));
 
-            var lunaMultiplayerFlagsDirectory = CommonUtil.CombinePaths(KspPath, "GameData", "LunaMultiplayer", "Flags");
-            CreateIfNeeded(lunaMultiplayerFlagsDirectory);
+            var flagsDirectory = CommonUtil.CombinePaths(KspPath, "GameData", ModLayoutConstants.GameDataModFolder, "Flags");
+            CreateIfNeeded(flagsDirectory);
         }
 
         private static void CreateIfNeeded(string path)
@@ -525,12 +544,12 @@ namespace LmpClient
 
         private static void SetupBlankGameIfNeeded()
         {
-            var persistentFile = CommonUtil.CombinePaths(KspPath, "saves", "LunaMultiplayer", "persistent.sfs");
+            var persistentFile = CommonUtil.CombinePaths(KspPath, "saves", ModLayoutConstants.SaveFolderName, "persistent.sfs");
             if (!File.Exists(persistentFile))
             {
-                LunaLog.Log("[LMP]: Creating new blank persistent.sfs file");
+                LunaLog.Log("[KSPMP]: Creating new blank persistent.sfs file");
                 var blankGame = CreateBlankGame();
-                HighLogic.SaveFolder = "LunaMultiplayer";
+                HighLogic.SaveFolder = ModLayoutConstants.SaveFolderName;
                 GamePersistence.SaveGame(blankGame, "persistent", HighLogic.SaveFolder, SaveMode.OVERWRITE);
             }
         }
@@ -559,7 +578,7 @@ namespace LmpClient
                 SettingsSystem.SaveSettings();
             }
 
-            returnGame.Title = "LunaMultiplayer";
+            returnGame.Title = ModLayoutConstants.GameDataModFolder;
             if (SettingsSystem.ServerSettings.WarpMode == WarpMode.Subspace)
             {
                 returnGame.Parameters.Flight.CanQuickLoad = true;
@@ -572,7 +591,7 @@ namespace LmpClient
                 returnGame.Parameters.Flight.CanRestart = false;
                 returnGame.Parameters.Flight.CanLeaveToEditor = false;
             }
-            HighLogic.SaveFolder = "LunaMultiplayer";
+            HighLogic.SaveFolder = ModLayoutConstants.SaveFolderName;
 
             return returnGame;
         }

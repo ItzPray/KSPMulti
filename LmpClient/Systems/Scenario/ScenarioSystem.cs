@@ -96,7 +96,7 @@ namespace LmpClient.Systems.Scenario
 
             foreach (var validScenario in validScenarios)
             {
-                LunaLog.Log($"[LMP]: Creating new scenario module {validScenario.ModuleType.Name}");
+                LunaLog.Log($"[KSPMP]: Creating new scenario module {validScenario.ModuleType.Name}");
                 HighLogic.CurrentGame.AddProtoScenarioModule(validScenario.ModuleType, validScenario.ScenarioAttributes.TargetScenes);
             }
         }
@@ -160,7 +160,7 @@ namespace LmpClient.Systems.Scenario
 
                 if (scenarioBytes.Length == 0)
                 {
-                    LunaLog.Log($"[LMP]: Error writing scenario data for {scenarioConfigNode.Item1}");
+                    LunaLog.Log($"[KSPMP]: Error writing scenario data for {scenarioConfigNode.Item1}");
                     continue;
                 }
 
@@ -184,12 +184,12 @@ namespace LmpClient.Systems.Scenario
                 var psm = new ProtoScenarioModule(scenarioEntry.ScenarioNode);
                 if (IsScenarioModuleAllowed(psm.moduleName) && !IgnoredScenarios.IgnoreReceive.Contains(psm.moduleName))
                 {
-                    LunaLog.Log($"[LMP]: Loading {psm.moduleName} scenario data");
+                    LunaLog.Log($"[KSPMP]: Loading {psm.moduleName} scenario data");
                     HighLogic.CurrentGame.scenarios.Add(psm);
                 }
                 else
                 {
-                    LunaLog.Log($"[LMP]: Skipping {psm.moduleName} scenario data in {SettingsSystem.ServerSettings.GameMode} mode");
+                    LunaLog.Log($"[KSPMP]: Skipping {psm.moduleName} scenario data in {SettingsSystem.ServerSettings.GameMode} mode");
                 }
             }
         }

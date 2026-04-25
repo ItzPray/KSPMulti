@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="utf-16"?>
+﻿<?xml version="1.0" encoding="utf-16"?>
 
 <ModWindowText xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Title>LunaMultiplayer - Convalida della mod fallita</Title>
+  <Title>KSPMultiplayer - Convalida della mod fallita</Title>
   <MandatoryModsNotFound>Mod richieste non trovate:</MandatoryModsNotFound>
   <MissingExpansions>Espansioni mancanti:</MissingExpansions>
   <MandatoryModsDifferentShaFound>Mod richieste con diverso SHA trovate:</MandatoryModsDifferentShaFound>

@@ -24,7 +24,7 @@ image: Visual Studio 2019
 environment:
   smallversion: 0.29.0
   WEBHOOK_URL:
-    secure: bhCOtyDF+wInocIkKfUQdxpM4csyVv7cxhUGz0NzLnFrlEZsaviEDJeDbctuv4NBM4xPkl4Wpv3rb6VwNcvEr8IWW5Te0P/kx1VeNMD5espcLKzMwy46shi630b3wvIipOeBnupc6nsiw7/2liuNhJkvjdyu4wxQXVDVWNSi+t0=
+    secure: bhCOtyDF+wInocIkKfUQdxpM4csyVv7cxhUGz0NzLnFrlEZsaviEDJeDbctuv4NBM4xPkl4Wpv3rb6VwNcvEr8IWW5Te0P/kx1VeNMD5espcLKzMwy46shi630b3wvIipOeBnupc6nsiw/2liuNhJkvjdyu4wxQXVDVWNSi+t0=
   ZIPPASSWORD:
     secure: aYtowPY3EEDAWEnow3/CajwQYL9PtdXpVdSqhC3f5X4=    
 cache:
@@ -46,57 +46,70 @@ configuration:
 platform: Any CPU
 before_build:
   - ps: 7z e "$env:appveyor_build_folder\External\KSPLibraries\KSPLibraries.7z" -p"$env:ZIPPASSWORD" -o"$env:appveyor_build_folder\External\KSPLibraries"
-  - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\"
+  - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\"
    #Copy harmony dependency
-  - ps: xcopy /y /s "$env:appveyor_build_folder\External\Dependencies\Harmony" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData"
+  - ps: xcopy /y /s "$env:appveyor_build_folder\External\Dependencies\Harmony" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData"
   - nuget restore
 build:
   parallel: true
   verbosity: minimal
+
 after_build:
 #Client post build commands
- - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Button"
- - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Plugins"
- - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Localization"
- - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\PartSync"
- - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Icons"
- - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Flags"
- - ps: copy "$env:appveyor_build_folder\LMP Readme.txt" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMP Readme.txt"
- - ps: copy "$env:appveyor_build_folder\LunaMultiplayer.version" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\LunaMultiplayer.version"
- - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Button"
- - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\bin\$env:configuration\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Plugins"
- - ps: xcopy /y /s "$env:appveyor_build_folder\LmpClient\Localization\XML\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Localization"
- - ps: xcopy /y /s "$env:appveyor_build_folder\LmpClient\ModuleStore\XML\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\PartSync"
- - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\Icons\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Icons"
- - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\Flags\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData\LunaMultiplayer\Flags"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Button"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\LoadingScreens" -ErrorAction SilentlyContinue
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Plugins"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Localization"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\PartSync"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Icons"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Flags"
+ - ps: copy "$env:appveyor_build_folder\KSPMP Readme.txt" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMP Readme.txt"
+ - ps: copy "$env:appveyor_build_folder\KSPMultiplayer.version" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\KSPMultiplayer.version"
+ - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Button"
+ - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\bin\$env:configuration\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Plugins"
+ - ps: xcopy /y /s "$env:appveyor_build_folder\LmpClient\Localization\XML\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Localization"
+ - ps: xcopy /y /s "$env:appveyor_build_folder\LmpClient\ModuleStore\XML\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\PartSync"
+ - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\Icons\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Icons"
+ - ps: xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\Flags\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\Flags"
+ - ps: if (Test-Path "$env:appveyor_build_folder\LmpClient\Resources\LoadingScreens") { xcopy /y "$env:appveyor_build_folder\LmpClient\Resources\LoadingScreens\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\LoadingScreens" 2>$null; $true }
  #Master server post build commands
- - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPMasterServer"
- - ps: xcopy /y "$env:appveyor_build_folder\MasterServer\bin\$env:configuration\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPMasterServer"
-  #Server server post build commands  
- - ps: dotnet publish "$env:appveyor_build_folder\Server\Server.csproj" --output $env:appveyor_build_folder\FinalFiles\$env:configuration\LMPServer
- #- ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPServer"
- #- ps: xcopy /y "$env:appveyor_build_folder\Server\bin\$env:configuration\net5\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPServer"
-  #7zip everything
- - ps: 7z a "$env:appveyor_build_folder\LunaMultiplayer-Client-$env:configuration.zip" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMP Readme.txt" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPClient\GameData"
- - ps: 7z a "$env:appveyor_build_folder\LunaMultiplayer-Server-$env:configuration.zip" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMP Readme.txt" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPServer"
- - ps: 7z a "$env:appveyor_build_folder\LunaMultiplayerMasterServer-$env:configuration.zip" "$env:appveyor_build_folder\FinalFiles\$env:configuration\LMPMasterServer"
+ - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPMasterServer"
+ - ps: xcopy /y "$env:appveyor_build_folder\MasterServer\bin\$env:configuration\*.*" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPMasterServer"
+  #Server post build commands  
+ - ps: dotnet publish "$env:appveyor_build_folder\Server\Server.csproj" --output $env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPServer
+
+# After staging: run unit tests, then 7-zip in after_test
+test_script:
+  - ps: |
+      $vs = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+      if (-not (Test-Path $vs)) { throw "vswhere not found" }
+      $vst = & $vs -latest -find "**\vstest.console.exe" | Select-Object -First 1
+      if (-not $vst) { throw "vstest.console not found" }
+      $dll = "$env:APPVEYOR_BUILD_FOLDER\LmpCommonTest\bin\Debug\LmpCommonTest.dll"
+      if (-not (Test-Path $dll)) { throw "LmpCommonTest assembly missing: $dll" }
+      & $vst $dll
+  - cmd: dotnet test "%APPVEYOR_BUILD_FOLDER%\ServerTest\ServerTest.csproj" -c %CONFIGURATION%
+
+after_test:
+  - ps: 7z a "$env:appveyor_build_folder\KSPMultiplayer-Client-$env:configuration.zip" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMP Readme.txt" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData"
+  - ps: 7z a "$env:appveyor_build_folder\KSPMultiplayer-Server-$env:configuration.zip" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMP Readme.txt" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPServer"
+  - ps: 7z a "$env:appveyor_build_folder\KSPMultiplayerMasterServer-$env:configuration.zip" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPMasterServer"
 
 #Post it on discord
 on_success:
- - ps: Invoke-RestMethod https://raw.githubusercontent.com/LunaMultiplayer/LunaMultiplayer/master/appveyor_discord.ps -o appveyor_discord.ps1
- - ps: if ($env:configuration -like "Debug") {./appveyor_discord.ps1 success $env:WEBHOOK_URL}
+ - ps: if ($env:configuration -like "Debug" -and $env:WEBHOOK_URL) { & powershell -NoProfile -ExecutionPolicy Bypass -File "$env:APPVEYOR_BUILD_FOLDER\appveyor_discord.ps1" success $env:WEBHOOK_URL }
 
 #---------------------------------#
 #      artifacts configuration    #
 #---------------------------------#
 
 artifacts:
- - path: .\LunaMultiplayer-Client-$(configuration).zip
-   name: LunaMultiplayer-Client-$(configuration).zip
- - path: .\LunaMultiplayer-Server-$(configuration).zip
-   name: LunaMultiplayer-Server-$(configuration).zip
- - path: .\LunaMultiplayerMasterServer-$(configuration).zip
-   name: LunaMultiplayerMasterServer-$(configuration).zip
+ - path: .\KSPMultiplayer-Client-$(configuration).zip
+   name: KSPMultiplayer-Client-$(configuration).zip
+ - path: .\KSPMultiplayer-Server-$(configuration).zip
+   name: KSPMultiplayer-Server-$(configuration).zip
+ - path: .\KSPMultiplayerMasterServer-$(configuration).zip
+   name: KSPMultiplayerMasterServer-$(configuration).zip
 #---------------------------------#
 #     deployment configuration    #
 #---------------------------------#
@@ -104,9 +117,9 @@ artifacts:
 deploy:
  - provider: GitHub
    tag: $(smallversion)-Draft
-   release: Luna Multi Player $(smallversion)-Draft
+   release: KSP Multiplayer $(smallversion)-Draft
    description: 'Build $(appveyor_build_version)'
-   artifact: LunaMultiplayer-Client-$(configuration).zip, LunaMultiplayer-Server-$(configuration).zip
+   artifact: KSPMultiplayer-Client-$(configuration).zip, KSPMultiplayer-Server-$(configuration).zip
    auth_token:
     secure: zWJqDvz3LjR2J358JIJKICwghW/DWRzs73KWb3KApTLOreA4c8DN1tos+O3qBMR7
    draft: true

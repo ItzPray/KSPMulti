@@ -21,7 +21,7 @@ namespace LmpClient.Systems.ShareScienceSubject
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.ScienceSubjectUpdate) return;
             if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.ScienceSubjects))
             {
-                LunaLog.LogWarning("[LMP] Ignoring legacy ScienceSubjectUpdate because persistent sync owns science subject convergence.");
+                LunaLog.LogWarning("[KSPMP] Ignoring legacy ScienceSubjectUpdate because persistent sync owns science subject convergence.");
                 return;
             }
 
@@ -73,7 +73,7 @@ namespace LmpClient.Systems.ShareScienceSubject
             }
             catch (Exception e)
             {
-                LunaLog.LogError($"[LMP]: Error while deserializing science subject configNode: {e}");
+                LunaLog.LogError($"[KSPMP]: Error while deserializing science subject configNode: {e}");
                 return null;
             }
 

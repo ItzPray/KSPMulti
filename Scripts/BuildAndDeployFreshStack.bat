@@ -6,13 +6,13 @@ REM BuildAndDeployFreshStack.bat
 REM -----------------------------------------------------------------------------
 REM Same inputs as BuildOnly.bat (Debug/Release) but additionally:
 REM   1. Deploys Build\<Configuration>\Client into
-REM      <KSPPATH>\GameData\LunaMultiplayer\ while PRESERVING the "Data" subfolder
-REM      (and any other unmanaged content under LunaMultiplayer\).
+REM      <KSPPATH>\GameData\KSPMultiplayer\ while PRESERVING the "Data" subfolder
+REM      (and any other unmanaged content under KSPMultiplayer\).
 REM      Managed subfolders that are fully refreshed on every run:
 REM        Plugins, Button, Localization, PartSync, Icons, Flags
 REM      (This mirrors the set of folders BuildOnly stages under Build\...\Client.)
 REM   2. Deploys Build\<Configuration>\Server into the test server root (default
-REM      C:\LMPServer-test, override with LMPTESTDEPLOYPATH in SetDirectories.bat)
+REM      e.g. C:\KSPMPServer-test, override with LMPTESTDEPLOYPATH in SetDirectories.bat)
 REM      while PRESERVING "Universe_Backup\". The active "Universe\" directory is
 REM      recreated fresh from "Universe_Backup\" so every run starts with a clean
 REM      universe save.
@@ -48,9 +48,9 @@ if not exist "%KSPPATH%\GameData" (
 )
 
 REM Separate test-deploy path so we do not clobber whatever LMPSERVERPATH points at.
-REM Default mirrors the user-requested C:\LMPServer-test location.
+REM Default test-deploy folder (KSPMP dedicated server); override in SetDirectories.bat.
 if not defined LMPTESTDEPLOYPATH (
-  set "LMPTESTDEPLOYPATH=C:\LMPServer-test"
+  set "LMPTESTDEPLOYPATH=C:\KSPMPServer-test"
 )
 
 REM CLEANOFFEREDONRESET: when "true", strip every Offered CONTRACT block out of
@@ -89,11 +89,11 @@ if not exist "%SERVER_OUT%" (
 echo.
 echo ===== Step 2 / 3: Deploy client into KSP ^(preserving Data\^) =====
 set "GAMEDATA=%KSPPATH%\GameData"
-set "LMPFOLDER=%GAMEDATA%\LunaMultiplayer"
+set "LMPFOLDER=%GAMEDATA%\KSPMultiplayer"
 
 if not exist "%LMPFOLDER%" mkdir "%LMPFOLDER%"
 
-REM Purge only managed subfolders. Data\ and anything else under LunaMultiplayer\
+REM Purge only managed subfolders. Data\ and anything else under KSPMultiplayer\
 REM stays untouched. rmdir+mkdir is simpler and more reliable than del+for/D.
 for %%S in (Plugins Button Localization PartSync Icons Flags) do (
   if exist "%LMPFOLDER%\%%S\" rmdir /S /Q "%LMPFOLDER%\%%S"

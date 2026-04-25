@@ -122,7 +122,7 @@ namespace LmpClient.Windows.Debug
             if (IsWindowLocked)
             {
                 IsWindowLocked = false;
-                InputLockManager.RemoveControlLock("LMP_DebugLock");
+                InputLockManager.RemoveControlLock("KSPMP_DebugLock");
             }
         }
 
@@ -143,7 +143,7 @@ namespace LmpClient.Windows.Debug
 
                 if (shouldLock && !IsWindowLocked)
                 {
-                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "LMP_DebugLock");
+                    InputLockManager.SetControlLock(LmpImguiInputLockMask.WindowMouseCapture, "KSPMP_DebugLock");
                     IsWindowLocked = true;
                 }
                 if (!shouldLock && IsWindowLocked)

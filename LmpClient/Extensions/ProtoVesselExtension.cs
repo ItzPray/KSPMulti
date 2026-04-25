@@ -122,13 +122,13 @@ namespace LmpClient.Extensions
         {
             if (protoVessel == null)
             {
-                LunaLog.LogError("[LMP]: protoVessel is null!");
+                LunaLog.LogError("[KSPMP]: protoVessel is null!");
                 return false;
             }
 
             if (protoVessel.vesselID == Guid.Empty)
             {
-                LunaLog.LogError("[LMP]: protoVessel id is null!");
+                LunaLog.LogError("[KSPMP]: protoVessel id is null!");
                 return false;
             }
 
@@ -136,12 +136,12 @@ namespace LmpClient.Extensions
             {
                 if (protoVessel.orbitSnapShot == null)
                 {
-                    LunaLog.LogWarning("[LMP]: Skipping flying vessel load - Protovessel does not have an orbit snapshot");
+                    LunaLog.LogWarning("[KSPMP]: Skipping flying vessel load - Protovessel does not have an orbit snapshot");
                     return false;
                 }
                 if (FlightGlobals.Bodies == null || FlightGlobals.Bodies.Count < protoVessel.orbitSnapShot.ReferenceBodyIndex)
                 {
-                    LunaLog.LogWarning($"[LMP]: Skipping flying vessel load - Could not find celestial body index {protoVessel.orbitSnapShot.ReferenceBodyIndex}");
+                    LunaLog.LogWarning($"[KSPMP]: Skipping flying vessel load - Could not find celestial body index {protoVessel.orbitSnapShot.ReferenceBodyIndex}");
                     return false;
                 }
             }
@@ -151,7 +151,7 @@ namespace LmpClient.Extensions
             {
                 if (!FlagSystem.Singleton.FlagExists(part.flagURL))
                 {
-                    LunaLog.Log($"[LMP]: Flag '{part.flagURL}' doesn't exist, setting to default!");
+                    LunaLog.Log($"[KSPMP]: Flag '{part.flagURL}' doesn't exist, setting to default!");
                     part.flagURL = "Squad/Flags/default";
                 }
             }
