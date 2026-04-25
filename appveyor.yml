@@ -25,6 +25,10 @@ image: Visual Studio 2019
 #    environment configuration    #
 #---------------------------------#
 
+# Optional (recommended): KSP_KSPLIBRARIES_URL = HTTPS link to your KSPLibraries.7z (passworded with ZIPPASSWORD).
+#   Host the file once (S3, Azure blob SAS, Dropbox, public GitHub release, etc.) — AppVeyor download is automatic.
+#   For private GitHub *API* release-asset URLs, set KSP_GITHUB_TOKEN (secure) as well.
+# ZIPPASSWORD: 7-Zip password used when *creating* KSPLibraries.7z locally (must match the archive).
 environment:
   smallversion: 0.29.0
   WEBHOOK_URL:
@@ -48,8 +52,14 @@ configuration:
  - Debug
  - Release
 platform: Any CPU
+install:
+  - ps: & "$env:APPVEYOR_BUILD_FOLDER\Scripts\PrepareKspLibrariesForBuild.ps1"
 before_build:
-  - ps: 7z e "$env:appveyor_build_folder\External\KSPLibraries\KSPLibraries.7z" -p"$env:ZIPPASSWORD" -o"$env:appveyor_build_folder\External\KSPLibraries"
+  - ps: |
+      $out = "$env:APPVEYOR_BUILD_FOLDER\External\KSPLibraries"
+      $inTree = "$out\KSPLibraries.7z"
+      if (-not (Test-Path $inTree)) { throw "Missing KSPLibraries.7z after install. Set KSP_KSPLIBRARIES_URL in AppVeyor, or add the file to the build tree. See AGENTS.md (AppVeyor) and Scripts\PrepareKspLibrariesForBuild.ps1" }
+      & 7z e $inTree -p"$env:ZIPPASSWORD" -o"$out\"
   - ps: mkdir "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData\KSPMultiplayer\"
    #Copy harmony dependency
   - ps: xcopy /y /s "$env:appveyor_build_folder\External\Dependencies\Harmony" "$env:appveyor_build_folder\FinalFiles\$env:configuration\KSPMPClient\GameData"
@@ -138,24 +148,22 @@ deploy:
 #---------------------------------#
 
 notifications:
-
+# Upstream LMP / legacy hooks — disabled for KSPMP fork; re-enable with your own URLs.
 # - provider: Webhook
 #   url: http://system.robo-web.nl/webhook/luna-debug.php
 #   on_build_success: true
 #   on_build_failure: true
 #   on_build_status_changed: true
-   
- - provider: Webhook
-   url: http://godarklight.privatedns.org/dmp/lmp.php
-   on_build_success: true
-   on_build_failure: true
-   on_build_status_changed: true
-   
- - provider: Webhook
-   url:  https://registry.hub.docker.com/u/thesystem/lunamultiplayer/trigger/d9d50936-8115-40b9-a087-24330d5cc59c/
-   on_build_success: true
-   on_build_failure: true
-   on_build_status_changed: true
+# - provider: Webhook
+#   url: http://godarklight.privatedns.org/dmp/lmp.php
+#   on_build_success: true
+#   on_build_failure: true
+#   on_build_status_changed: true
+# - provider: Webhook
+#   url:  https://registry.hub.docker.com/u/thesystem/lunamultiplayer/trigger/...
+#   on_build_success: true
+#   on_build_failure: true
+#   on_build_status_changed: true
 
 #Old webhook for discord...
 # - provider: Webhook 

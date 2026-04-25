@@ -84,13 +84,11 @@ Piro | [![Release servers](https://img.shields.io/website-up-down-brightgreen-re
 ---
 ### Status:
 
-|   Branch   |   Build  |   Tests  |  Last commit  |   Activity    |    Commits    |
-| ---------- | -------- | -------- | ------------- | ------------- | ------------- |
-| **master** |[![AppVeyor](https://img.shields.io/appveyor/ci/gavazquez/lunamultiplayer/master.svg?style=flat&logo=appveyor)](https://ci.appveyor.com/project/gavazquez/lunamultiplayer/branch/master) | [![AppVeyor Tests](https://img.shields.io/appveyor/tests/gavazquez/lunamultiplayer/master.svg?style=flat&logo=appveyor)](https://ci.appveyor.com/project/gavazquez/lunamultiplayer/branch/master/tests) | [![Last commit](https://img.shields.io/github/last-commit/lunamultiplayer/lunamultiplayer/master.svg?style=flat&logo=github&logoColor=white)](../../commits/master) | [![Commit activity](https://img.shields.io/github/commit-activity/y/lunamultiplayer/lunamultiplayer.svg?style=flat&logo=github&logoColor=white)](../../commits/master) | [![Commits since release](https://img.shields.io/github/commits-since/lunamultiplayer/lunamultiplayer/latest.svg?style=flat&logo=github&logoColor=white)](../../commits/master)
+`main` ― [GitHub Actions](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml) runs the **dedicated server** `dotnet test` (`ServerTest`) and does **not** require KSP/Unity `Managed` DLLs. For a full **LmpClient** build, use your local `External/KSPLibraries` (see [AGENTS.md](AGENTS.md)) or a separate AppVeyor/VM pipeline; you do not need AppVeyor for this badge.
 
-<p align="center">
-    <a href="https://ci.appveyor.com/project/gavazquez/lunamultiplayer/history"><img src="https://buildstats.info/appveyor/chart/gavazquez/lunamultiplayer?buildCount=100" alt="Build history"/></a>
-</p>
+|   Branch  |  Build  |  Tests  |  Last commit  |   Activity    |    Commits    |
+| --------- | ------- | ------- | ------------- | ------------- | ------------- |
+| **main** | [![CI](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml/badge.svg)](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml) | [![CI](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml/badge.svg)](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml) | [![Last commit](https://img.shields.io/github/last-commit/ItzPray/KSPMulti.svg?style=flat&logo=github&logoColor=white)](../../commits) | [![Commit activity](https://img.shields.io/github/commit-activity/y/ItzPray/KSPMulti.svg?style=flat&logo=github&logoColor=white)](../../commits) | [![Commits since release](https://img.shields.io/github/commits-since/ItzPray/KSPMulti/latest.svg?style=flat&logo=github&logoColor=white)](../../commits) |
 
 ---
 

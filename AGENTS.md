@@ -64,6 +64,14 @@ Prerequisites: 7-Zip, MSBuild/dotnet, [GitHub CLI](https://cli.github.com/) (`gh
 - Run `Scripts\BuildAndDeployTestStack.bat Debug`
 - Run `Scripts\BuildAndDeployTestStack.bat Release`
 
+### AppVeyor (optional) vs GitHub Actions
+
+**GitHub Actions** (`.github/workflows/ci.yml`) runs on every push/PR: **`dotnet test ServerTest`** and needs **no** KSP/Unity Managed DLLs. That is enough for the **README** build badge on `main`.
+
+**AppVeyor** (see `appveyor.yml`) is **optional** — it was used for the old upstream’s full client-in-a-zip and GitHub release deploy, which **does** need `External/KSPLibraries/KSPLibraries.7z` (or `KSP_KSPLIBRARIES_URL` + [Scripts/PrepareKspLibrariesForBuild.ps1](Scripts/PrepareKspLibrariesForBuild.ps1)). You can **disable the AppVeyor project** or stop wiring webhooks to it if you only need Actions.
+
+To use AppVeyor for full client builds, KSP/Unity **Managed** reference DLLs are not in git. Set project env **`KSP_KSPLIBRARIES_URL`** to the HTTPS URL of your password-protected `KSPLibraries.7z` (7z password = **`ZIPPASSWORD`**), or copy the file into the build. Optional **`KSP_GITHUB_TOKEN`** for private GitHub API asset downloads.
+
 ## Required Toolchain
 
 - `msbuild` for `LmpClient\LmpClient.csproj`

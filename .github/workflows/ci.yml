@@ -1,0 +1,30 @@
+# No KSP/Unity Managed DLLs required: builds Server + LmpCommon (shared) and runs ServerTest only.
+# Use this for README/branch status. Full client (LmpClient) builds still use local or AppVeyor+KSPLibraries.7z.
+
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: server + ServerTest
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK 5.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 5.0.x
+
+      - name: Test (Server)
+        run: dotnet test ServerTest/ServerTest.csproj -c Release
