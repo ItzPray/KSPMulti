@@ -1,6 +1,12 @@
+<p align="center">
+    <img src="External/logo.png" alt="KSP Multiplayer logo"/>
+</p>
 
-
-
+<p align="center">
+    <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/ItzPray/KSPMulti?style=flat&logo=github&logoColor=white" alt="Latest release" /></a>
+    <a href="../../releases"><img src="https://img.shields.io/github/downloads/ItzPray/KSPMulti/total.svg?style=flat&logo=github&logoColor=white" alt="Total downloads" /></a>
+    <a href="./LICENSE"><img src="https://img.shields.io/github/license/ItzPray/KSPMulti.svg?style=flat" alt="License" /></a>
+</p>
 
 ---
 
