@@ -52,9 +52,9 @@ For common issues, start with the [Troubleshooting](../../wiki/Troubleshooting) 
 Contributions are welcome, especially fixes that improve stability, maintainability, compatibility, and quality of life.
 
 
-| Branch   | Build                                                              | Tests                                                              | Last commit                  | Activity                         | Commits                                |
-| -------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ | ---------------------------- | -------------------------------- | -------------------------------------- |
-| **main** | [CI](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml) | [CI](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml) | [Last commit](../../commits) | [Commit activity](../../commits) | [Commits since release](../../commits) |
+|   Branch  |  Build  |  Tests  |  Last commit  |   Activity    |    Commits    |
+| --------- | ------- | ------- | ------------- | ------------- | ------------- |
+| **main** | [![CI](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml/badge.svg)](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml) | [![CI](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml/badge.svg)](https://github.com/ItzPray/KSPMulti/actions/workflows/ci.yml) | [![Last commit](https://img.shields.io/github/last-commit/ItzPray/KSPMulti.svg?style=flat&logo=github&logoColor=white)](../../commits) | [![Commit activity](https://img.shields.io/github/commit-activity/y/ItzPray/KSPMulti.svg?style=flat&logo=github&logoColor=white)](../../commits) | [![Commits since release](https://img.shields.io/github/commits-since/ItzPray/KSPMulti/latest.svg?style=flat&logo=github&logoColor=white)](../../commits) |
 
 
 ---
