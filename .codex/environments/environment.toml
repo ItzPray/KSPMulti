@@ -34,3 +34,8 @@ command = ".\\Scripts\\PublishGitHubRelease.cmd -Tag \"0.32.0\" -Draft"
 name = "Test Update Modal (Force Downgrade) Release"
 icon = "tool"
 command = ".\\Scripts\\SetKspmpDevVersionBelowRelease.ps1 -Configuration Release"
+
+[[actions]]
+name = "Server Downgrade Test"
+icon = "tool"
+command = ".\\Scripts\\SetKspmpDevServerVersionBelowRelease.ps1"

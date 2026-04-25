@@ -10,7 +10,7 @@ namespace Server.Utilities
 {
     public class VersionChecker
     {
-        private static Version LatestVersion { get; set; }
+        public static Version LatestReleaseVersion { get; private set; } = new Version(0, 0, 0);
 
         public static async void RefreshLatestVersion()
         {
@@ -19,35 +19,15 @@ namespace Server.Utilities
 
             while (ServerContext.ServerRunning)
             {
-                LatestVersion = GithubUpdateChecker.GetLatestVersion();
+                try
+                {
+                    LatestReleaseVersion = GithubUpdateChecker.GetLatestVersion();
+                }
+                catch
+                { }
 
                 //Sleep for 30 minutes...
                 await Task.Delay(30 * 60 * 1000);
-            }
-        }
-
-        public static async void DisplayNewVersionMsg()
-        {
-            if (!RepoConstants.GithubReleaseUpdateChecksEnabled)
-                return;
-
-            while (ServerContext.ServerRunning)
-            {
-                if (LatestVersion > LmpVersioning.CurrentVersion)
-                {
-                    LunaLog.Warning($"There is a new version of KSPMP! Please download it! Current: {LmpVersioning.CurrentVersion} Latest: {LatestVersion}");
-                    if (LmpVersioning.IsCompatible(LatestVersion))
-                    {
-                        LunaLog.Debug("Your version is compatible with the latest version so you will still be listed in the master servers.");
-                    }
-                    else
-                    {
-                        LunaLog.Warning("Your version is NOT compatible with the latest version. You won't be listed in the master servers!");
-                    }
-                }
-
-                //Sleep for 30 seconds...
-                await Task.Delay(30 * 1000);
             }
         }
     }

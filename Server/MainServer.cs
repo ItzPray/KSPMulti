@@ -43,7 +43,7 @@ namespace Server
             try
             {
                 if (Common.PlatformIsWindows())
-                    Console.Title = $"LMP {LmpVersioning.CurrentVersion}";
+                    Console.Title = $"KSPMP Server {LmpVersioning.CurrentVersion}";
 
                 Console.OutputEncoding = Encoding.UTF8;
 
@@ -75,14 +75,17 @@ namespace Server
                     }
                 };
 
-                LunaLog.Info("Remember! Quit the server by using 'Control + C' so a backup is properly made before closing!");
+                LunaLog.Info("KSPMP: quit with Control+C so backups can run before the server process stops.");
 
                 if (Common.PlatformIsWindows())
                     ExitSignal.Exit += (sender, args) => Exit();
                 else
                 {
-                    //Register the ctrl+c event and exit signal if we are on linux
-                    Console.CancelKeyPress += (sender, args) => Exit();
+                    Console.CancelKeyPress += (sender, args) =>
+                    {
+                        args.Cancel = true;
+                        Exit();
+                    };
                 }
 
                 //We disable quick edit as otherwise when you select some text for copy/paste then you can't write to the console and server freezes
@@ -102,7 +105,8 @@ namespace Server
                 //Set day for log change
                 ServerContext.Day = LunaNetworkTime.Now.Day;
 
-                LunaLog.Normal($"Luna Server version: {LmpVersioning.CurrentVersion} ({AppContext.BaseDirectory})");
+                LunaLog.Normal($"KSPMP server {LmpVersioning.CurrentVersion} — {AppContext.BaseDirectory}");
+                ServerSelfUpdater.TryOfferUpdateOnStartup();
 
                 Universe.CheckUniverse();
                 LoadSettingsAndGroups();
@@ -136,7 +140,6 @@ namespace Server
                 TaskContainer.Add(LongRunTaskFactory.StartNew(LidgrenMasterServer.RegisterWithMasterServer, CancellationTokenSrc.Token));
 
                 TaskContainer.Add(LongRunTaskFactory.StartNew(VersionChecker.RefreshLatestVersion, CancellationTokenSrc.Token));
-                TaskContainer.Add(LongRunTaskFactory.StartNew(VersionChecker.DisplayNewVersionMsg, CancellationTokenSrc.Token));
 
                 TaskContainer.Add(LongRunTaskFactory.StartNew(() => GcSystem.PerformGarbageCollection(CancellationTokenSrc.Token), CancellationTokenSrc.Token));
 
@@ -182,16 +185,21 @@ namespace Server
             }
         }
 
-        /// <summary>
-        /// Return the number of running instances.
-        /// </summary>
-        private static int GetRunningInstances() => Process.GetProcessesByName("LunaServer.exe").Length;
+        /// <summary>Limit concurrent test instances. <see cref="Process"/>.ProcessName is without extension, e.g. "Server" for <c>Server.exe</c>.</summary>
+        private static int GetRunningInstances() => Process.GetProcessesByName("Server").Length;
 
         /// <summary>
         /// Runs the exit logic
         /// </summary>
         private static void Exit()
         {
+            try
+            {
+                ServerSelfUpdater.TryOfferUpdateBeforeExit();
+            }
+            catch
+            { }
+
             LunaLog.Normal("Exiting... Please wait until all threads are finished");
             ExitEvent.Exit();
 

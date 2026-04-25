@@ -40,6 +40,31 @@ namespace LmpCommon
         }
 
         /// <summary>
+        /// Dotted release builds: dedicated server is stamped with Informational "x.y.z-compiled" while
+        /// the in-game mod uses "x.y.z". Treat as the same for handshake and discovery.
+        /// </summary>
+        private const string BuildSuffixDevStamp = "-compiled";
+
+        private static string NormalizeForHandshakeBuild(string value)
+        {
+            var s = Normalize(value);
+            if (s.EndsWith(BuildSuffixDevStamp, StringComparison.OrdinalIgnoreCase))
+                return s.Substring(0, s.Length - BuildSuffixDevStamp.Length);
+            return s;
+        }
+
+        /// <summary>
+        /// True when the two build strings are the same release for session admission (e.g. 0.32.0 and 0.32.0-compiled).
+        /// </summary>
+        public static bool AreExactBuildsCompatible(string a, string b)
+        {
+            return string.Equals(
+                NormalizeForHandshakeBuild(a),
+                NormalizeForHandshakeBuild(b),
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Validates a client handshake against this process's fork and build (server-side).
         /// </summary>
         public static bool TryValidateClientHandshake(string clientProtocolForkId, string clientExactBuild, out string reason, out HandshakeReply reply)
@@ -68,7 +93,7 @@ namespace LmpCommon
                 return false;
             }
 
-            if (!string.Equals(build, LocalExactBuild, StringComparison.Ordinal))
+            if (!AreExactBuildsCompatible(build, LocalExactBuild))
             {
                 reason = $"Exact build mismatch: server requires '{LocalExactBuild}', client sent '{build}'.";
                 reply = HandshakeReply.ProtocolBuildMismatch;

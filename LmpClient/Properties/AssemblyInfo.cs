@@ -13,8 +13,8 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 [assembly: Guid("cc8e38bb-d6d5-4bb9-ab74-a3a1a11ddc8d")]
 
-[assembly: AssemblyVersion("0.29.0")]
-[assembly: AssemblyFileVersion("0.29.0")]
-[assembly: AssemblyInformationalVersion("0.29.0")]
+[assembly: AssemblyVersion("0.32.0")]
+[assembly: AssemblyFileVersion("0.32.0")]
+[assembly: AssemblyInformationalVersion("0.32.0-compiled")]
 
-[assembly: KSPAssembly("KSPMP", 0, 29)]
+[assembly: KSPAssembly("KSPMP", 0, 32)]

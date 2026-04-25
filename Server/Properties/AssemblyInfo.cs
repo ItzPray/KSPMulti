@@ -1,9 +1,9 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("KSP Multiplayer Mod")]
-[assembly: AssemblyDescription("KSP Multiplayer Mod (server)")]
+[assembly: AssemblyTitle("KSPMP dedicated server")]
+[assembly: AssemblyDescription("KSPMP (Kerbal Space Program Multiplayer) standalone server")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("KSPMP")]
@@ -14,9 +14,9 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 [assembly: Guid("fa6e9184-e243-49cc-94fa-ac557493b900")]
 
-[assembly: AssemblyVersion("0.29.0")]
-[assembly: AssemblyFileVersion("0.29.0")]
-[assembly: AssemblyInformationalVersion("0.29.0-compiled")]
+[assembly: AssemblyVersion("0.32.0")]
+[assembly: AssemblyFileVersion("0.32.0")]
+[assembly: AssemblyInformationalVersion("0.32.0-compiled")]
 
 [assembly: InternalsVisibleTo("ServerTest")]
 [assembly: InternalsVisibleTo("ServerPersistentSyncTest")]
