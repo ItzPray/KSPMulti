@@ -1,9 +1,13 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Server.System;
+using Server.System.Vessel;
 using Server.System.Vessel.Classes;
 using ServerTest.Extension;
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 
 namespace ServerTest
 {
@@ -71,6 +75,30 @@ namespace ServerTest
             Assert.AreEqual("newHibernation", vessel.GetPart(3631576085).GetSingleModule("ModuleCommand").Values.GetSingle("hibernation").Value);
             Assert.AreEqual("st_flight_deployed", vessel.GetPart(1985344313).GetSingleModule("ModuleProceduralFairing").Values.GetSingle("fsm").Value);
             Assert.AreEqual(0, vessel.GetPart(1985344313).GetSingleModule("ModuleProceduralFairing").Nodes.GetSeveral("XSECTION").Count);
+        }
+
+        [TestMethod]
+        public void RawConfigNodeInsertOrUpdate_DoesNotResurrectRemovedVessel()
+        {
+            var vesselId = Guid.NewGuid();
+            var vesselText = File.ReadAllText(Path.Combine(XmlExamplePath, "99969baa-2618-49fa-a197-2c0c995ad3e0.txt"));
+
+            try
+            {
+                VesselStoreSystem.CurrentVessels.Clear();
+                VesselContext.RemovedVessels.Clear();
+                VesselContext.RemovedVessels.TryAdd(vesselId, 0);
+
+                VesselDataUpdater.RawConfigNodeInsertOrUpdate(vesselId, vesselText);
+                Thread.Sleep(250);
+
+                Assert.IsFalse(VesselStoreSystem.CurrentVessels.ContainsKey(vesselId));
+            }
+            finally
+            {
+                VesselStoreSystem.CurrentVessels.Clear();
+                VesselContext.RemovedVessels.Clear();
+            }
         }
     }
 }

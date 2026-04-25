@@ -14,6 +14,7 @@ namespace LmpClient.Network
 {
     public class NetworkSender
     {
+        private const int MaxMessagesPerSendLoop = 128;
         public static ConcurrentQueue<IMessageBase> OutgoingMessages { get; set; } = new ConcurrentQueue<IMessageBase>();
 
         /// <summary>
@@ -26,9 +27,19 @@ namespace LmpClient.Network
             {
                 while (!NetworkConnection.ResetRequested)
                 {
-                    if (OutgoingMessages.Count > 0 && OutgoingMessages.TryDequeue(out var sendMessage))
+                    if (OutgoingMessages.TryDequeue(out var sendMessage))
                     {
-                        SendNetworkMessage(sendMessage);
+                        var flushConnectedMessages = SendNetworkMessage(sendMessage);
+                        var sentMessages = 1;
+
+                        while (sentMessages < MaxMessagesPerSendLoop && OutgoingMessages.TryDequeue(out sendMessage))
+                        {
+                            flushConnectedMessages |= SendNetworkMessage(sendMessage);
+                            sentMessages++;
+                        }
+
+                        if (flushConnectedMessages && NetworkMain.ClientConnection?.Status == NetPeerStatus.Running)
+                            NetworkMain.ClientConnection.FlushSendQueue();
                     }
                     else
                     {
@@ -55,7 +66,7 @@ namespace LmpClient.Network
         /// Sends the network message. It will skip client messages to send when we are not connected,
         /// except if it's directed at master servers, then it will start the NetClient and socket.
         /// </summary>
-        private static void SendNetworkMessage(IMessageBase message)
+        private static bool SendNetworkMessage(IMessageBase message)
         {
             message.Data.SentTime = LunaNetworkTime.UtcNow.Ticks;
             try
@@ -101,14 +112,15 @@ namespace LmpClient.Network
                     if (NetworkMain.ClientConnection == null || NetworkMain.ClientConnection.Status == NetPeerStatus.NotRunning
                         || MainSystem.NetworkState < ClientState.Connected)
                     {
-                        return;
+                        message.Recycle();
+                        return false;
                     }
                     var lidgrenMsg = NetworkMain.ClientConnection.CreateMessage(message.GetMessageSize());
 
                     message.Serialize(lidgrenMsg);
                     NetworkMain.ClientConnection.SendMessage(lidgrenMsg, message.NetDeliveryMethod, message.Channel);
-                    // Force send of packets
-                    NetworkMain.ClientConnection.FlushSendQueue();
+                    message.Recycle();
+                    return true;
                 }
 
                 message.Recycle();
@@ -117,6 +129,8 @@ namespace LmpClient.Network
             {
                 NetworkMain.HandleDisconnectException(e);
             }
+
+            return false;
         }
     }
 }

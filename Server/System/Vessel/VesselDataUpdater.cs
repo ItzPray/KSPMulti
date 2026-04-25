@@ -32,6 +32,9 @@ namespace Server.System.Vessel
             {
                 try
                 {
+                    if (VesselContext.RemovedVessels.ContainsKey(vesselId))
+                        return;
+
                     var vessel = new Classes.Vessel(vesselDataInConfigNodeFormat);
                     if (GeneralSettings.SettingsStore.ModControl)
                     {
@@ -45,6 +48,9 @@ namespace Server.System.Vessel
                     }
                     lock (Semaphore.GetOrAdd(vesselId, new object()))
                     {
+                        if (VesselContext.RemovedVessels.ContainsKey(vesselId))
+                            return;
+
                         VesselStoreSystem.CurrentVessels.AddOrUpdate(vesselId, vessel, (key, existingVal) => vessel);
                     }
                 }

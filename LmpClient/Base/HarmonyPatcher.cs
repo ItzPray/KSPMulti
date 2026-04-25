@@ -6,10 +6,16 @@ namespace LmpClient.Base
     public static class HarmonyPatcher
     {
         public static HarmonyLib.Harmony HarmonyInstance = new HarmonyLib.Harmony("KSPMultiplayer");
+        private static bool _patched;
 
         public static void Awake()
         {
-            HarmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
+            if (!_patched)
+            {
+                HarmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
+                _patched = true;
+            }
+
             KerbalKonstructsLaunchPadHarmony.TryRegister(HarmonyInstance);
         }
     }

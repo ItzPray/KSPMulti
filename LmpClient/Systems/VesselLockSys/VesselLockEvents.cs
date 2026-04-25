@@ -1,6 +1,8 @@
 ﻿using LmpClient.Base;
 using LmpClient.Systems.Lock;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Systems.VesselFlightStateSys;
+using LmpClient.Systems.VesselPositionSys;
 using LmpClient.VesselUtilities;
 using LmpCommon.Locks;
 using System;
@@ -132,6 +134,9 @@ namespace LmpClient.Systems.VesselLockSys
                 case LockType.Control:
                     if (lockDefinition.PlayerName == SettingsSystem.CurrentSettings.PlayerName)
                     {
+                        ZeroActiveVesselThrottle(lockDefinition.VesselId);
+                        VesselFlightStateSystem.Singleton.MessageSender.ResetLastSentState();
+
                         if (VesselCommon.IsSpectating)
                             VesselLockSystem.Singleton.StopSpectating();
                         LockSystem.Singleton.AcquireUpdateLock(lockDefinition.VesselId, true);
@@ -141,6 +146,7 @@ namespace LmpClient.Systems.VesselLockSys
                         //As we got the lock of that vessel, remove its FS and position updates
                         //This is done so even if the vessel has queued updates, we ignore them as we are controlling it
                         VesselCommon.RemoveVesselFromSystems(lockDefinition.VesselId);
+                        SendImmediatePositionUpdate(lockDefinition.VesselId);
                     }
                     else
                     {
@@ -186,6 +192,23 @@ namespace LmpClient.Systems.VesselLockSys
                     }
                     break;
             }
+        }
+
+        private static void ZeroActiveVesselThrottle(Guid vesselId)
+        {
+            if (!FlightGlobals.ActiveVessel || FlightGlobals.ActiveVessel.id != vesselId)
+                return;
+
+            FlightGlobals.ActiveVessel.ctrlState.mainThrottle = 0f;
+            FlightGlobals.ActiveVessel.ctrlState.wheelThrottle = 0f;
+        }
+
+        private static void SendImmediatePositionUpdate(Guid vesselId)
+        {
+            if (!FlightGlobals.ActiveVessel || FlightGlobals.ActiveVessel.id != vesselId)
+                return;
+
+            VesselPositionSystem.Singleton.MessageSender.SendVesselPositionUpdate(FlightGlobals.ActiveVessel, true);
         }
 
         /// <summary>

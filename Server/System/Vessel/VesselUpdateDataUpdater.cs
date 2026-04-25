@@ -30,7 +30,7 @@ namespace Server.System.Vessel
         public static void WriteUpdateDataToFile(VesselBaseMsgData message)
         {
             if (!(message is VesselUpdateMsgData msgData)) return;
-            if (VesselContext.RemovedVessels.Contains(msgData.VesselId)) return;
+            if (VesselContext.RemovedVessels.ContainsKey(msgData.VesselId)) return;
 
             if (!LastUpdateDictionary.TryGetValue(msgData.VesselId, out var lastUpdated) || (DateTime.Now - lastUpdated).TotalMilliseconds > FileUpdateIntervalMs)
             {
