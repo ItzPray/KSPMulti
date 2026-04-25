@@ -1,10 +1,10 @@
 {
     "NAME":     "KSP Multiplayer",
-    "URL":      "https://github.com/LunaMultiplayer/LunaMultiplayer/raw/master/KSPMultiplayer.version",
-    "DOWNLOAD": "https://github.com/LunaMultiplayer/LunaMultiplayer/releases",
+    "URL":      "https://github.com/ItzPray/KSPMulti/raw/master/KSPMultiplayer.version",
+    "DOWNLOAD": "https://github.com/ItzPray/KSPMulti/releases",
     "GITHUB": {
-        "USERNAME":   "LunaMultiplayer",
-        "REPOSITORY": "LunaMultiplayer"
+        "USERNAME":   "ItzPray",
+        "REPOSITORY": "KSPMulti"
     },
     "VERSION": {
         "MAJOR": 0,
