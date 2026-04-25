@@ -44,10 +44,15 @@ namespace Server.System.Vessel
                     {
                         lock (Semaphore.GetOrAdd(msgData.VesselId, new object()))
                         {
+                            if (VesselContext.RemovedVessels.ContainsKey(msgData.VesselId)) return;
                             if (!VesselStoreSystem.CurrentVessels.TryGetValue(msgData.VesselId, out var vessel)) return;
 
-                            foreach (var resource in msgData.Resources)
+                            var resourceCount = Math.Min(msgData.ResourcesCount, msgData.Resources?.Length ?? 0);
+                            for (var i = 0; i < resourceCount; i++)
                             {
+                                var resource = msgData.Resources[i];
+                                if (resource == null) continue;
+
                                 var part = vessel.GetPart(resource.PartFlightId);
                                 if (part != null)
                                 {

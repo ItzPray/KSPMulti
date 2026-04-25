@@ -38,7 +38,7 @@ namespace Server.System.Vessel.Classes
 
         public Part GetPart(uint partFlightId)
         {
-            return Parts.GetSingle(partFlightId).Value;
+            return Parts.GetSingle(partFlightId)?.Value;
         }
 
         public override string ToString()

@@ -1,4 +1,5 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using LmpCommon.Message.Data.Vessel;
 using Server.System;
 using Server.System.Vessel;
 using Server.System.Vessel.Classes;
@@ -78,6 +79,60 @@ namespace ServerTest
         }
 
         [TestMethod]
+        public void GetPart_ReturnsNullForMissingPart()
+        {
+            var vessel = new Vessel(File.ReadAllText(Path.Combine(XmlExamplePath, "99969baa-2618-49fa-a197-2c0c995ad3e0.txt")));
+
+            Assert.IsNull(vessel.GetPart(uint.MaxValue));
+        }
+
+        [TestMethod]
+        public void WriteResourceDataToFile_SkipsMissingPartsAndAppliesValidResources()
+        {
+            var vesselId = Guid.NewGuid();
+            var vessel = new Vessel(File.ReadAllText(Path.Combine(XmlExamplePath, "99969baa-2618-49fa-a197-2c0c995ad3e0.txt")));
+            var msgData = CreateVesselResourceMsgData();
+            msgData.VesselId = vesselId;
+            msgData.ResourcesCount = 2;
+            msgData.Resources = new[]
+            {
+                new VesselResourceInfo
+                {
+                    PartFlightId = uint.MaxValue,
+                    ResourceName = "ElectricCharge",
+                    Amount = 1,
+                    FlowState = true
+                },
+                new VesselResourceInfo
+                {
+                    PartFlightId = 3631576085,
+                    ResourceName = "ElectricCharge",
+                    Amount = 2.5,
+                    FlowState = false
+                }
+            };
+
+            try
+            {
+                VesselStoreSystem.CurrentVessels.Clear();
+                VesselContext.RemovedVessels.Clear();
+                VesselStoreSystem.CurrentVessels.TryAdd(vesselId, vessel);
+
+                VesselDataUpdater.WriteResourceDataToFile(msgData);
+                Thread.Sleep(250);
+
+                var resourceNode = vessel.GetPart(3631576085).GetResourceNode("ElectricCharge");
+                Assert.AreEqual("2.5", resourceNode.GetValue("amount").Value);
+                Assert.AreEqual("False", resourceNode.GetValue("flowState").Value);
+            }
+            finally
+            {
+                VesselStoreSystem.CurrentVessels.Clear();
+                VesselContext.RemovedVessels.Clear();
+            }
+        }
+
+        [TestMethod]
         public void RawConfigNodeInsertOrUpdate_DoesNotResurrectRemovedVessel()
         {
             var vesselId = Guid.NewGuid();
@@ -99,6 +154,13 @@ namespace ServerTest
                 VesselStoreSystem.CurrentVessels.Clear();
                 VesselContext.RemovedVessels.Clear();
             }
+        }
+
+        private static VesselResourceMsgData CreateVesselResourceMsgData()
+        {
+            return (VesselResourceMsgData)typeof(VesselResourceMsgData)
+                .GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null)
+                .Invoke(null);
         }
     }
 }
