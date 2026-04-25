@@ -1,12 +1,15 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Build release zips (PackageKspmpReleaseZips.ps1) and create/publish a GitHub Release with the GitHub CLI.
+  Sync KSPMultiplayer.version + LmpClient AssemblyInfo to the release tag, build release zips, and publish a GitHub Release.
 
 .PREREQUISITES
   - 7-Zip, MSBuild/dotnet (same as build scripts)
   - GitHub CLI: winget install GitHub.cli, then: gh auth login
   - Push access to the repo; gh uses your stored credentials (repo scope).
+
+  Autoupdate: the client compares the GitHub release tag to the LmpClient assembly version. This script runs
+  SetKspmpReleaseVersion.ps1 before the build. For AppVeyor, also keep appveyor.yml `smallversion` in sync with releases.
 
 .EXAMPLE
   # Tag = MAJOR.MINOR.PATCH from KSPMultiplayer.version, Release zips, published
@@ -70,6 +73,16 @@ if (-not $remoteRepo) {
     if (-not $remoteRepo) { throw "Could not resolve owner/repo. Run: cd `"$repoRoot`"; gh repo set-default or fix origin." }
 }
 Write-Host "Repository: $remoteRepo" -ForegroundColor Cyan
+
+# Package (build) - first sync KSPMultiplayer.version + LmpClient AssemblyInfo with $Tag so LmpClient.dll reports the same version
+if (-not $SkipPackage) {
+    $verScript = Join-Path $PSScriptRoot "SetKspmpReleaseVersion.ps1"
+    if (-not (Test-Path -LiteralPath $verScript)) { throw "Missing: $verScript" }
+    Write-Host "==> SetKspmpReleaseVersion (tag = $Tag)" -ForegroundColor Cyan
+    & $verScript -RepoRoot $repoRoot -Tag $Tag
+} else {
+    Write-Host "SkipPackage: not editing version files - your attached zips must already match tag $Tag (assembly + KSPMultiplayer.version)." -ForegroundColor Yellow
+}
 
 # Package
 if (-not $SkipPackage) {
@@ -139,5 +152,5 @@ try {
 
 Write-Host "Done: https://github.com/$remoteRepo/releases" -ForegroundColor Green
 if ($Draft) {
-    Write-Host "  Draft: click Publish in GitHub so the API (releases/latest) and the mod can see the build." -ForegroundColor Yellow
+    Write-Host '  Draft: click Publish in GitHub so the API (releases/latest) and the mod can see the build.' -ForegroundColor Yellow
 }

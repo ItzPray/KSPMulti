@@ -15,6 +15,8 @@ namespace LmpClient.Windows.Update
 
         public static Version LatestVersion;
         public static string Changelog;
+        /// <summary>Direct download for <c>KSPMultiplayer-Client-Release.zip</c> from the GitHub API; null = open browser only.</summary>
+        public static string ClientZipDownloadUrl;
 
         private static bool _display;
         public override bool Display
@@ -23,7 +25,7 @@ namespace LmpClient.Windows.Update
             set => base.Display = _display = value;
         }
 
-        private const float WindowHeight = 250;
+        private const float WindowHeight = 340;
         private const float WindowWidth = 400;
 
         #endregion

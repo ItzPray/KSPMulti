@@ -29,3 +29,8 @@ command = "cmd /c Scripts\\BuildAndDeployFreshStack.bat Debug"
 name = "Github Release Draft"
 icon = "tool"
 command = ".\\Scripts\\PublishGitHubRelease.cmd -Tag \"0.32.0\" -Draft"
+
+[[actions]]
+name = "Test Update Modal (Force Downgrade) Release"
+icon = "tool"
+command = ".\\Scripts\\SetKspmpDevVersionBelowRelease.ps1 -Configuration Release"

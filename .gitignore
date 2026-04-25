@@ -26,3 +26,6 @@ External/Nuget/
 
 # Local machine configuration
 Scripts/SetDirectories.bat
+Scripts/SetKspmpDevVersionBelowRelease.bat
+Scripts/SetKspmpDevVersionBelowRelease.ps1
+Scripts/SetKspmpReleaseVersion.ps1

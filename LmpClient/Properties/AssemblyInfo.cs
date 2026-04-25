@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("KSP Multiplayer Mod")]
@@ -15,6 +15,6 @@ using System.Runtime.InteropServices;
 
 [assembly: AssemblyVersion("0.29.0")]
 [assembly: AssemblyFileVersion("0.29.0")]
-[assembly: AssemblyInformationalVersion("0.29.0-compiled")]
+[assembly: AssemblyInformationalVersion("0.29.0")]
 
-[assembly: KSPAssembly("KSPMP", 0, 30)]
+[assembly: KSPAssembly("KSPMP", 0, 29)]

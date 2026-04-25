@@ -19,6 +19,8 @@
         public static string MasterServersListUrl => "https://raw.githubusercontent.com/ItzPray/KSPMulti/master/MasterServersList/MasterServersList.txt";
         public static string DedicatedServersListUrl => "https://raw.githubusercontent.com/ItzPray/KSPMulti/master/MasterServersList/DedicatedServersList.txt";
         public static string BannedIpListUrl => "https://raw.githubusercontent.com/ItzPray/KSPMulti/master/MasterServersList/BannedIpList.txt";
+        /// <summary>GitHub "releases/latest": the newest published (non-prerelease) release. Drafts are not included — a draft does not
+        /// become "latest" until you publish the release, so the client may not show an update until then.</summary>
         public static string ApiLatestGithubReleaseUrl => "https://api.github.com/repos/ItzPray/KSPMulti/releases/latest";
         public static string AppveyorUrl => "https://ci.appveyor.com/api/projects/gavazquez/lunamultiplayer";
     }

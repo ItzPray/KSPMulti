@@ -1,18 +1,18 @@
 {
-    "NAME":     "KSP Multiplayer",
-    "URL":      "https://github.com/ItzPray/KSPMulti/raw/master/KSPMultiplayer.version",
-    "DOWNLOAD": "https://github.com/ItzPray/KSPMulti/releases",
-    "GITHUB": {
-        "USERNAME":   "ItzPray",
-        "REPOSITORY": "KSPMulti"
-    },
-    "VERSION": {
-        "MAJOR": 0,
-        "MINOR": 30,
-        "PATCH": 0
-    },
-    "KSP_VERSION": {
-        "MAJOR": 1,
-        "MINOR": 12
-    }
+    "NAME":  "KSP Multiplayer",
+    "URL":  "https://github.com/ItzPray/KSPMulti/raw/master/KSPMultiplayer.version",
+    "DOWNLOAD":  "https://github.com/ItzPray/KSPMulti/releases",
+    "GITHUB":  {
+                   "USERNAME":  "ItzPray",
+                   "REPOSITORY":  "KSPMulti"
+               },
+    "VERSION":  {
+                    "MAJOR":  0,
+                    "MINOR":  29,
+                    "PATCH":  0
+                },
+    "KSP_VERSION":  {
+                        "MAJOR":  0,
+                        "MINOR":  29
+                    }
 }
