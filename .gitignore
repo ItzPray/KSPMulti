@@ -30,3 +30,7 @@ Scripts/SetKspmpDevVersionBelowRelease.bat
 Scripts/SetKspmpDevVersionBelowRelease.ps1
 Scripts/SetKspmpReleaseVersion.ps1
 /ReleaseNotes
+/.codex/
+/AGENTS.md
+/appveyor.yml
+/appveyor_discord.ps1
