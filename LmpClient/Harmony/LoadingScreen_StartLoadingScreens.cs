@@ -1,16 +1,16 @@
 using HarmonyLib;
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using UnityEngine;
-using UnityEngine.UI;
 
 // ReSharper disable All
 
 namespace LmpClient.Harmony
 {
     /// <summary>
-    /// Forces the KSPMulti loading art into KSP's loading-screen cycle before the cycle starts.
+    /// Injects a KSPMulti <see cref="LoadingScreenState"/> for our cached texture. De-dupe is by object
+    /// reference so a separate Sigma-supplied copy of the same file does not block injection.
     /// </summary>
     [HarmonyPatch(typeof(LoadingScreen))]
     [HarmonyPatch("StartLoadingScreens")]
@@ -23,26 +23,58 @@ namespace LmpClient.Harmony
         private const float DisplayTime = 8f;
         private const float FadeTime = 0.5f;
 
-        private static bool LoadingScreenAdded;
+        private static Texture2D _lmpTextureCache;
+        private static string _lmpImagePath;
 
-        [HarmonyPrefix]
-        private static void PrefixStartLoadingScreens(LoadingScreen __instance)
+        [HarmonyPostfix]
+        [HarmonyPriority(Priority.Last)]
+        private static void PostfixStartLoadingScreens(LoadingScreen __instance)
         {
-            if (LoadingScreenAdded || __instance?.Screens == null)
+            TryEnsureLmpScreen(__instance);
+        }
+
+        internal static void TryEnsureLmpScreen(LoadingScreen loadingScreen)
+        {
+            if (loadingScreen?.Screens == null)
                 return;
 
             try
             {
-                AddLoadingScreen(__instance);
+                var lmp = LoadLmpLoadingTexture();
+                if (lmp == null)
+                    return;
+
+                if (ListContainsOurTexture(loadingScreen.Screens, lmp))
+                    return;
+
+                AddLoadingScreen(loadingScreen, lmp, _lmpImagePath);
             }
             catch (Exception ex)
             {
-                Debug.Log($"[LMP]: Failed to force KSPMulti loading screen: {ex}");
+                Debug.Log($"[LMP]: Failed to add KSPMulti loading screen: {ex}");
             }
+        }
+
+        private static bool ListContainsOurTexture(List<LoadingScreen.LoadingScreenState> screens, Texture2D lmp)
+        {
+            foreach (var s in screens)
+            {
+                if (s == null) continue;
+                if (s.activeScreen == lmp) return true;
+                if (s.screens == null) continue;
+                foreach (var o in s.screens)
+                {
+                    if (o == lmp) return true;
+                }
+            }
+            return false;
         }
 
         internal static Texture2D LoadLmpLoadingTexture()
         {
+            if (_lmpTextureCache != null)
+                return _lmpTextureCache;
+
             var imagePath = Path.Combine(KSPUtil.ApplicationRootPath, LoadingScreenRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (!File.Exists(imagePath))
             {
@@ -59,16 +91,13 @@ namespace LmpClient.Harmony
             }
 
             texture.wrapMode = TextureWrapMode.Clamp;
+            _lmpTextureCache = texture;
+            _lmpImagePath = imagePath;
             return texture;
         }
 
-        private static void AddLoadingScreen(LoadingScreen loadingScreen)
+        private static void AddLoadingScreen(LoadingScreen loadingScreen, Texture2D texture, string imagePath)
         {
-            var imagePath = Path.Combine(KSPUtil.ApplicationRootPath, LoadingScreenRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            var texture = LoadLmpLoadingTexture();
-            if (texture == null)
-                return;
-
             var state = new LoadingScreen.LoadingScreenState
             {
                 screens = new UnityEngine.Object[] { texture },
@@ -82,92 +111,43 @@ namespace LmpClient.Harmony
 
             var insertIndex = Math.Min(PreferredScreenIndex, loadingScreen.Screens.Count);
             loadingScreen.Screens.Insert(insertIndex, state);
-            LoadingScreenAdded = true;
 
-            Debug.Log($"[LMP]: Forced KSPMulti loading screen at cycle index {insertIndex} from {imagePath}");
+            Debug.Log($"[LMP]: Injected KSPMulti loading screen at cycle index {insertIndex} from {imagePath}");
         }
     }
 
     /// <summary>
-    /// LoadingScreen.StartLoadingScreens often runs before LMP's Harmony patch is installed.
-    /// Keep forcing the visible RawImage during the live loading phase so loading-screen mods
-    /// that rebuild the screen list cannot hide the LMP screen.
+    /// Fills the list after the game or Sigma finishes async or late population (postfixes alone miss it).
     /// </summary>
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
-    public class KspMultiLoadingScreenForcer : MonoBehaviour
+    public class LmpLoadingScreenListRetry : MonoBehaviour
     {
-        private const float ForceDurationSeconds = 60f;
+        private const float RetryForSeconds = 3f;
+        private const float Interval = 0.1f;
+        private float _stopAt;
+        private float _next;
 
-        private static readonly FieldInfo ScreenImageField =
-            AccessTools.Field(typeof(LoadingScreen), "screenImage");
-
-        private Texture2D _texture;
-        private float _forceUntil;
-        private bool _loggedSuccess;
-        private bool _loggedMissingLoadingScreen;
-        private bool _loggedMissingImageField;
-
-        public void Awake()
+        public void Start()
         {
-            _texture = LoadingScreen_StartLoadingScreens.LoadLmpLoadingTexture();
-            _forceUntil = Time.realtimeSinceStartup + ForceDurationSeconds;
-
-            if (_texture == null)
-            {
-                Debug.Log("[LMP]: KSPMulti loading screen forcer stopped because the texture did not load");
-                Destroy(this);
-                return;
-            }
-
-            Debug.Log($"[LMP]: KSPMulti loading screen forcer started with {_texture.width}x{_texture.height} texture");
+            _stopAt = Time.realtimeSinceStartup + RetryForSeconds;
+            _next = 0f;
         }
 
-        public void LateUpdate()
+        public void Update()
         {
-            if (_texture == null)
-                return;
-
-            if (Time.realtimeSinceStartup > _forceUntil)
+            if (Time.realtimeSinceStartup >= _stopAt)
             {
-                Debug.Log("[LMP]: KSPMulti loading screen forcer stopped after timeout");
-                Destroy(this);
+                UnityEngine.Object.Destroy(this);
                 return;
             }
 
-            var loadingScreen = FindObjectOfType<LoadingScreen>();
-            if (loadingScreen == null)
-            {
-                if (!_loggedMissingLoadingScreen)
-                {
-                    _loggedMissingLoadingScreen = true;
-                    Debug.Log("[LMP]: KSPMulti loading screen forcer found no active LoadingScreen yet");
-                }
-
+            if (Time.realtimeSinceStartup < _next)
                 return;
-            }
 
-            var screenImage = ScreenImageField?.GetValue(loadingScreen) as RawImage;
-            if (screenImage == null)
-            {
-                if (!_loggedMissingImageField)
-                {
-                    _loggedMissingImageField = true;
-                    Debug.Log("[LMP]: KSPMulti loading screen forcer could not access LoadingScreen.screenImage");
-                }
-
-                return;
-            }
-
-            screenImage.texture = _texture;
-            screenImage.enabled = true;
-            screenImage.color = Color.white;
-            screenImage.gameObject.SetActive(true);
-
-            if (!_loggedSuccess)
-            {
-                _loggedSuccess = true;
-                Debug.Log($"[LMP]: KSPMulti loading screen forcer is displaying {LoadingScreen_StartLoadingScreens.TextureName}");
-            }
+            _next = Time.realtimeSinceStartup + Interval;
+            var loadingScreen = UnityEngine.Object.FindObjectOfType<LoadingScreen>();
+            if (loadingScreen != null)
+                LoadingScreen_StartLoadingScreens.TryEnsureLmpScreen(loadingScreen);
         }
     }
 }
