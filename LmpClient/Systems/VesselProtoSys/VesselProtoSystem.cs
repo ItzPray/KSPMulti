@@ -56,6 +56,16 @@ namespace LmpClient.Systems.VesselProtoSys
             GameEvents.OnTriggeredDataTransmission.Add(VesselProtoEvents.TriggeredDataTransmission);
             GameEvents.OnExperimentStored.Add(VesselProtoEvents.ExperimentStored);
             ExperimentEvent.onExperimentReset.Add(VesselProtoEvents.ExperimentReset);
+            GameEvents.onGroundSciencePartDeployed.Add(VesselProtoEvents.GroundSciencePartDeployed);
+            GameEvents.onGroundSciencePartChanged.Add(VesselProtoEvents.GroundSciencePartChanged);
+            GameEvents.onGroundSciencePartEnabledStateChanged.Add(VesselProtoEvents.GroundSciencePartChanged);
+            GameEvents.onGroundSciencePartRemoved.Add(VesselProtoEvents.GroundSciencePartRemoved);
+            GameEvents.onGroundScienceClusterRegistered.Add(VesselProtoEvents.GroundScienceClusterChanged);
+            GameEvents.onGroundScienceClusterUpdated.Add(VesselProtoEvents.GroundScienceClusterChanged);
+            GameEvents.onGroundScienceControllerChanged.Add(VesselProtoEvents.GroundScienceControllerChanged);
+            GameEvents.onGroundScienceGenerated.Add(VesselProtoEvents.GroundScienceGenerated);
+            GameEvents.onGroundScienceTransmitted.Add(VesselProtoEvents.GroundScienceGenerated);
+            GameEvents.onGroundScienceDeregisterCluster.Add(VesselProtoEvents.GroundScienceClusterDeregistered);
 
             PartEvent.onPartDecoupled.Add(VesselProtoEvents.PartDecoupled);
             PartEvent.onPartUndocked.Add(VesselProtoEvents.PartUndocked);
@@ -77,6 +87,16 @@ namespace LmpClient.Systems.VesselProtoSys
             GameEvents.OnTriggeredDataTransmission.Remove(VesselProtoEvents.TriggeredDataTransmission);
             GameEvents.OnExperimentStored.Remove(VesselProtoEvents.ExperimentStored);
             ExperimentEvent.onExperimentReset.Remove(VesselProtoEvents.ExperimentReset);
+            GameEvents.onGroundSciencePartDeployed.Remove(VesselProtoEvents.GroundSciencePartDeployed);
+            GameEvents.onGroundSciencePartChanged.Remove(VesselProtoEvents.GroundSciencePartChanged);
+            GameEvents.onGroundSciencePartEnabledStateChanged.Remove(VesselProtoEvents.GroundSciencePartChanged);
+            GameEvents.onGroundSciencePartRemoved.Remove(VesselProtoEvents.GroundSciencePartRemoved);
+            GameEvents.onGroundScienceClusterRegistered.Remove(VesselProtoEvents.GroundScienceClusterChanged);
+            GameEvents.onGroundScienceClusterUpdated.Remove(VesselProtoEvents.GroundScienceClusterChanged);
+            GameEvents.onGroundScienceControllerChanged.Remove(VesselProtoEvents.GroundScienceControllerChanged);
+            GameEvents.onGroundScienceGenerated.Remove(VesselProtoEvents.GroundScienceGenerated);
+            GameEvents.onGroundScienceTransmitted.Remove(VesselProtoEvents.GroundScienceGenerated);
+            GameEvents.onGroundScienceDeregisterCluster.Remove(VesselProtoEvents.GroundScienceClusterDeregistered);
 
             PartEvent.onPartDecoupled.Remove(VesselProtoEvents.PartDecoupled);
             PartEvent.onPartUndocked.Remove(VesselProtoEvents.PartUndocked);
