@@ -186,6 +186,7 @@
     <Compile Include="Harmony\FlightDriver_Start.cs" />
     <Compile Include="Harmony\FlightResultsDialog_SetupGUI.cs" />
     <Compile Include="Harmony\CollisionEnhancer_FixedUpdate.cs" />
+    <Compile Include="Harmony\ClickThroughBlockerOneTimePopupHarmony.cs" />
     <Compile Include="Harmony\OrbitDriver_TrackRigidbody.cs" />
     <Compile Include="Harmony\OrbitDriver_UpdateFromParameters.cs" />
     <Compile Include="Harmony\OrbitDriver_UpdateOrbit.cs" />
