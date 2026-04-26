@@ -104,26 +104,24 @@ namespace LmpClient.Network
                         message.Serialize(lidgrenMsg);
                         NetworkMain.ClientConnection.SendUnconnectedMessage(lidgrenMsg, masterServer);
                     }
-                    // Force send of packets
-                    NetworkMain.ClientConnection.FlushSendQueue();
-                }
-                else
-                {
-                    if (NetworkMain.ClientConnection == null || NetworkMain.ClientConnection.Status == NetPeerStatus.NotRunning
-                        || MainSystem.NetworkState < ClientState.Connected)
-                    {
-                        message.Recycle();
-                        return false;
-                    }
-                    var lidgrenMsg = NetworkMain.ClientConnection.CreateMessage(message.GetMessageSize());
 
-                    message.Serialize(lidgrenMsg);
-                    NetworkMain.ClientConnection.SendMessage(lidgrenMsg, message.NetDeliveryMethod, message.Channel);
                     message.Recycle();
                     return true;
                 }
 
+                if (NetworkMain.ClientConnection == null || NetworkMain.ClientConnection.Status == NetPeerStatus.NotRunning
+                    || MainSystem.NetworkState < ClientState.Connected)
+                {
+                    message.Recycle();
+                    return false;
+                }
+
+                var lidgrenMsg = NetworkMain.ClientConnection.CreateMessage(message.GetMessageSize());
+
+                message.Serialize(lidgrenMsg);
+                NetworkMain.ClientConnection.SendMessage(lidgrenMsg, message.NetDeliveryMethod, message.Channel);
                 message.Recycle();
+                return true;
             }
             catch (Exception e)
             {
