@@ -59,6 +59,7 @@ namespace LmpClient.Systems.VesselPositionSys
             {
                 msgData.VesselId = vessel.id;
                 msgData.BodyIndex = vessel.mainBody.flightGlobalsIndex;
+                msgData.BodyName = vessel.orbit?.referenceBody?.bodyName ?? vessel.mainBody.bodyName;
                 msgData.Landed = vessel.Landed;
                 msgData.Splashed = vessel.Splashed;
 

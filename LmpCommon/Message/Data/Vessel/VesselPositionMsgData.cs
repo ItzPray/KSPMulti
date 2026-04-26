@@ -1,4 +1,5 @@
-﻿using Lidgren.Network;
+using Lidgren.Network;
+using LmpCommon.Message.Base;
 using LmpCommon.Message.Types;
 
 namespace LmpCommon.Message.Data.Vessel
@@ -11,6 +12,7 @@ namespace LmpCommon.Message.Data.Vessel
 
         //Avoid using reference types in this message as it can generate allocations and is sent VERY often.
         public int BodyIndex;
+        public string BodyName = string.Empty;
         public int SubspaceId;
         public float PingSec;
         public float HeightFromTerrain;
@@ -30,6 +32,7 @@ namespace LmpCommon.Message.Data.Vessel
             base.InternalSerialize(lidgrenMsg);
 
             lidgrenMsg.Write(BodyIndex);
+            lidgrenMsg.Write(BodyName ?? string.Empty);
             lidgrenMsg.Write(SubspaceId);
             lidgrenMsg.Write(PingSec);
             lidgrenMsg.Write(HeightFromTerrain);
@@ -58,6 +61,7 @@ namespace LmpCommon.Message.Data.Vessel
             base.InternalDeserialize(lidgrenMsg);
 
             BodyIndex = lidgrenMsg.ReadInt32();
+            BodyName = lidgrenMsg.PositionInBytes < lidgrenMsg.LengthBytes ? lidgrenMsg.ReadString() : string.Empty;
             SubspaceId = lidgrenMsg.ReadInt32();
             PingSec = lidgrenMsg.ReadFloat();
             HeightFromTerrain = lidgrenMsg.ReadFloat();
@@ -83,8 +87,8 @@ namespace LmpCommon.Message.Data.Vessel
 
         internal override int InternalGetMessageSize()
         {
-            return base.InternalGetMessageSize() + sizeof(int) * 2 + sizeof(float) * 2 + sizeof(bool) * 3 + sizeof(double) * 3 * 3 +
-                sizeof(float) * 4 * 1 + sizeof(double) * 8;
+            return base.InternalGetMessageSize() + sizeof(int) * 2 + (BodyName ?? string.Empty).GetByteCount() + sizeof(float) * 2 + sizeof(bool) * 3 + sizeof(double) * 3 * 3 +
+                sizeof(float) * 4 + sizeof(double) * 8;
         }
     }
 }
