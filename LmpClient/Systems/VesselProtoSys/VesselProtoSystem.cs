@@ -1,6 +1,8 @@
 ﻿using LmpClient.Base;
 using LmpClient.Events;
 using LmpClient.Extensions;
+using LmpClient.Systems.Lock;
+using LmpClient.Systems.SettingsSys;
 using LmpClient.Systems.TimeSync;
 using LmpClient.Systems.VesselRemoveSys;
 using LmpClient.Utilities;
@@ -8,6 +10,9 @@ using LmpClient.VesselUtilities;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Text;
 
 namespace LmpClient.Systems.VesselProtoSys
 {
@@ -38,6 +43,10 @@ namespace LmpClient.Systems.VesselProtoSys
         /// </summary>
         private const int MaxVesselProtoLoadsPerUpdate = 4;
 
+        private static readonly object ManeuverNodeLogLock = new object();
+        private static readonly string ManeuverNodeLogPath = Path.Combine(KSPUtil.ApplicationRootPath, "LMP_ManeuverNodes.log");
+        private static readonly Dictionary<Guid, string> ManeuverSignatures = new Dictionary<Guid, string>();
+
         #endregion
 
         #region Base overrides
@@ -56,6 +65,8 @@ namespace LmpClient.Systems.VesselProtoSys
             GameEvents.OnTriggeredDataTransmission.Add(VesselProtoEvents.TriggeredDataTransmission);
             GameEvents.OnExperimentStored.Add(VesselProtoEvents.ExperimentStored);
             ExperimentEvent.onExperimentReset.Add(VesselProtoEvents.ExperimentReset);
+            GameEvents.onManeuverAdded.Add(VesselProtoEvents.ManeuverNodeAdded);
+            GameEvents.onManeuverRemoved.Add(VesselProtoEvents.ManeuverNodeRemoved);
             GameEvents.onGroundSciencePartDeployed.Add(VesselProtoEvents.GroundSciencePartDeployed);
             GameEvents.onGroundSciencePartChanged.Add(VesselProtoEvents.GroundSciencePartChanged);
             GameEvents.onGroundSciencePartEnabledStateChanged.Add(VesselProtoEvents.GroundSciencePartChanged);
@@ -87,6 +98,8 @@ namespace LmpClient.Systems.VesselProtoSys
             GameEvents.OnTriggeredDataTransmission.Remove(VesselProtoEvents.TriggeredDataTransmission);
             GameEvents.OnExperimentStored.Remove(VesselProtoEvents.ExperimentStored);
             ExperimentEvent.onExperimentReset.Remove(VesselProtoEvents.ExperimentReset);
+            GameEvents.onManeuverAdded.Remove(VesselProtoEvents.ManeuverNodeAdded);
+            GameEvents.onManeuverRemoved.Remove(VesselProtoEvents.ManeuverNodeRemoved);
             GameEvents.onGroundSciencePartDeployed.Remove(VesselProtoEvents.GroundSciencePartDeployed);
             GameEvents.onGroundSciencePartChanged.Remove(VesselProtoEvents.GroundSciencePartChanged);
             GameEvents.onGroundSciencePartEnabledStateChanged.Remove(VesselProtoEvents.GroundSciencePartChanged);
@@ -108,6 +121,7 @@ namespace LmpClient.Systems.VesselProtoSys
             VesselProtos.Clear();
             VesselsUnableToLoad.Clear();
             QueuedVesselsToSend.Clear();
+            ManeuverSignatures.Clear();
         }
 
         #endregion
@@ -123,8 +137,11 @@ namespace LmpClient.Systems.VesselProtoSys
             {
                 if (ProtoSystemReady)
                 {
-                    if (FlightGlobals.ActiveVessel.parts.Count != FlightGlobals.ActiveVessel.protoVessel.protoPartSnapshots.Count)
-                        MessageSender.SendVesselMessage(FlightGlobals.ActiveVessel);
+                    var activeVessel = FlightGlobals.ActiveVessel;
+                    if (activeVessel.parts.Count != activeVessel.protoVessel.protoPartSnapshots.Count)
+                        MessageSender.SendVesselMessage(activeVessel);
+
+                    CheckAndSendManeuverChanges(activeVessel);
 
                     foreach (var vessel in VesselCommon.GetSecondaryVessels())
                     {
@@ -209,6 +226,103 @@ namespace LmpClient.Systems.VesselProtoSys
         #endregion
 
         #region Public methods
+
+        public void InitializeActiveVesselManeuverTracking(string reason)
+        {
+            var activeVessel = FlightGlobals.ActiveVessel;
+            if (activeVessel == null || activeVessel.id == Guid.Empty)
+                return;
+
+            var signature = GetManeuverSignature(activeVessel);
+            ManeuverSignatures[activeVessel.id] = signature;
+            WriteManeuverNodeLog(activeVessel, $"Updated maneuver tracking ({reason})", signature);
+        }
+
+        public void SendActiveVesselManeuverNodes(string reason)
+        {
+            if (!ProtoSystemReady)
+                return;
+
+            var activeVessel = FlightGlobals.ActiveVessel;
+            if (activeVessel == null || activeVessel.id == Guid.Empty)
+                return;
+
+            var signature = GetManeuverSignature(activeVessel);
+            ManeuverSignatures[activeVessel.id] = signature;
+            WriteManeuverNodeLog(activeVessel, $"Immediate maneuver node send ({reason})", signature);
+            MessageSender.SendVesselMessage(activeVessel);
+        }
+
+        private void CheckAndSendManeuverChanges(Vessel vessel)
+        {
+            if (vessel == null || vessel.id == Guid.Empty)
+                return;
+
+            if (!LockSystem.LockQuery.UpdateLockBelongsToPlayer(vessel.id, SettingsSystem.CurrentSettings.PlayerName))
+                return;
+
+            var signature = GetManeuverSignature(vessel);
+            if (ManeuverSignatures.TryGetValue(vessel.id, out var lastSignature))
+            {
+                if (lastSignature == signature)
+                    return;
+
+                ManeuverSignatures[vessel.id] = signature;
+                WriteManeuverNodeLog(vessel, $"Detected maneuver node change via poll. Previous: {lastSignature}", signature);
+                MessageSender.SendVesselMessage(vessel);
+                return;
+            }
+
+            ManeuverSignatures[vessel.id] = signature;
+            WriteManeuverNodeLog(vessel, "Tracking active vessel maneuver nodes", signature);
+        }
+
+        private static string GetManeuverSignature(Vessel vessel)
+        {
+            var solver = vessel?.patchedConicSolver;
+            if (solver == null || solver.maneuverNodes == null || solver.maneuverNodes.Count == 0)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+
+            for (var i = 0; i < solver.maneuverNodes.Count; i++)
+            {
+                var node = solver.maneuverNodes[i];
+                if (node == null)
+                {
+                    sb.Append("|null");
+                    continue;
+                }
+
+                var deltaV = node.DeltaV;
+                sb.Append('|').Append(i).Append(':')
+                    .Append(node.UT.ToString("F3", CultureInfo.InvariantCulture)).Append(',')
+                    .Append(deltaV.x.ToString("F3", CultureInfo.InvariantCulture)).Append(',')
+                    .Append(deltaV.y.ToString("F3", CultureInfo.InvariantCulture)).Append(',')
+                    .Append(deltaV.z.ToString("F3", CultureInfo.InvariantCulture));
+            }
+
+            return sb.ToString();
+        }
+
+        private static void WriteManeuverNodeLog(Vessel vessel, string message, string signature)
+        {
+            try
+            {
+                var vesselName = vessel?.vesselName ?? "<null>";
+                var vesselId = vessel?.id.ToString() ?? Guid.Empty.ToString();
+                var line = $"[{DateTime.UtcNow:O}] {message} | Vessel={vesselName} | Id={vesselId} | Signature={signature}{Environment.NewLine}";
+
+                lock (ManeuverNodeLogLock)
+                {
+                    File.AppendAllText(ManeuverNodeLogPath, line);
+                }
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[KSPMP]: Error writing maneuver node log: {e}");
+            }
+        }
 
         /// <summary>
         /// Sends a delayed vessel definition to the server.

@@ -32,7 +32,18 @@ namespace LmpClient.Systems.VesselProtoSys
             if (VesselCommon.IsSpectating || FlightGlobals.ActiveVessel == null || FlightGlobals.ActiveVessel.id == Guid.Empty)
                 return;
 
+            System.InitializeActiveVesselManeuverTracking("flight ready");
             System.MessageSender.SendVesselMessage(FlightGlobals.ActiveVessel, true);
+        }
+
+        public void ManeuverNodeAdded(Vessel vessel, PatchedConicSolver solver)
+        {
+            SendManeuverNodes(vessel, "added");
+        }
+
+        public void ManeuverNodeRemoved(Vessel vessel, PatchedConicSolver solver)
+        {
+            SendManeuverNodes(vessel, "removed");
         }
 
         /// <summary>
@@ -95,6 +106,18 @@ namespace LmpClient.Systems.VesselProtoSys
                 LunaLog.Log("Detected a experiment reset. Sending vessel definition to the server");
                 System.MessageSender.SendVesselMessage(FlightGlobals.ActiveVessel, true);
             }
+        }
+
+        private void SendManeuverNodes(Vessel vessel, string reason)
+        {
+            if (VesselCommon.IsSpectating || vessel == null || vessel.id == Guid.Empty)
+                return;
+
+            if (!LockSystem.LockQuery.UpdateLockBelongsToPlayer(vessel.id, SettingsSystem.CurrentSettings.PlayerName))
+                return;
+
+            LunaLog.Log($"[KSPMP]: Detected maneuver node {reason}. Sending vessel definition {vessel.id} ({vessel.vesselName})");
+            System.MessageSender.SendVesselMessage(vessel);
         }
 
         public void GroundSciencePartDeployed(ModuleGroundSciencePart groundSciencePart)

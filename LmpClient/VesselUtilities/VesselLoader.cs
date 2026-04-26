@@ -43,6 +43,11 @@ namespace LmpClient.VesselUtilities
                 if (!forceReload && existingVessel.Parts.Count == vesselProto.protoPartSnapshots.Count &&
                     existingVessel.GetCrewCount() == vesselProto.GetVesselCrew().Count)
                 {
+                    if (existingVessel.protoVessel != null)
+                    {
+                        existingVessel.protoVessel.flightPlan = vesselProto.flightPlan;
+                    }
+
                     return true;
                 }
 
