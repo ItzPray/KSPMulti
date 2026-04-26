@@ -3,6 +3,7 @@ using LmpClient.Systems.Lock;
 using LmpClient.Systems.VesselPositionSys;
 using LmpClient.VesselUtilities;
 using System;
+using System.Linq;
 
 namespace LmpClient.Systems.VesselUndockSys
 {
@@ -36,6 +37,35 @@ namespace LmpClient.Systems.VesselUndockSys
             {
                 if (protoPart.partRef)
                 {
+                    var dockingNode = protoPart.partRef.FindModulesImplementing<ModuleDockingNode>().FirstOrDefault();
+                    if (dockingNode != null)
+                    {
+                        if (DockingPortUtil.IsInDockedState(dockingNode))
+                        {
+                            // Port is in a valid docked state - proceed normally
+                        }
+                        else if (DockingPortUtil.IsInRecoverableTransientState(dockingNode))
+                        {
+                            // Port is stuck in a transient state (e.g., Disengage). Attempt FSM recovery
+                            // before undocking, using the same technique as DockRotate: fsm.StartFSM(state)
+                            var targetState = DockingPortUtil.InferDockedStateForUndock(dockingNode);
+                            if (!DockingPortUtil.TryRecoverToDockedState(dockingNode, targetState))
+                            {
+                                LunaLog.LogWarning($"[LMP]: Cannot recover docking port for undock. " +
+                                    $"Part: {protoPart.partRef.partName}, Vessel: {VesselId}, PartFlightId: {PartFlightId}");
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            // Port is in Ready, Disabled, or unknown state - not docked, skip
+                            LunaLog.LogWarning($"[LMP]: Skipping undock - docking port FSM is in state " +
+                                $"'{dockingNode.fsm?.currentStateName}', not a docked or recoverable state. " +
+                                $"Part: {protoPart.partRef.partName}, Vessel: {VesselId}, PartFlightId: {PartFlightId}");
+                            return;
+                        }
+                    }
+
                     VesselUndockSystem.Singleton.ManuallyUndockingVesselId = protoPart.partRef.vessel.id;
                     VesselUndockSystem.Singleton.IgnoreEvents = true;
 
