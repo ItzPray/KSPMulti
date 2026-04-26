@@ -3,7 +3,6 @@ using Server.Settings.Structures;
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace Server.System.Vessel
 {
@@ -28,37 +27,34 @@ namespace Server.System.Vessel
         /// </summary>
         public static void RawConfigNodeInsertOrUpdate(Guid vesselId, string vesselDataInConfigNodeFormat)
         {
-            Task.Run(() =>
+            try
             {
-                try
+                if (VesselContext.RemovedVessels.ContainsKey(vesselId))
+                    return;
+
+                var vessel = new Classes.Vessel(vesselDataInConfigNodeFormat);
+                if (GeneralSettings.SettingsStore.ModControl)
+                {
+                    var vesselParts = vessel.Parts.GetAllValues().Select(p => p.Fields.GetSingle("name").Value);
+                    var bannedParts = vesselParts.Except(ModFileSystem.ModControl.AllowedParts);
+                    if (bannedParts.Any())
+                    {
+                        LunaLog.Warning($"Received a vessel with BANNED parts! {vesselId}");
+                        return;
+                    }
+                }
+                lock (Semaphore.GetOrAdd(vesselId, new object()))
                 {
                     if (VesselContext.RemovedVessels.ContainsKey(vesselId))
                         return;
 
-                    var vessel = new Classes.Vessel(vesselDataInConfigNodeFormat);
-                    if (GeneralSettings.SettingsStore.ModControl)
-                    {
-                        var vesselParts = vessel.Parts.GetAllValues().Select(p => p.Fields.GetSingle("name").Value);
-                        var bannedParts = vesselParts.Except(ModFileSystem.ModControl.AllowedParts);
-                        if (bannedParts.Any())
-                        {
-                            LunaLog.Warning($"Received a vessel with BANNED parts! {vesselId}");
-                            return;
-                        }
-                    }
-                    lock (Semaphore.GetOrAdd(vesselId, new object()))
-                    {
-                        if (VesselContext.RemovedVessels.ContainsKey(vesselId))
-                            return;
-
-                        VesselStoreSystem.CurrentVessels.AddOrUpdate(vesselId, vessel, (key, existingVal) => vessel);
-                    }
+                    VesselStoreSystem.CurrentVessels.AddOrUpdate(vesselId, vessel, (key, existingVal) => vessel);
                 }
-                catch (Exception ex)
-                {
-                    LunaLog.Error($"[VesselData] RawConfigNodeInsertOrUpdate vessel={vesselId}: {ex}");
-                }
-            });
+            }
+            catch (Exception ex)
+            {
+                LunaLog.Error($"[VesselData] RawConfigNodeInsertOrUpdate vessel={vesselId}: {ex}");
+            }
         }
     }
 }

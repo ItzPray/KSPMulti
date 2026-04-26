@@ -338,7 +338,7 @@ namespace LmpClient.Systems.VesselProtoSys
                 QueuedVesselsToSend.Remove(vesselId);
 
                 LunaLog.Log($"[KSPMP]: Sending delayed proto vessel {vesselId}");
-                MessageSender.SendVesselMessage(FlightGlobals.FindVessel(vesselId));
+                MessageSender.SendVesselMessage(FlightGlobals.FindVessel(vesselId), forceReload);
             }, delayInSec);
         }
 

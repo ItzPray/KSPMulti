@@ -1,6 +1,7 @@
 using LunaConfigNode.CfgNode;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Server.System;
+using Server.System.Scenario;
 using System;
 using System.IO;
 using System.Threading;
@@ -84,6 +85,48 @@ namespace ServerTest
                 if (Directory.Exists(tempPath))
                 {
                     Directory.Delete(tempPath, true);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void RawConfigNodeInsertOrUpdate_MakesDeployedScienceImmediatelyAvailableForLateJoinSync()
+        {
+            const string scenarioName = "DeployedScience";
+            const string deployedScienceScenario =
+                "ScenarioModule\n" +
+                "{\n" +
+                "\tname = DeployedScience\n" +
+                "\tscene = 7, 8, 5, 6\n" +
+                "\tclusterId = 42\n" +
+                "\tlastScienceTime = 12345\n" +
+                "\tScienceCluster\n" +
+                "\t{\n" +
+                "\t\tclusterID = 42\n" +
+                "\t\tscience = 1.25\n" +
+                "\t}\n" +
+                "}\n";
+
+            try
+            {
+                lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+                {
+                    ScenarioStoreSystem.CurrentScenarios.Clear();
+                }
+
+                ScenarioDataUpdater.RawConfigNodeInsertOrUpdate(scenarioName, deployedScienceScenario);
+
+                var storedScenario = ScenarioStoreSystem.GetScenarioInConfigNodeFormat(scenarioName);
+                Assert.IsNotNull(storedScenario, "A late join scenario sync can run immediately after a DeployedScience update.");
+                StringAssert.Contains(storedScenario, "name = DeployedScience");
+                StringAssert.Contains(storedScenario, "clusterID = 42");
+                StringAssert.Contains(storedScenario, "science = 1.25");
+            }
+            finally
+            {
+                lock (ScenarioStoreSystem.ConfigTreeAccessLock)
+                {
+                    ScenarioStoreSystem.CurrentScenarios.Clear();
                 }
             }
         }

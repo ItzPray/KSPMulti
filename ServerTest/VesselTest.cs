@@ -1,5 +1,6 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using LmpCommon.Message.Data.Vessel;
+using Server.Settings.Structures;
 using Server.System;
 using Server.System.Vessel;
 using Server.System.Vessel.Classes;
@@ -151,6 +152,36 @@ namespace ServerTest
             }
             finally
             {
+                VesselStoreSystem.CurrentVessels.Clear();
+                VesselContext.RemovedVessels.Clear();
+            }
+        }
+
+        [TestMethod]
+        public void RawConfigNodeInsertOrUpdate_MakesDeployableProtoImmediatelyAvailableForLateJoinSync()
+        {
+            var vesselId = Guid.NewGuid();
+            var previousModControl = GeneralSettings.SettingsStore.ModControl;
+            var vesselText = File.ReadAllText(Path.Combine(XmlExamplePath, "99969baa-2618-49fa-a197-2c0c995ad3e0.txt"))
+                .Replace("ModuleDeployableSolarPanel", "ModuleGroundSciencePart");
+
+            try
+            {
+                GeneralSettings.SettingsStore.ModControl = false;
+                VesselStoreSystem.CurrentVessels.Clear();
+                VesselContext.RemovedVessels.Clear();
+
+                VesselDataUpdater.RawConfigNodeInsertOrUpdate(vesselId, vesselText);
+
+                Assert.IsTrue(
+                    VesselStoreSystem.CurrentVessels.ContainsKey(vesselId),
+                    "A late-join vessel sync can run immediately after the server accepts a deployable proto.");
+                var storedVessel = VesselStoreSystem.GetVesselInConfigNodeFormat(vesselId);
+                StringAssert.Contains(storedVessel, "ModuleGroundSciencePart");
+            }
+            finally
+            {
+                GeneralSettings.SettingsStore.ModControl = previousModControl;
                 VesselStoreSystem.CurrentVessels.Clear();
                 VesselContext.RemovedVessels.Clear();
             }
