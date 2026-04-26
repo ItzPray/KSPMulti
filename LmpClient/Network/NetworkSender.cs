@@ -99,10 +99,10 @@ namespace LmpClient.Network
                     foreach (var masterServer in masterServers)
                     {
                         // Don't reuse lidgren messages, it does that on it's own
-                        var lidgrenMsg = NetworkMain.ClientConnection.CreateMessage(message.GetMessageSize());
+                        var unconnectedMsg = NetworkMain.ClientConnection.CreateMessage(message.GetMessageSize());
 
-                        message.Serialize(lidgrenMsg);
-                        NetworkMain.ClientConnection.SendUnconnectedMessage(lidgrenMsg, masterServer);
+                        message.Serialize(unconnectedMsg);
+                        NetworkMain.ClientConnection.SendUnconnectedMessage(unconnectedMsg, masterServer);
                     }
 
                     message.Recycle();
