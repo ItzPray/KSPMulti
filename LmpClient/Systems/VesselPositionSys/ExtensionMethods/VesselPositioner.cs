@@ -79,13 +79,25 @@ namespace LmpClient.Systems.VesselPositionSys.ExtensionMethods
             {
                 for (var i = 0; i < vessel.parts.Count; i++)
                 {
-                    vessel.parts[i].partTransform.rotation = rotation * vessel.parts[i].orgRot;
-                    if (vessel.packed || vessel.parts[i].physicalSignificance == Part.PhysicalSignificance.FULL)
+                    var part = vessel.parts[i];
+                    var partRotation = rotation * part.orgRot;
+                    part.partTransform.rotation = partRotation;
+
+                    if (vessel.packed || part.physicalSignificance == Part.PhysicalSignificance.FULL)
                     {
-                        vessel.parts[i].partTransform.position = position + vessel.vesselTransform.rotation * vessel.parts[i].orgPos;
+                        var partPosition = position + rotation * part.orgPos;
+                        part.partTransform.position = partPosition;
                     }
+
+                    if (!vessel.packed && part.rb)
+                    {
+                        part.rb.rotation = partRotation;
+                        if (part.physicalSignificance == Part.PhysicalSignificance.FULL)
+                            part.rb.position = part.partTransform.position;
+                    }
+
                     //We always need to set the part velocity (and it's rigidbody velocity)! Otherwise during dockings it won't be possible to dock
-                    vessel.parts[i].ResumeVelocity();
+                    part.ResumeVelocity();
                 }
             }
         }
