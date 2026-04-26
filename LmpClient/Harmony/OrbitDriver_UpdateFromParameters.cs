@@ -48,8 +48,10 @@ namespace LmpClient.Harmony
                     Debug.LogWarning(string.Concat("[KSPMP - OrbitDriver Warning!]: ", driver.vessel.vesselName, " had a NaN Orbit and was removed."));
                     driver.vessel.Unload();
 
-                    VesselRemoveSystem.Singleton.MessageSender.SendVesselRemove(driver.vessel.id, true);
-                    VesselRemoveSystem.Singleton.KillVessel(driver.vessel.id, true, "Corrupt vessel orbit");
+                    // Do NOT send a server remove for a corrupt orbit. This is a client-side orbit
+                    // calculation failure, and removing it from the server would permanently delete
+                    // the vessel and add it to the in-memory kill list.
+                    VesselRemoveSystem.Singleton.KillVessel(driver.vessel.id, false, "Corrupt vessel orbit");
 
                     return;
                 }
