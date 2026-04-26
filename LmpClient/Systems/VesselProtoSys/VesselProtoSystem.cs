@@ -253,6 +253,63 @@ namespace LmpClient.Systems.VesselProtoSys
             MessageSender.SendVesselMessage(activeVessel);
         }
 
+        public bool SendLocalVesselProto(Guid vesselId, string reason, bool forceReload = true)
+        {
+            if (!Enabled || VesselCommon.IsSpectating || vesselId == Guid.Empty)
+                return false;
+
+            var vessel = FlightGlobals.FindVessel(vesselId);
+            if (vessel != null)
+            {
+                LunaLog.Log($"[KSPMP]: Sending local vessel proto {vesselId} ({vessel.vesselName}) reason={reason}");
+                MessageSender.SendVesselMessage(vessel, forceReload);
+                return true;
+            }
+
+            var protoVessels = HighLogic.CurrentGame?.flightState?.protoVessels;
+            if (protoVessels == null)
+                return false;
+
+            foreach (var protoVessel in protoVessels)
+            {
+                if (protoVessel == null || protoVessel.vesselID != vesselId)
+                    continue;
+
+                LunaLog.Log($"[KSPMP]: Sending local unloaded proto vessel {vesselId} ({protoVessel.vesselName}) reason={reason}");
+                MessageSender.SendProtoVesselMessage(protoVessel, forceReload);
+                return true;
+            }
+
+            return false;
+        }
+
+        public HashSet<Guid> GetLocalVesselIds()
+        {
+            var vesselIds = new HashSet<Guid>();
+
+            foreach (var vessel in FlightGlobals.Vessels)
+            {
+                if (vessel != null && vessel.id != Guid.Empty)
+                {
+                    vesselIds.Add(vessel.id);
+                }
+            }
+
+            var protoVessels = HighLogic.CurrentGame?.flightState?.protoVessels;
+            if (protoVessels != null)
+            {
+                foreach (var protoVessel in protoVessels)
+                {
+                    if (protoVessel != null && protoVessel.vesselID != Guid.Empty)
+                    {
+                        vesselIds.Add(protoVessel.vesselID);
+                    }
+                }
+            }
+
+            return vesselIds;
+        }
+
         private void CheckAndSendManeuverChanges(Vessel vessel)
         {
             if (vessel == null || vessel.id == Guid.Empty)

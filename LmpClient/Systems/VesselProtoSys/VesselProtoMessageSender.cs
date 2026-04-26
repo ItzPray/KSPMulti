@@ -52,6 +52,17 @@ namespace LmpClient.Systems.VesselProtoSys
             }
         }
 
+        public void SendProtoVesselMessage(ProtoVessel protoVessel, bool forceReload = false)
+        {
+            if (protoVessel == null || protoVessel.vesselID == Guid.Empty ||
+                VesselRemoveSystem.Singleton.VesselWillBeKilled(protoVessel.vesselID))
+            {
+                return;
+            }
+
+            SendVesselMessage(protoVessel, forceReload);
+        }
+
         #region Private methods
 
         private void SendVesselMessage(ProtoVessel protoVessel, bool forceReload)

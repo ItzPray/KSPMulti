@@ -8,6 +8,7 @@ using LmpClient.Systems.Lock;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.SettingsSys;
+using LmpClient.Systems.VesselProtoSys;
 using LmpClient.Systems.Warp;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
@@ -33,6 +34,8 @@ namespace LmpClient.Systems.ShareContracts
         /// do not each become a unique server-side contract (duplicate titles in Mission Control).
         /// </summary>
         private readonly Dictionary<Guid, Contract> _deferredContractOffers = new Dictionary<Guid, Contract>();
+
+        private readonly HashSet<Guid> _knownLocalVesselIdsBeforeContractAccept = new HashSet<Guid>();
 
         public int DefaultContractGenerateIterations;
 
@@ -65,6 +68,8 @@ namespace LmpClient.Systems.ShareContracts
         /// it and stock expires the mission immediately).
         /// </summary>
         private Coroutine _acceptContractWireCoroutine;
+
+        private Coroutine _contractSpawnedVesselSyncCoroutine;
 
         /// <summary>
         /// Most recent <c>source</c> that requested a deferred Replenish pass. The deferred coroutine
@@ -124,6 +129,10 @@ namespace LmpClient.Systems.ShareContracts
         private static float _mcDiagMissionControlNullSkipRealtime = -999f;
 
         private const float McDiagMissionControlNullSkipThrottleSeconds = 5f;
+
+        private static readonly Regex GuidPattern = new Regex(
+            @"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|(?<![0-9a-fA-F])[0-9a-fA-F]{32}(?![0-9a-fA-F])",
+            RegexOptions.Compiled);
 
         /// <summary>
         /// When stock calls <see cref="ContractSystem.RefreshContracts"/> every frame, the PersistentSync bypass path
@@ -196,6 +205,8 @@ namespace LmpClient.Systems.ShareContracts
             GameEvents.Contract.onRead.Add(ShareContractsEvents.ContractRead);
             GameEvents.Contract.onSeen.Add(ShareContractsEvents.ContractSeen);
 
+            RefreshContractSpawnedVesselBaseline(nameof(OnEnabled));
+
             if (IsShareSystemApplicableForSession())
             {
                 SetupRoutine(new RoutineDefinition(400, RoutineExecution.Update, FlushDeferredContractOffersIfReady));
@@ -214,6 +225,7 @@ namespace LmpClient.Systems.ShareContracts
             _pendingStableFullContractInventoryPublishReason = null;
             _lastAppliedGenerateContractIterations = int.MinValue;
             _persistentSyncBypassUiRefreshCoalesceSignature = null;
+            _knownLocalVesselIdsBeforeContractAccept.Clear();
             MessageSender.ClearKnownContractSnapshots();
 
             if (_resumeStockContractPolicyCoroutine != null && MainSystem.Singleton != null)
@@ -245,6 +257,12 @@ namespace LmpClient.Systems.ShareContracts
             {
                 MainSystem.Singleton.StopCoroutine(_acceptContractWireCoroutine);
                 _acceptContractWireCoroutine = null;
+            }
+
+            if (_contractSpawnedVesselSyncCoroutine != null && MainSystem.Singleton != null)
+            {
+                MainSystem.Singleton.StopCoroutine(_contractSpawnedVesselSyncCoroutine);
+                _contractSpawnedVesselSyncCoroutine = null;
             }
 
             base.OnDisabled();
@@ -290,7 +308,164 @@ namespace LmpClient.Systems.ShareContracts
 
             var guid = contract.ContractGuid;
             var reason = $"ContractCommand:Accept:{guid:N}";
+            ScheduleContractSpawnedVesselProtoSync(guid, "ContractAccepted");
             _acceptContractWireCoroutine = MainSystem.Singleton.StartCoroutine(AcceptContractWireIntentCoroutine(guid, reason));
+        }
+
+        public void ScheduleContractSpawnedVesselProtoSync(Guid acceptedContractGuid, string reason)
+        {
+            if (acceptedContractGuid == Guid.Empty || MainSystem.Singleton == null)
+            {
+                return;
+            }
+
+            if (_contractSpawnedVesselSyncCoroutine != null)
+            {
+                MainSystem.Singleton.StopCoroutine(_contractSpawnedVesselSyncCoroutine);
+                _contractSpawnedVesselSyncCoroutine = null;
+            }
+
+            _contractSpawnedVesselSyncCoroutine = MainSystem.Singleton.StartCoroutine(
+                ContractSpawnedVesselProtoSyncCoroutine(acceptedContractGuid, reason));
+        }
+
+        public void RefreshContractSpawnedVesselBaseline(string reason)
+        {
+            _knownLocalVesselIdsBeforeContractAccept.Clear();
+
+            var vesselProtoSystem = VesselProtoSystem.Singleton;
+            if (vesselProtoSystem == null)
+            {
+                return;
+            }
+
+            foreach (var vesselId in vesselProtoSystem.GetLocalVesselIds())
+            {
+                _knownLocalVesselIdsBeforeContractAccept.Add(vesselId);
+            }
+
+            LunaLog.Log($"[PersistentSync] refreshed contract-spawned vessel baseline count={_knownLocalVesselIdsBeforeContractAccept.Count} reason={reason}");
+        }
+
+        private IEnumerator ContractSpawnedVesselProtoSyncCoroutine(Guid acceptedContractGuid, string reason)
+        {
+            const int maxAttempts = 40;
+            var sentVesselIds = new HashSet<Guid>();
+
+            for (var attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    yield return null;
+                }
+
+                var referencedVesselIds = GetActiveContractReferencedVesselIds(acceptedContractGuid);
+                var candidateVesselIds = VesselProtoSystem.Singleton.GetLocalVesselIds();
+                candidateVesselIds.ExceptWith(_knownLocalVesselIdsBeforeContractAccept);
+                candidateVesselIds.UnionWith(referencedVesselIds);
+
+                foreach (var vesselId in candidateVesselIds)
+                {
+                    if (sentVesselIds.Contains(vesselId))
+                    {
+                        continue;
+                    }
+
+                    if (VesselProtoSystem.Singleton.SendLocalVesselProto(
+                            vesselId,
+                            $"contract-spawned-vessel:{reason}:{acceptedContractGuid:N}",
+                            true))
+                    {
+                        sentVesselIds.Add(vesselId);
+                    }
+                }
+            }
+
+            if (sentVesselIds.Count > 0)
+            {
+                LunaLog.Log(
+                    $"[PersistentSync] sent {sentVesselIds.Count} contract-spawned vessel proto(s) for accepted contract {acceptedContractGuid}");
+            }
+            else
+            {
+                LunaLog.Log(
+                    $"[PersistentSync] no local contract-spawned vessel proto found for accepted contract {acceptedContractGuid}");
+            }
+
+            _contractSpawnedVesselSyncCoroutine = null;
+            RefreshContractSpawnedVesselBaseline($"ContractSpawnedVesselProtoSync:{acceptedContractGuid:N}");
+        }
+
+        private static HashSet<Guid> GetActiveContractReferencedVesselIds(Guid acceptedContractGuid)
+        {
+            var vesselIds = new HashSet<Guid>();
+            var contracts = ContractSystem.Instance?.Contracts;
+            if (contracts == null)
+            {
+                return vesselIds;
+            }
+
+            foreach (var contract in contracts.Where(c => c != null && c.ContractState == Contract.State.Active))
+            {
+                if (contract.ContractGuid != acceptedContractGuid)
+                {
+                    continue;
+                }
+
+                var node = new ConfigNode("CONTRACT");
+                try
+                {
+                    contract.Save(node);
+                }
+                catch (Exception e)
+                {
+                    LunaLog.LogError($"[PersistentSync] failed to inspect accepted contract {acceptedContractGuid} for spawned vessels: {e}");
+                    continue;
+                }
+
+                CollectReferencedGuids(node, vesselIds, skipContractRootGuid: true);
+            }
+
+            return vesselIds;
+        }
+
+        private static void CollectReferencedGuids(ConfigNode node, ISet<Guid> vesselIds, bool skipContractRootGuid)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            foreach (ConfigNode.Value value in node.values)
+            {
+                if (skipContractRootGuid && string.Equals(value.name, "guid", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                CollectGuidsFromValue(value.value, vesselIds);
+            }
+
+            foreach (ConfigNode childNode in node.nodes)
+            {
+                CollectReferencedGuids(childNode, vesselIds, false);
+            }
+        }
+
+        private static void CollectGuidsFromValue(string value, ISet<Guid> vesselIds)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            foreach (Match match in GuidPattern.Matches(value))
+            {
+                if (Guid.TryParse(match.Value, out var guid) && guid != Guid.Empty)
+                {
+                    vesselIds.Add(guid);
+                }
+            }
         }
 
         private IEnumerator AcceptContractWireIntentCoroutine(Guid contractGuid, string reason)

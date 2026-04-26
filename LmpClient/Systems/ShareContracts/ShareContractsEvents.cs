@@ -49,6 +49,7 @@ namespace LmpClient.Systems.ShareContracts
             System.TryGetContractLock();
             System.RequestControlledStockContractRefresh("LevelLoaded");
             System.ApplyStockContractMutationPolicy("LevelLoaded");
+            System.RefreshContractSpawnedVesselBaseline("LevelLoaded");
         }
 
         #region EventHandlers
