@@ -67,6 +67,7 @@ namespace LmpClient.VesselUtilities
                 LunaLog.Log($"[KSPMP]: Loading vessel {vesselProto.vesselID}");
             }
 
+            SanitizePersistentIds(vesselProto);
             vesselProto.Load(HighLogic.CurrentGame.flightState);
             if (vesselProto.vesselRef == null)
             {
@@ -121,6 +122,35 @@ namespace LmpClient.VesselUtilities
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Remap any persistentId values that already exist in the live FlightGlobals registries
+        /// before loading the proto into the game, preventing KSP's collision handler from firing
+        /// repeatedly on the main thread and freezing under concurrent vessel loads.
+        /// </summary>
+        private static void SanitizePersistentIds(ProtoVessel vesselProto)
+        {
+            foreach (var snapshot in vesselProto.protoPartSnapshots)
+                snapshot.protoModuleCrew?.RemoveAll(c => c == null);
+
+            if (FlightGlobals.PersistentVesselIds.ContainsKey(vesselProto.persistentId))
+            {
+                var newId = FlightGlobals.GetUniquepersistentId();
+                LunaLog.Log($"[KSPMP]: PersistentId collision - remapping vessel {vesselProto.vesselID} vessel persistentId {vesselProto.persistentId} -> {newId}");
+                vesselProto.persistentId = newId;
+            }
+
+            foreach (var part in vesselProto.protoPartSnapshots)
+            {
+                if (FlightGlobals.PersistentLoadedPartIds.ContainsKey(part.persistentId) ||
+                    FlightGlobals.PersistentUnloadedPartIds.ContainsKey(part.persistentId))
+                {
+                    var newId = FlightGlobals.GetUniquepersistentId();
+                    LunaLog.Log($"[KSPMP]: PersistentId collision - remapping vessel {vesselProto.vesselID} part {part.partName} persistentId {part.persistentId} -> {newId}");
+                    part.persistentId = newId;
+                }
+            }
         }
 
         #endregion
