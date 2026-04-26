@@ -35,12 +35,19 @@ namespace Server.Command.Command
         private static void RunDekessler()
         {
             var removalCount = 0;
+            var activeContractVesselIds = ContractVesselReferenceSystem.GetActiveContractReferencedVessels();
 
             var vesselList = VesselStoreSystem.CurrentVessels.ToArray();
             foreach (var vesselKeyVal in vesselList)
             {
                 if (vesselKeyVal.Value.Fields.GetSingle("type").Value.ToLower() == "debris")
                 {
+                    if (activeContractVesselIds.Contains(vesselKeyVal.Key))
+                    {
+                        LunaLog.Normal($"Keeping debris vessel referenced by an active contract: {vesselKeyVal.Key}");
+                        continue;
+                    }
+
                     LunaLog.Normal($"Removing debris vessel: {vesselKeyVal.Key}");
 
                     VesselStoreSystem.RemoveVessel(vesselKeyVal.Key);
