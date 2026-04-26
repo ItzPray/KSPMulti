@@ -19,6 +19,7 @@ namespace LmpClient.Systems.KerbalSys
         public ConcurrentQueue<string> KerbalsToRemove { get; private set; } = new ConcurrentQueue<string>();
         public ConcurrentQueue<ConfigNode> KerbalsToProcess { get; private set; } = new ConcurrentQueue<ConfigNode>();
 
+        private bool _pendingGameUpdate;
         public bool KerbalSystemReady => Enabled && HighLogic.CurrentGame?.CrewRoster != null;
 
         public KerbalEvents KerbalEvents { get; } = new KerbalEvents();
@@ -61,6 +62,7 @@ namespace LmpClient.Systems.KerbalSys
             base.OnEnabled();
             SetupRoutine(new RoutineDefinition(1000, RoutineExecution.Update, RemoveQueuedKerbals));
             SetupRoutine(new RoutineDefinition(1000, RoutineExecution.Update, LoadKerbals));
+            SetupRoutine(new RoutineDefinition(250, RoutineExecution.Update, ProcessPendingGameUpdate));
 
             VesselAssemblyEvent.onVesselValidationBeforAssembly.Add(KerbalEvents.ValidationBeforeAssembly);
             GameEvents.onKerbalLevelUp.Add(KerbalEvents.KerbalLevelUp);
@@ -79,6 +81,7 @@ namespace LmpClient.Systems.KerbalSys
             base.OnDisabled();
             KerbalsToRemove = new ConcurrentQueue<string>();
             KerbalsToProcess = new ConcurrentQueue<ConfigNode>();
+            _pendingGameUpdate = false;
             VesselAssemblyEvent.onVesselValidationBeforAssembly.Remove(KerbalEvents.ValidationBeforeAssembly);
             GameEvents.onKerbalStatusChange.Remove(KerbalEvents.StatusChange);
             GameEvents.onKerbalTypeChange.Remove(KerbalEvents.TypeChange);
@@ -123,9 +126,30 @@ namespace LmpClient.Systems.KerbalSys
             KerbalTypeField?.SetValue(crew, newType);
         }
 
-        #endregion
+#endregion
 
-        #region Routines
+        #region Public
+
+        /// <summary>
+        /// Schedules a single Game.Updated() call for the next routine tick so bulk vessel loads collapse into one refresh.
+        /// </summary>
+        public void RequestGameUpdate()
+        {
+            _pendingGameUpdate = true;
+        }
+
+
+        /// <summary>
+        /// Calls Game.Updated() once after queued vessel syncs request it.
+        /// </summary>
+        private void ProcessPendingGameUpdate()
+        {
+            if (!_pendingGameUpdate || HighLogic.CurrentGame == null)
+                return;
+
+            _pendingGameUpdate = false;
+            HighLogic.CurrentGame.Updated();
+        }
 
         /// <summary>
         /// Removes the kerbals that we received
