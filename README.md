@@ -12,9 +12,13 @@
 
 # KSP Multiplayer (KSPMP)
 
-*KSP Multiplayer is a quality-of-life and stability-focused fork of [Luna Multiplayer (LMP)](https://github.com/LunaMultiplayer/LunaMultiplayer), the multiplayer mod for [Kerbal Space Program](https://kerbalspaceprogram.com).*  
+*KSP Multiplayer is an independently maintained fork of [Luna Multiplayer (LMP)](https://github.com/LunaMultiplayer/LunaMultiplayer), the multiplayer mod for [Kerbal Space Program](https://kerbalspaceprogram.com).*  
 
-This fork keeps the core LMP multiplayer experience while modernizing the project presentation around KSPMP and carrying forward improvements aimed at smoother play, easier maintenance, and more reliable hosting.
+This repository is derived from the LMP codebase and continues development in a separate repository under the KSP Multiplayer / KSPMP name.
+
+## Upstream Credit
+
+KSPMulti is based on the [LunaMultiplayer/LunaMultiplayer](https://github.com/LunaMultiplayer/LunaMultiplayer) project. Original authorship and a substantial portion of this codebase come from Luna Multiplayer and its contributors. This repository is intended to continue development respectfully as a separately maintained fork, not to replace or erase the upstream project.
 
 ## What this fork focuses on
 
@@ -64,4 +68,3 @@ Contributions are welcome, especially fixes that improve stability, maintainabil
 
 
 ---
-
