@@ -10,6 +10,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LmpClient.Systems.CraftLibrary
 {
@@ -20,11 +22,12 @@ namespace LmpClient.Systems.CraftLibrary
         private static readonly string SaveFolder = CommonUtil.CombinePaths(MainSystem.KspPath, "saves", "KSPMultiplayer");
 
         private static DateTime _lastRequest = DateTime.MinValue;
+        private static readonly SemaphoreSlim CraftIoSemaphore = new SemaphoreSlim(1, 1);
 
         public ConcurrentDictionary<string, ConcurrentDictionary<string, CraftBasicEntry>> CraftInfo { get; } = new ConcurrentDictionary<string, ConcurrentDictionary<string, CraftBasicEntry>>();
         public ConcurrentDictionary<string, ConcurrentDictionary<string, CraftEntry>> CraftDownloaded { get; } = new ConcurrentDictionary<string, ConcurrentDictionary<string, CraftEntry>>();
 
-        public List<CraftEntry> OwnCrafts { get; } = new List<CraftEntry>();
+        public List<CraftEntry> OwnCrafts { get; private set; } = new List<CraftEntry>();
 
         public ConcurrentQueue<string> DownloadedCraftsNotification { get; } = new ConcurrentQueue<string>();
         public List<string> FoldersWithNewContent { get; } = new List<string>();
@@ -64,90 +67,122 @@ namespace LmpClient.Systems.CraftLibrary
         #region Public methods
 
         /// <summary>
-        /// Refreshes the list of our own crafts
+        /// Refreshes the list of our own crafts in the background
         /// </summary>
         public void RefreshOwnCrafts()
         {
-            OwnCrafts.Clear();
+            Task.Run(RefreshOwnCraftsAsync);
+        }
 
-            var vabFolder = CommonUtil.CombinePaths(SaveFolder, "Ships", "VAB");
-            if (Directory.Exists(vabFolder))
+        private async Task RefreshOwnCraftsAsync()
+        {
+            await CraftIoSemaphore.WaitAsync();
+            try
             {
-                foreach (var file in Directory.GetFiles(vabFolder))
+                var newOwnCrafts = new List<CraftEntry>();
+
+                var vabFolder = CommonUtil.CombinePaths(SaveFolder, "Ships", "VAB");
+                if (Directory.Exists(vabFolder))
                 {
-                    var data = File.ReadAllBytes(file);
-                    OwnCrafts.Add(new CraftEntry
+                    foreach (var file in Directory.GetFiles(vabFolder))
                     {
-                        CraftName = Path.GetFileNameWithoutExtension(file),
-                        CraftType = CraftType.Vab,
-                        FolderName = SettingsSystem.CurrentSettings.PlayerName,
-                        CraftData = data,
-                        CraftNumBytes = data.Length
-                    });
+                        var data = File.ReadAllBytes(file);
+                        newOwnCrafts.Add(new CraftEntry
+                        {
+                            CraftName = Path.GetFileNameWithoutExtension(file),
+                            CraftType = CraftType.Vab,
+                            FolderName = SettingsSystem.CurrentSettings.PlayerName,
+                            CraftData = data,
+                            CraftNumBytes = data.Length
+                        });
+                    }
                 }
+
+                var sphFolder = CommonUtil.CombinePaths(SaveFolder, "Ships", "SPH");
+                if (Directory.Exists(sphFolder))
+                {
+                    foreach (var file in Directory.GetFiles(sphFolder))
+                    {
+                        var data = File.ReadAllBytes(file);
+                        newOwnCrafts.Add(new CraftEntry
+                        {
+                            CraftName = Path.GetFileNameWithoutExtension(file),
+                            CraftType = CraftType.Sph,
+                            FolderName = SettingsSystem.CurrentSettings.PlayerName,
+                            CraftData = data,
+                            CraftNumBytes = data.Length
+                        });
+                    }
+                }
+
+                var subassemblyFolder = CommonUtil.CombinePaths(SaveFolder, "Subassemblies");
+                if (Directory.Exists(subassemblyFolder))
+                {
+                    foreach (var file in Directory.GetFiles(subassemblyFolder))
+                    {
+                        var data = File.ReadAllBytes(file);
+                        newOwnCrafts.Add(new CraftEntry
+                        {
+                            CraftName = Path.GetFileNameWithoutExtension(file),
+                            CraftType = CraftType.Subassembly,
+                            FolderName = SettingsSystem.CurrentSettings.PlayerName,
+                            CraftData = data,
+                            CraftNumBytes = data.Length
+                        });
+                    }
+                }
+
+                OwnCrafts = newOwnCrafts;
             }
-
-            var sphFolder = CommonUtil.CombinePaths(SaveFolder, "Ships", "SPH");
-            if (Directory.Exists(sphFolder))
+            catch (Exception ex)
             {
-                foreach (var file in Directory.GetFiles(sphFolder))
-                {
-                    var data = File.ReadAllBytes(file);
-                    OwnCrafts.Add(new CraftEntry
-                    {
-                        CraftName = Path.GetFileNameWithoutExtension(file),
-                        CraftType = CraftType.Sph,
-                        FolderName = SettingsSystem.CurrentSettings.PlayerName,
-                        CraftData = data,
-                        CraftNumBytes = data.Length
-                    });
-                }
+                LunaLog.LogError($"[KSPMP]: Error refreshing crafts: {ex.Message}");
             }
-
-            var subassemblyFolder = CommonUtil.CombinePaths(SaveFolder, "Subassemblies");
-            if (Directory.Exists(subassemblyFolder))
+            finally
             {
-                foreach (var file in Directory.GetFiles(subassemblyFolder))
-                {
-                    var data = File.ReadAllBytes(file);
-                    OwnCrafts.Add(new CraftEntry
-                    {
-                        CraftName = Path.GetFileNameWithoutExtension(file),
-                        CraftType = CraftType.Subassembly,
-                        FolderName = SettingsSystem.CurrentSettings.PlayerName,
-                        CraftData = data,
-                        CraftNumBytes = data.Length
-                    });
-                }
+                CraftIoSemaphore.Release();
             }
         }
 
         /// <summary>
-        /// Saves a craft to the hard drive
+        /// Saves a craft to the hard drive asynchronously
         /// </summary>
         public void SaveCraftToDisk(CraftEntry craft)
         {
-            string folder;
-            switch (craft.CraftType)
+            Task.Run(async () =>
             {
-                case CraftType.Vab:
-                    folder = CommonUtil.CombinePaths(SaveFolder, "Ships", "VAB");
-                    break;
-                case CraftType.Sph:
-                    folder = CommonUtil.CombinePaths(SaveFolder, "Ships", "SPH");
-                    break;
-                case CraftType.Subassembly:
-                    folder = CommonUtil.CombinePaths(SaveFolder, "Subassemblies");
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+                await CraftIoSemaphore.WaitAsync();
+                try
+                {
+                    string folder;
+                    switch (craft.CraftType)
+                    {
+                        case CraftType.Vab:
+                            folder = CommonUtil.CombinePaths(SaveFolder, "Ships", "VAB");
+                            break;
+                        case CraftType.Sph:
+                            folder = CommonUtil.CombinePaths(SaveFolder, "Ships", "SPH");
+                            break;
+                        case CraftType.Subassembly:
+                            folder = CommonUtil.CombinePaths(SaveFolder, "Subassemblies");
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
 
-            var path = CommonUtil.CombinePaths(folder, $"{craft.CraftName}.craft");
-            File.WriteAllBytes(path, craft.CraftData);
-
-            //Add it to the queue notification as we are in another thread
-            DownloadedCraftsNotification.Enqueue(craft.CraftName);
+                    var path = CommonUtil.CombinePaths(folder, $"{craft.CraftName}.craft");
+                    File.WriteAllBytes(path, craft.CraftData);
+                    DownloadedCraftsNotification.Enqueue(craft.CraftName);
+                }
+                catch (Exception ex)
+                {
+                    LunaLog.LogError($"[KSPMP]: Error saving craft to disk: {ex.Message}");
+                }
+                finally
+                {
+                    CraftIoSemaphore.Release();
+                }
+            });
         }
 
         /// <summary>
