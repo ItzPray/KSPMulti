@@ -34,3 +34,5 @@ Scripts/SetKspmpReleaseVersion.ps1
 /AGENTS.md
 /appveyor.yml
 /appveyor_discord.ps1
+Scripts/StartLmpUpstreamDraftPr.ps1
+Scripts/PrepareLmpUpstreamCommit.ps1
