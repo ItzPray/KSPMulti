@@ -15,7 +15,7 @@ using System.Reflection;
 namespace ServerPersistentSyncTest
 {
     /// <summary>
-    /// Template-level regression tests for <see cref="ScenarioSyncDomainStore{TCanonical}"/>. These tests use a
+    /// Template-level regression tests for ScenarioSyncDomainStore{TCanonical}. These tests use a
     /// minimal probe subclass rather than a real game domain so failures isolate to base-class behavior (rule 4
     /// of the Scenario Sync Domain Contract: revision bumps, equality short-circuit, scenario write lock,
     /// reject paths) instead of leaking through a specific domain's reducer.
@@ -156,9 +156,9 @@ namespace ServerPersistentSyncTest
 
         /// <summary>
         /// Regression gate: AGENTS.md requires every persistent-sync server domain to inherit one of the two
-        /// sanctioned templates — <see cref="ScenarioSyncDomainStore{TCanonical}"/> for scenario-owning domains
-        /// or <see cref="ProjectionSyncDomain{TOwner}"/> for pure projections. No domain may implement
-        /// <see cref="IPersistentSyncServerDomain"/> directly. If someone adds a new direct implementor this
+        /// sanctioned templates: ScenarioSyncDomainStore{TCanonical} for scenario-owning domains
+        /// or ProjectionSyncDomain{TOwner} for pure projections. No domain may implement
+        /// IPersistentSyncServerDomain directly. If someone adds a new direct implementor this
         /// test fails so the reviewer has to migrate it onto one of the templates.
         /// </summary>
         [TestMethod]
@@ -207,7 +207,7 @@ namespace ServerPersistentSyncTest
         }
 
         [TestMethod]
-        public void ServerRegistryRejectsDuplicateDomainIds()
+        public void ServerRegistryRejectsDuplicateWireIds()
         {
             Assert.ThrowsException<InvalidOperationException>(() =>
                 PersistentSyncRegistry.CreateRegisteredDomainsForTests(
@@ -216,10 +216,10 @@ namespace ServerPersistentSyncTest
         }
 
         [TestMethod]
-        public void ServerRegistryRejectsCataloglessDomains()
+        public void ServerRegistryRejectsDomainsMissingSelfRegistration()
         {
             Assert.ThrowsException<InvalidOperationException>(() =>
-                PersistentSyncRegistry.CreateRegisteredDomainsForTests(typeof(CataloglessDomain)));
+                PersistentSyncRegistry.CreateRegisteredDomainsForTests(typeof(UnregisteredDomain)));
         }
 
         private static bool InheritsFromOpenGeneric(Type candidate, Type openGenericBase)
@@ -341,15 +341,29 @@ namespace ServerPersistentSyncTest
 
         private sealed class DuplicateFundsDomainA : TestDomainBase
         {
+            public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+            {
+                registrar.Register(PersistentSyncDomain.Define("DuplicateA", 240))
+                    .OwnsStockScenario("Funding")
+                    .UsesServerDomain<DuplicateFundsDomainA>();
+            }
+
             public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
         }
 
         private sealed class DuplicateFundsDomainB : TestDomainBase
         {
+            public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+            {
+                registrar.Register(PersistentSyncDomain.Define("DuplicateB", 240))
+                    .OwnsStockScenario("Funding")
+                    .UsesServerDomain<DuplicateFundsDomainB>();
+            }
+
             public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
         }
 
-        private sealed class CataloglessDomain : TestDomainBase
+        private sealed class UnregisteredDomain : TestDomainBase
         {
             public override PersistentSyncDomainId DomainId => (PersistentSyncDomainId)250;
         }

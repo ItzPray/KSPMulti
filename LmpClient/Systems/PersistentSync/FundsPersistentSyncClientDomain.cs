@@ -5,7 +5,16 @@ namespace LmpClient.Systems.PersistentSync
 {
     public class FundsPersistentSyncClientDomain : ScalarPersistentSyncClientDomain<double>
     {
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Funds", 0);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("Funds")
+                .UsesClientDomain<FundsPersistentSyncClientDomain>();
+        }
+
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         protected override double DeserializePayload(byte[] payload, int numBytes)
         {

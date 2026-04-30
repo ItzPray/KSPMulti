@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -12,9 +12,18 @@ namespace Server.System.PersistentSync
 {
     public sealed class ExperimentalPartsPersistentSyncDomainStore : ScenarioSyncDomainStore<ExperimentalPartsPersistentSyncDomainStore.Canonical>
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ExperimentalParts", 9);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ResearchAndDevelopment")
+                .UsesServerDomain<ExperimentalPartsPersistentSyncDomainStore>();
+        }
+
         private const string ExpPartsNodeName = "ExpParts";
 
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.ExperimentalParts;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
 
@@ -114,7 +123,7 @@ namespace Server.System.PersistentSync
         }
 
         /// <summary>
-        /// Removes every top-level ExpParts node. Required when duplicates exist because <see cref="ConfigNode.GetNode"/> is single-key.
+        /// Removes every top-level ExpParts node. Required when duplicates exist because GetNode is single-key.
         /// </summary>
         private static void RemoveAllExpPartsNodes(ConfigNode scenario)
         {
@@ -156,10 +165,7 @@ namespace Server.System.PersistentSync
         /// <summary>Typed canonical state: experimental part counts keyed by part name (ordinal, sorted).</summary>
         public sealed class Canonical
         {
-            public Canonical(SortedDictionary<string, int> counts)
-            {
-                Counts = counts ?? new SortedDictionary<string, int>(StringComparer.Ordinal);
-            }
+            public Canonical(SortedDictionary<string, int> counts) => Counts = counts ?? new SortedDictionary<string, int>(StringComparer.Ordinal);
 
             public SortedDictionary<string, int> Counts { get; }
         }

@@ -9,7 +9,16 @@ namespace LmpClient.Systems.PersistentSync
     /// </summary>
     public sealed class GameLaunchIdPersistentSyncClientDomain : ScalarPersistentSyncClientDomain<uint>
     {
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.GameLaunchId;
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("GameLaunchId", 11);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("LmpGameLaunchId")
+                .UsesClientDomain<GameLaunchIdPersistentSyncClientDomain>();
+        }
+
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         protected override uint DeserializePayload(byte[] payload, int numBytes)
         {

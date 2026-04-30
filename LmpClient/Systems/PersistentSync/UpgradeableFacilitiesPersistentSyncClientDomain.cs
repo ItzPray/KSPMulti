@@ -14,21 +14,30 @@ namespace LmpClient.Systems.PersistentSync
 {
     public class UpgradeableFacilitiesPersistentSyncClientDomain : IPersistentSyncClientDomain
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("UpgradeableFacilities", 3);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ScenarioUpgradeableFacilities")
+                .UsesClientDomain<UpgradeableFacilitiesPersistentSyncClientDomain>();
+        }
+
         private Dictionary<string, int> _pendingFacilityLevels;
 
         /// <summary>
         /// Last deserialized server levels. KSC can reload scenario modules after our first
-        /// <see cref="FlushPendingState"/>; re-applying from this cache on GUI-ready restores upgrades.
+        /// FlushPendingState; re-applying from this cache on GUI-ready restores upgrades.
         /// </summary>
         private Dictionary<string, int> _authoritativeLevelsFromServer;
 
         /// <summary>
-        /// KSP often fires <see cref="GameEvents.OnKSCFacilityUpgraded"/> on frames after <see cref="UpgradeableFacility.SetLevel"/>,
+        /// KSP often fires OnKSCFacilityUpgraded on frames after SetLevel,
         /// so stopping ignore immediately produces a burst of redundant PersistentSync intents (server no-ops).
         /// </summary>
         private Coroutine _delayedStopIgnoringFacilityEventsCoroutine;
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.UpgradeableFacilities;
+        public PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
@@ -47,8 +56,8 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         /// <summary>
-        /// Stages the last server facility map for <see cref="FlushPendingState"/> via the reconciler
-        /// so <see cref="PersistentSyncReconciler.FlushPendingState"/> can run MarkApplied bookkeeping.
+        /// Stages the last server facility map for FlushPendingState via the reconciler
+        /// so FlushPendingState can run MarkApplied bookkeeping.
         /// </summary>
         public bool TryStageReassertFromLastServerSnapshot()
         {
@@ -111,11 +120,11 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         /// <summary>
-        /// After PersistentSync applies facility levels, <see cref="PersistentSyncGamePersistenceMaterializer"/>
-        /// calls <see cref="MaterializeUpgradeableProtosFromLiveScene"/> so stock reload paths read current
-        /// <c>lvl</c> values. This keeps <see cref="ScenarioUpgradeableFacilities.protoUpgradeables"/> in sync;
-        /// without it, scene transitions fire <see cref="UpgradeableFacility"/>.OnLevelLoaded -&gt; RegisterUpgradeable
-        /// -&gt; Load(configNode) where configNode still carries default <c>lvl = 0</c>.
+        /// After PersistentSync applies facility levels, PersistentSyncGamePersistenceMaterializer
+        /// calls MaterializeUpgradeableProtosFromLiveScene so stock reload paths read current
+        /// <c>lvl</c> values. This keeps protoUpgradeables in sync;
+        /// without it, scene transitions fire UpgradeableFacility.OnLevelLoaded, then RegisterUpgradeable,
+        /// then Load(configNode) where configNode still carries default <c>lvl = 0</c>.
         /// </summary>
         public static void MaterializeUpgradeableProtosFromLiveScene(string reason)
         {

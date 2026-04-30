@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Server.Client;
 using Server.Settings.Structures;
@@ -8,7 +8,16 @@ namespace Server.System.PersistentSync
 {
     public class ReputationPersistentSyncDomainStore : ScalarPersistentSyncDomainStore<float>
     {
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Reputation;
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Reputation", 2);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("Reputation")
+                .UsesServerDomain<ReputationPersistentSyncDomainStore>();
+        }
+
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         protected override string ScenarioName => "Reputation";
         protected override string ScenarioFieldName => "rep";
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;

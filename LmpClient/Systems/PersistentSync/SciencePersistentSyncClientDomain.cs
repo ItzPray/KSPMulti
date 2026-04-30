@@ -18,7 +18,16 @@ namespace LmpClient.Systems.PersistentSync
 {
     public class SciencePersistentSyncClientDomain : ScalarPersistentSyncClientDomain<float>
     {
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Science;
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Science", 1);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ResearchAndDevelopment")
+                .UsesClientDomain<SciencePersistentSyncClientDomain>();
+        }
+
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         protected override float DeserializePayload(byte[] payload, int numBytes)
         {
@@ -38,9 +47,18 @@ namespace LmpClient.Systems.PersistentSync
 
     public class StrategyPersistentSyncClientDomain : IPersistentSyncClientDomain
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Strategy", 6);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("StrategySystem")
+                .UsesClientDomain<StrategyPersistentSyncClientDomain>();
+        }
+
         private Dictionary<string, StrategySnapshotInfo> _pendingStrategies;
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Strategy;
+        public PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
@@ -86,9 +104,18 @@ namespace LmpClient.Systems.PersistentSync
 
     public class AchievementsPersistentSyncClientDomain : IPersistentSyncClientDomain
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Achievements", 7);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ProgressTracking")
+                .UsesClientDomain<AchievementsPersistentSyncClientDomain>();
+        }
+
         private AchievementSnapshotInfo[] _pendingAchievements;
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Achievements;
+        public PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
@@ -143,7 +170,7 @@ namespace LmpClient.Systems.PersistentSync
             // When another player completes a progression-gated mission first, the server advances Achievements
             // and Contracts, but snapshot messages often arrive so that this client applies **Contracts** (and
             // runs ReplenishStockOffersAfterPersistentSnapshotApply) **before** the matching Achievements snapshot
-            // lands. Replenish then sees FirstLaunch still incomplete here — no new OfferObserved rows are minted
+            // lands. Replenish then sees FirstLaunch still incomplete here, so no new OfferObserved rows are minted
             // for the server, and non-lock-holders already kill any local stock offers in ContractOffered. Everyone
             // appears "stuck" until this client also completes the mission locally (gameplay fires achievements
             // before Replenish). Queue a deferred controlled refresh now that achievementTree matches the server.
@@ -156,9 +183,18 @@ namespace LmpClient.Systems.PersistentSync
 
     public class ScienceSubjectsPersistentSyncClientDomain : IPersistentSyncClientDomain
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ScienceSubjects", 8);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ResearchAndDevelopment")
+                .UsesClientDomain<ScienceSubjectsPersistentSyncClientDomain>();
+        }
+
         private ScienceSubjectSnapshotInfo[] _pendingSubjects;
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.ScienceSubjects;
+        public PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
@@ -222,9 +258,18 @@ namespace LmpClient.Systems.PersistentSync
 
     public class ExperimentalPartsPersistentSyncClientDomain : IPersistentSyncClientDomain
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ExperimentalParts", 9);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ResearchAndDevelopment")
+                .UsesClientDomain<ExperimentalPartsPersistentSyncClientDomain>();
+        }
+
         private ExperimentalPartSnapshotInfo[] _pendingParts;
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.ExperimentalParts;
+        public PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
@@ -304,16 +349,27 @@ namespace LmpClient.Systems.PersistentSync
 
     public class PartPurchasesPersistentSyncClientDomain : IPersistentSyncClientDomain
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("PartPurchases", 10);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ResearchAndDevelopment")
+                .ProducerRequiresPartPurchaseMechanism()
+                .ProjectsFrom(TechnologyPersistentSyncClientDomain.Domain)
+                .UsesClientDomain<PartPurchasesPersistentSyncClientDomain>();
+        }
+
         private Dictionary<string, PartPurchaseSnapshotInfo> _pendingPurchases;
 
         /// <summary>
         /// Last deserialized server purchased-parts map. Mirrors the reassert pattern used by
-        /// <see cref="TechnologyPersistentSyncClientDomain"/>: when KSP re-hydrates R&amp;D state the
+        /// TechnologyPersistentSyncClientDomain: when KSP re-hydrates Research and Development state the
         /// purchased parts ride along with techStates, so we must re-stage both together.
         /// </summary>
         private Dictionary<string, PartPurchaseSnapshotInfo> _authoritativePurchases;
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.PartPurchases;
+        public PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
@@ -367,7 +423,7 @@ namespace LmpClient.Systems.PersistentSync
                     }
 
                     // Sparse snapshot: only techs the server tracks as purchased are present. Do not clear
-                    // partsPurchased for omitted techs — Available+empty is normalized afterward by
+                    // partsPurchased for omitted techs; Available+empty is normalized afterward by
                     // EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded (legacy LMP: full tech ownership).
                     if (!_pendingPurchases.TryGetValue(tech.techID, out var purchase))
                     {
@@ -378,7 +434,7 @@ namespace LmpClient.Systems.PersistentSync
                     ResearchAndDevelopment.Instance.SetTechState(tech.techID, techState);
                 }
 
-                // R&D UI refresh is coalesced with Technology flush (same reconciler pass) — see ShareTechnologySystem.SchedulePersistentSyncRnDUiCoalescedRefresh.
+                // R&D UI refresh is coalesced with Technology flush (same reconciler pass); see ShareTechnologySystem.SchedulePersistentSyncRnDUiCoalescedRefresh.
                 ShareTechnologySystem.Singleton.SchedulePersistentSyncRnDUiCoalescedRefresh(false);
 
                 TechnologyPersistentSyncClientDomain.SyncRnDTechTreeFromResearchInstance();
@@ -416,17 +472,26 @@ namespace LmpClient.Systems.PersistentSync
 
     public class TechnologyPersistentSyncClientDomain : IPersistentSyncClientDomain
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Technology", 5);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ResearchAndDevelopment")
+                .UsesClientDomain<TechnologyPersistentSyncClientDomain>();
+        }
+
         private Dictionary<string, TechnologySnapshotInfo> _pendingTechnologyById;
 
         /// <summary>
         /// Last deserialized server tech states. KSP can reinitialize R&D.Instance (or re-hydrate it from a
-        /// stale ProtoScenarioModule configNode) after our first <see cref="FlushPendingState"/>, silently
+        /// stale ProtoScenarioModule configNode) after our first FlushPendingState, silently
         /// reverting techs back to Unavailable. Re-staging from this cache on scene-ready and on
-        /// <see cref="GameEvents.onGUIRnDComplexSpawn"/> reasserts the server-authoritative state.
+        /// onGUIRnDComplexSpawn reasserts the server-authoritative state.
         /// </summary>
         private Dictionary<string, TechnologySnapshotInfo> _authoritativeTechnologyById;
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Technology;
+        public PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
@@ -448,8 +513,8 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         /// <summary>
-        /// Stages the last server tech map for <see cref="FlushPendingState"/> via the reconciler
-        /// so <see cref="PersistentSyncReconciler.FlushPendingState"/> can reassert state when
+        /// Stages the last server tech map for FlushPendingState via the reconciler
+        /// so FlushPendingState can reassert state when
         /// KSP may have rebuilt R&D.Instance behind us (e.g. on R&D panel spawn).
         /// </summary>
         public bool TryStageReassertFromLastServerSnapshot()
@@ -507,7 +572,7 @@ namespace LmpClient.Systems.PersistentSync
             LunaLog.Log($"[PersistentSync] Technology FlushPendingState treeTechs={total} snapshotHits={applied} snapshotMisses={missedInSnapshot} pendingTechCount={_pendingTechnologyById.Count} postApplyAvailable={postApplyAvailable} postApplyUnavailable={postApplyUnavailable}");
 
             // R&D side panel reads partsPurchased/state from RnDTech tree nodes; SetTechState updates the
-            // singleton only. Stock UnlockProtoTechNode keeps them aligned — mirror after snapshot apply.
+            // singleton only. Stock UnlockProtoTechNode keeps them aligned; mirror after snapshot apply.
             SyncRnDTechTreeFromResearchInstance();
             EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded("TechnologyFlush");
 
@@ -526,11 +591,11 @@ namespace LmpClient.Systems.PersistentSync
 
         /// <summary>
         /// Legacy LMP contract (Career included): researching a node makes every part in that tech usable without a
-        /// separate R&amp;D purchase step. Stock can leave <see cref="ProtoTechNode.partsPurchased"/> empty while the
-        /// node is <see cref="RDTech.State.Available"/>, which makes the R&amp;D UI ask for purchases anyway.
-        /// Also, when <c>partsPurchased</c> is <b>non-empty but stale</b> (e.g. server snapshot or part-purchase list
-        /// captured before a mod added new parts to an already-researched node), we must <b>merge</b> in every current
-        /// <see cref="PartLoader.LoadedPartsList"/> entry whose <c>TechRequired</c> matches so new mod parts are owned
+        /// separate Research and Development purchase step. Stock can leave partsPurchased empty while the
+        /// node is Available, which makes the Research and Development UI ask for purchases anyway.
+        /// Also, when <c>partsPurchased</c> is non-empty but stale (e.g. server snapshot or part-purchase list
+        /// captured before a mod added new parts to an already-researched node), we must merge in every current
+        /// LoadedPartsList entry whose <c>TechRequired</c> matches so new mod parts are owned
         /// without asking the player to buy them again.
         /// </summary>
         public static void EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded(string reason)
@@ -622,8 +687,8 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         /// <summary>
-        /// Copies state, cost, and partsPurchased from <see cref="ResearchAndDevelopment.Instance"/> into each
-        /// <see cref="RDTech"/> tree node so the R&amp;D UI matches gameplay (VAB/editor use the singleton).
+        /// Copies state, cost, and partsPurchased from Instance into each
+        /// RDTech tree node so the Research and Development UI matches gameplay (VAB/editor use the singleton).
         /// </summary>
         public static void SyncRnDTechTreeFromResearchInstance()
         {

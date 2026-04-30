@@ -1,8 +1,10 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using System;
+using System.Collections.Generic;
 
 namespace LmpCommon.PersistentSync
 {
+    /// <summary>Bitmask of runtime prerequisites a persistent sync domain needs on the client before it can participate.</summary>
     [Flags]
     public enum PersistentSyncCapabilityFlags
     {
@@ -17,32 +19,39 @@ namespace LmpCommon.PersistentSync
         PartPurchaseMechanism = 1 << 7
     }
 
+    /// <summary>
+    /// Immutable snapshot of one persistent sync domain: legacy wire identity, applicability flags, materialization slot, owning scenario node, and optional ordering/projections metadata.
+    /// </summary>
     public sealed class PersistentSyncDomainDefinition
     {
         public PersistentSyncDomainDefinition(
-            PersistentSyncDomainId domainId,
-            int order,
+            PersistentSyncDomainKey key,
             GameMode initialSyncGameModes,
             PersistentSyncCapabilityFlags requiredCapabilities,
             PersistentSyncCapabilityFlags producerRequiredCapabilities,
             PersistentSyncMaterializationSlot materializationSlot,
-            params string[] serverScenarioBypasses)
+            Type domainType,
+            IEnumerable<PersistentSyncDomainKey> afterDomains,
+            IEnumerable<string> serverScenarioBypasses)
         {
-            DomainId = domainId;
-            Order = order;
+            Key = key;
             InitialSyncGameModes = initialSyncGameModes;
             RequiredCapabilities = requiredCapabilities;
             ProducerRequiredCapabilities = producerRequiredCapabilities;
             MaterializationSlot = materializationSlot;
-            ServerScenarioBypasses = serverScenarioBypasses ?? new string[0];
+            DomainType = domainType;
+            AfterDomains = new List<PersistentSyncDomainKey>(afterDomains ?? new PersistentSyncDomainKey[0]).ToArray();
+            ServerScenarioBypasses = new List<string>(serverScenarioBypasses ?? new string[0]).ToArray();
         }
 
-        public PersistentSyncDomainId DomainId { get; }
-        public int Order { get; }
+        public PersistentSyncDomainKey Key { get; }
+        public PersistentSyncDomainId DomainId => Key.LegacyId;
         public GameMode InitialSyncGameModes { get; }
         public PersistentSyncCapabilityFlags RequiredCapabilities { get; }
         public PersistentSyncCapabilityFlags ProducerRequiredCapabilities { get; }
         public PersistentSyncMaterializationSlot MaterializationSlot { get; }
+        public Type DomainType { get; }
+        public PersistentSyncDomainKey[] AfterDomains { get; }
         public string[] ServerScenarioBypasses { get; }
     }
 }

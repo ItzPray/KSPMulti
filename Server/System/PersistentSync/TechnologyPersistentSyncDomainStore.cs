@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
@@ -20,27 +20,36 @@ namespace Server.System.PersistentSync
     /// </summary>
     public sealed class TechnologyPersistentSyncDomainStore : ScenarioSyncDomainStore<TechnologyPersistentSyncDomainStore.Canonical>
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Technology", 5);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ResearchAndDevelopment")
+                .UsesServerDomain<TechnologyPersistentSyncDomainStore>();
+        }
+
         private const string TechNodeName = "Tech";
         private const string TechIdFieldName = "id";
         private const string TechStateFieldName = "state";
         private const string TechCostFieldName = "cost";
         private const string TechPartFieldName = "part";
 
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Technology;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
 
         public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
         /// <summary>
-        /// Exposes the current canonical state for <see cref="PartPurchasesPersistentSyncDomainStore"/> to
+        /// Exposes the current canonical state for PartPurchasesPersistentSyncDomainStore to
         /// project its wire snapshot. Internal so projection domains living in the same assembly can read it
         /// without widening the public API.
         /// </summary>
         internal Canonical CurrentForProjection => CurrentForTests;
 
         /// <summary>
-        /// Routing hook used by <see cref="PartPurchasesPersistentSyncDomainStore"/> to fold its decoded
+        /// Routing hook used by PartPurchasesPersistentSyncDomainStore to fold its decoded
         /// intent into this domain's canonical state. Produces a result whose Snapshot payload is the
         /// Technology wire format; callers re-project into PartPurchases wire format before returning.
         /// </summary>
@@ -221,7 +230,7 @@ namespace Server.System.PersistentSync
 
         /// <summary>
         /// PartPurchases wire projection: emits a snapshot with the PartPurchases binary format using the
-        /// current canonical <see cref="Canonical.PartsByTech"/>. Kept on this class so the projection
+        /// current canonical PartsByTech. Kept on this class so the projection
         /// domain does not need to reach into internal canonical types.
         /// </summary>
         internal byte[] SerializePartPurchasesSnapshot()
@@ -368,7 +377,7 @@ namespace Server.System.PersistentSync
         /// <summary>
         /// Typed canonical state for the Technology domain. Owns both the scalar tech fields and the repeated
         /// <c>part=</c> purchased-parts values (to satisfy the "one scenario, one domain" rule against
-        /// <see cref="PartPurchasesPersistentSyncDomainStore"/>).
+        /// PartPurchasesPersistentSyncDomainStore).
         /// </summary>
         public sealed class Canonical
         {

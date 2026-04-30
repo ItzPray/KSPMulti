@@ -1,4 +1,4 @@
-using LmpCommon.PersistentSync;
+﻿using LmpCommon.PersistentSync;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace LmpCommonTest
@@ -6,6 +6,12 @@ namespace LmpCommonTest
     [TestClass]
     public class PersistentSyncMaterializationDomainMapTests
     {
+        [TestInitialize]
+        public void Setup()
+        {
+            PersistentSyncTestDomainCatalog.Configure();
+        }
+
         [TestMethod]
         public void Maps_ScalarCareerDomains_ToDistinctScenarioSlots()
         {

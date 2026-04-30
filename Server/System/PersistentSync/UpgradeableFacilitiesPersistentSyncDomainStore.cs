@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -12,6 +12,15 @@ namespace Server.System.PersistentSync
 {
     public sealed class UpgradeableFacilitiesPersistentSyncDomainStore : ScenarioSyncDomainStore<UpgradeableFacilitiesPersistentSyncDomainStore.Canonical>
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("UpgradeableFacilities", 3);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ScenarioUpgradeableFacilities")
+                .UsesServerDomain<UpgradeableFacilitiesPersistentSyncDomainStore>();
+        }
+
         private const string LevelFieldName = "lvl";
         private const float MaxPersistentLevel = 2f;
 
@@ -28,7 +37,7 @@ namespace Server.System.PersistentSync
             "SpaceCenter/Administration"
         };
 
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.UpgradeableFacilities;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ScenarioUpgradeableFacilities";
 
@@ -217,10 +226,7 @@ namespace Server.System.PersistentSync
         /// <summary>Typed canonical state: facility levels keyed by canonical facility id (ordinal, sorted).</summary>
         public sealed class Canonical
         {
-            public Canonical(SortedDictionary<string, int> levels)
-            {
-                Levels = levels ?? new SortedDictionary<string, int>(StringComparer.Ordinal);
-            }
+            public Canonical(SortedDictionary<string, int> levels) => Levels = levels ?? new SortedDictionary<string, int>(StringComparer.Ordinal);
 
             public SortedDictionary<string, int> Levels { get; }
         }

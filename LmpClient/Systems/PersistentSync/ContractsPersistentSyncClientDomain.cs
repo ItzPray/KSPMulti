@@ -17,6 +17,15 @@ namespace LmpClient.Systems.PersistentSync
 {
     public class ContractsPersistentSyncClientDomain : IPersistentSyncClientDomain
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Contracts", 4);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ContractSystem")
+                .UsesClientDomain<ContractsPersistentSyncClientDomain>();
+        }
+
         private const string LmpOfferTitleFieldName = "lmpOfferTitle";
 
         /// <summary>
@@ -43,7 +52,7 @@ namespace LmpClient.Systems.PersistentSync
 
         private ContractSnapshotInfo[] _pendingContracts;
 
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
+        public PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         /// <summary>
         /// True while a Contracts snapshot has been received from the server but has not yet successfully
@@ -287,6 +296,7 @@ namespace LmpClient.Systems.PersistentSync
             // Contract.Fail() during the next scene transition (e.g. SPACECENTER -> TRACKSTATION). Preserving
             // the live instance when its GUID and state already agree with the snapshot keeps stock's in-memory
             // bindings intact, mirroring how stock itself no-ops when ContractSystem.Load sees an identical row.
+
             var liveByGuid = new Dictionary<Guid, Contract>();
             foreach (var contract in ContractSystem.Instance.Contracts)
             {

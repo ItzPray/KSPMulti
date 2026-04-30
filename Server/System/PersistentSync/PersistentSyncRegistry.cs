@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.Message.Server;
 using LmpCommon.PersistentSync;
@@ -16,11 +16,10 @@ namespace Server.System.PersistentSync
     public static class PersistentSyncRegistry
     {
         private static readonly Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain> Domains = new Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain>();
-        private static readonly ISet<string> ServerScenarioBypasses = PersistentSyncDomainCatalog.GetServerScenarioBypasses();
         private static bool _initialized;
 
         /// <summary>
-        /// True after <see cref="Initialize"/>; used for bypass guards and diagnostics.
+        /// True after Initialize; used for bypass guards and diagnostics.
         /// </summary>
         public static bool IsPersistentSyncInitialized => _initialized;
 
@@ -49,12 +48,12 @@ namespace Server.System.PersistentSync
 
         public static bool ShouldSkipServerScenarioSync(string scenarioName)
         {
-            return _initialized && ServerScenarioBypasses.Contains(scenarioName);
+            return _initialized && PersistentSyncDomainCatalog.GetServerScenarioBypasses().Contains(scenarioName);
         }
 
         /// <summary>
         /// Unit-test / harness hook: replaces the domain instance registered for <paramref name="domainId"/>.
-        /// Call only after <see cref="Initialize"/>.
+        /// Call only after Initialize.
         /// </summary>
         public static void ReplaceRegisteredDomainForTests(PersistentSyncDomainId domainId, IPersistentSyncServerDomain domain)
         {
@@ -97,7 +96,7 @@ namespace Server.System.PersistentSync
         }
 
         /// <summary>
-        /// Applies a client intent only when <see cref="ValidateClientMaySubmitIntent"/> allows it.
+        /// Applies a client intent only when ValidateClientMaySubmitIntent allows it.
         /// Does not mutate canonical domain state when validation fails.
         /// </summary>
         public static PersistentSyncDomainApplyResult ApplyClientIntentWithAuthority(ClientStructure client, PersistentSyncIntentMsgData data)
@@ -403,35 +402,50 @@ namespace Server.System.PersistentSync
 
         private static IReadOnlyCollection<IPersistentSyncServerDomain> CreateRegisteredDomains(IEnumerable<Type> domainTypes)
         {
-            var domains = domainTypes
+            var concreteDomainTypes = domainTypes
                 .Where(t => !t.IsAbstract && !t.IsInterface && typeof(IPersistentSyncServerDomain).IsAssignableFrom(t))
-                .Select(CreateDomain)
                 .ToList();
 
-            var missingCatalog = domains
-                .Where(d => !PersistentSyncDomainCatalog.TryGet(d.DomainId, out _))
-                .Select(d => d.GetType().FullName)
-                .OrderBy(n => n)
-                .ToList();
-            if (missingCatalog.Count > 0)
+            var registrar = new PersistentSyncServerDomainRegistrar();
+            foreach (var domainType in concreteDomainTypes)
             {
-                throw new InvalidOperationException("Persistent sync server domains missing catalog entries: " + string.Join(", ", missingCatalog));
+                InvokeDomainRegistration(domainType, registrar);
             }
 
-            var duplicateIds = domains
-                .GroupBy(d => d.DomainId)
-                .Where(g => g.Count() > 1)
-                .Select(g => g.Key.ToString())
-                .OrderBy(n => n)
-                .ToList();
-            if (duplicateIds.Count > 0)
-            {
-                throw new InvalidOperationException("Duplicate persistent sync server domains: " + string.Join(", ", duplicateIds));
-            }
+            var definitions = registrar.BuildDefinitions();
+            PersistentSyncDomainCatalog.Configure(definitions);
 
-            return domains
-                .OrderBy(d => PersistentSyncDomainCatalog.GetOrder(d.DomainId))
+            var registeredTypes = new HashSet<Type>(definitions.Select(d => d.DomainType));
+            var unregisteredTypes = concreteDomainTypes
+                .Where(t => !registeredTypes.Contains(t))
+                .Select(t => t.FullName)
+                .OrderBy(n => n)
                 .ToArray();
+            if (unregisteredTypes.Length > 0)
+            {
+                throw new InvalidOperationException("Persistent sync server domains missing self-registration: " + string.Join(", ", unregisteredTypes));
+            }
+
+            return definitions
+                .Select(d => CreateDomain(d.DomainType))
+                .ToArray();
+        }
+
+        private static void InvokeDomainRegistration(Type domainType, PersistentSyncServerDomainRegistrar registrar)
+        {
+            var method = domainType.GetMethod(
+                "RegisterPersistentSyncDomain",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] { typeof(PersistentSyncServerDomainRegistrar) },
+                null);
+
+            if (method == null)
+            {
+                return;
+            }
+
+            registrar.WithCurrentDomainType(domainType, () => method.Invoke(null, new object[] { registrar }));
         }
 
         private static IPersistentSyncServerDomain CreateDomain(Type type)

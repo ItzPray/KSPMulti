@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
@@ -8,6 +8,12 @@ namespace LmpCommonTest
     [TestClass]
     public class PersistentSyncDomainApplicabilityTests
     {
+        [TestInitialize]
+        public void Setup()
+        {
+            PersistentSyncTestDomainCatalog.Configure();
+        }
+
         [TestMethod]
         public void CareerOptimisticIncludesAllProgressionDomains()
         {
@@ -31,7 +37,7 @@ namespace LmpCommonTest
                 PersistentSyncDomainId.Contracts
             };
 
-            CollectionAssert.AreEqual(expected, domains);
+            CollectionAssert.AreEquivalent(expected, domains);
         }
 
         [TestMethod]

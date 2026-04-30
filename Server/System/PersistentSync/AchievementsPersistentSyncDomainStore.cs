@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -11,9 +11,18 @@ namespace Server.System.PersistentSync
 {
     public sealed class AchievementsPersistentSyncDomainStore : ScenarioSyncDomainStore<AchievementsPersistentSyncDomainStore.Canonical>
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Achievements", 7);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ProgressTracking")
+                .UsesServerDomain<AchievementsPersistentSyncDomainStore>();
+        }
+
         private const string ProgressNodeName = "Progress";
 
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Achievements;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ProgressTracking";
 
@@ -65,7 +74,7 @@ namespace Server.System.PersistentSync
         protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
         {
             // Universe saves can accumulate multiple top-level nodes named "Progress". GetNode() requires a
-            // unique key and throws MixedCollection GetSingle — remove every Progress wrapper, then add one.
+            // unique key and throws MixedCollection GetSingle. Remove every Progress wrapper, then add one.
             foreach (var existing in scenario.GetNodes(ProgressNodeName).Select(n => n.Value).Where(n => n != null).ToArray())
             {
                 scenario.RemoveNode(existing);
@@ -264,10 +273,7 @@ namespace Server.System.PersistentSync
         /// <summary>Typed canonical state: achievements keyed by Id (ordinal, sorted for deterministic iteration).</summary>
         public sealed class Canonical
         {
-            public Canonical(SortedDictionary<string, AchievementSnapshotInfo> achievements)
-            {
-                Achievements = achievements ?? new SortedDictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal);
-            }
+            public Canonical(SortedDictionary<string, AchievementSnapshotInfo> achievements) => Achievements = achievements ?? new SortedDictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal);
 
             public SortedDictionary<string, AchievementSnapshotInfo> Achievements { get; }
         }

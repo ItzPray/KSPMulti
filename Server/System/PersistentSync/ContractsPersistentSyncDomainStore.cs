@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -14,33 +14,42 @@ using System.Text.RegularExpressions;
 namespace Server.System.PersistentSync
 {
     /// <summary>
-    /// Authoritative server-side contract store. Migrated onto <see cref="ScenarioSyncDomainStore{TCanonical}"/>
+    /// Authoritative server-side contract store. Migrated onto ScenarioSyncDomainStore{TCanonical}
     /// per the Scenario Sync Domain Contract.
     ///
     /// Contracts has mixed authority per intent kind:
     /// <list type="bullet">
-    /// <item><description>Player commands (Accept/Decline/Cancel/RequestOfferGeneration) — any client.</description></item>
-    /// <item><description>Producer-only observations for the <b>offer pool</b> (<see cref="ContractIntentPayloadKind.OfferObserved"/>)
-    /// and <see cref="ContractIntentPayloadKind.FullReconcile"/> — only the current contract lock owner.</description></item>
-    /// <item><description>In-sim Active contract observations (<see cref="ContractIntentPayloadKind.ParameterProgressObserved"/>,
-    /// <see cref="ContractIntentPayloadKind.ContractCompletedObserved"/>, <see cref="ContractIntentPayloadKind.ContractFailedObserved"/>)
-    /// — any client; <see cref="ReduceObservedActive"/> rejects unless the canonical row is Active so offer-pool spam cannot apply.</description></item>
+    /// <item><description>Player commands (Accept/Decline/Cancel/RequestOfferGeneration): any client.</description></item>
+    /// <item><description>Producer-only observations for the offer pool (OfferObserved)
+    /// and FullReconcile: only the current contract lock owner.</description></item>
+    /// <item><description>In-sim Active contract observations (ParameterProgressObserved,
+    /// ContractCompletedObserved, ContractFailedObserved):
+    /// any client; ReduceObservedActive rejects unless the canonical row is Active so offer-pool spam cannot apply.</description></item>
     /// </list>
-    /// Per-intent dispatch happens in <see cref="AuthorizeIntent"/>, called by the registry before the reducer
-    /// ever sees the payload. The reducer itself does not perform authority checks; rule: &quot;No domain may do its
-    /// own LockQuery check inside ReduceIntent&quot; (AGENTS.md).
+    /// Per-intent dispatch happens in AuthorizeIntent, called by the registry before the reducer
+    /// ever sees the payload. The reducer itself does not perform authority checks; AGENTS.md forbids doing a
+    /// LockQuery check inside ReduceIntent.
     ///
-    /// <see cref="WriteCanonical"/> rebuilds the scenario node via the LunaConfigNode graph API (no text
+    /// WriteCanonical rebuilds the scenario node via the LunaConfigNode graph API (no text
     /// splicing) by constructing a fresh <c>ScenarioModule</c> node, copying scalar values and non-CONTRACTS
     /// child nodes from the old scenario, and attaching a freshly-built CONTRACTS node derived from canonical
-    /// state. Every node in the emitted subtree &mdash; the scenario wrapper, the CONTRACTS wrapper, each
-    /// CONTRACT leaf, and each nested PARAMETER child &mdash; is created via the name-only graph constructor
+    /// state. Every node in the emitted subtree (the scenario wrapper, the CONTRACTS wrapper, each
+    /// CONTRACT leaf, and each nested PARAMETER child) is created via the name-only graph constructor
     /// (<c>new ConfigNode(name, null)</c>) so no text-backed node survives out of <c>WriteCanonical</c>. This
     /// sidesteps the LunaConfigNode text cache that previously made <c>RemoveNode</c>/<c>AddNode</c> edits on
     /// text-backed nodes invisible to <c>ToString()</c>.
     /// </summary>
     public sealed class ContractsPersistentSyncDomainStore : ScenarioSyncDomainStore<ContractsPersistentSyncDomainStore.Canonical>
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Contracts", 4);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ContractSystem")
+                .UsesServerDomain<ContractsPersistentSyncDomainStore>();
+        }
+
         private const string ContractsNodeName = "CONTRACTS";
         private const string ContractNodeName = "CONTRACT";
         private const string GuidFieldName = "guid";
@@ -50,7 +59,7 @@ namespace Server.System.PersistentSync
         private const string LmpOfferTitleFieldName = "lmpOfferTitle";
 
         /// <summary>
-        /// Hard ceiling on the total number of <see cref="ContractSnapshotPlacement.Current"/> (offered) records
+        /// Hard ceiling on the total number of Current (offered) records
         /// retained in canonical state. Chosen well above stock's per-client tier caps (~15) so a multi-client
         /// session can legitimately accumulate offers across prestige tiers, while still keeping snapshot payloads
         /// bounded (previous uncapped behavior produced ~950 rows / ~1.8 MB payloads that re-broadcast on every
@@ -65,13 +74,13 @@ namespace Server.System.PersistentSync
         /// </summary>
         private const int MaxOfferedPerContractType = 3;
 
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Contracts;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         /// <summary>
         /// Floor policy advertised to clients and the registry's default path. Real gating happens in
-        /// <see cref="AuthorizeIntent"/> because Contracts has mixed per-intent authority. Advertising
-        /// <see cref="PersistentAuthorityPolicy.AnyClientIntent"/> keeps player commands responsive; offer-pool
-        /// producer intents and full reconcile are rejected for non–lock-holders in <see cref="AuthorizeIntent"/>.
+        /// AuthorizeIntent because Contracts has mixed per-intent authority. Advertising
+        /// AnyClientIntent keeps player commands responsive; offer-pool
+        /// producer intents and full reconcile are rejected for non-lock-holders in AuthorizeIntent.
         /// </summary>
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ContractSystem";
@@ -91,7 +100,7 @@ namespace Server.System.PersistentSync
                     case ContractIntentPayloadKind.ContractCompletedObserved:
                     case ContractIntentPayloadKind.ContractFailedObserved:
                         // Flying player often does not hold the contract lock (lock owner = offer generation). Reducer
-                        // still requires canonical Active target — see ReduceObservedActive.
+                        // still requires canonical Active target; see ReduceObservedActive.
                         return true;
                     case ContractIntentPayloadKind.OfferObserved:
                     case ContractIntentPayloadKind.FullReconcile:
@@ -224,14 +233,14 @@ namespace Server.System.PersistentSync
         }
 
         /// <summary>
-        /// Reducer for the enriched <see cref="ContractIntentPayloadKind.AcceptContract"/> path where the client
+        /// Reducer for the enriched AcceptContract path where the client
         /// supplies the full post-Accept contract record alongside the command. The state-machine gate remains the
-        /// same as the legacy rewrite path — the target contract must exist in canonical state and be an
-        /// offer-pool row — but the accepted data is the client-provided snapshot (carrying the post-Accept
-        /// runtime fields) instead of the stale Offered-era bytes that <see cref="RewriteContractState"/> would
+        /// same as the legacy rewrite path: the target contract must exist in canonical state and be an
+        /// offer-pool row, but the accepted data is the client-provided snapshot (carrying the post-Accept
+        /// runtime fields) instead of the stale Offered-era bytes that RewriteContractState would
         /// edit. The client cannot downgrade an already-Active or already-Finished row through this path: the
-        /// <see cref="IsOfferPoolContract"/> gate mirrors the Offered -&gt; Active one-way transition invariant
-        /// from <see cref="ReduceFullReplace"/>.
+        /// IsOfferPoolContract gate mirrors the Offered-to-Active one-way transition invariant
+        /// from ReduceFullReplace.
         /// </summary>
         private static ReduceResult<Canonical> ReduceAcceptWithProvidedSnapshot(Canonical current, Guid contractGuid, ContractSnapshotInfo providedSnapshot)
         {
@@ -285,7 +294,7 @@ namespace Server.System.PersistentSync
 
             // Stock can fire parameter updates from every client; observers often lag (no vessel / crew loaded yet).
             // Without this guard, a regressed PARAM snapshot replaces canonical state and fights the client who
-            // actually completed the step — endless snapshot ping-pong + server log spam.
+            // actually completed the step, causing endless snapshot ping-pong and server log spam.
             // When we repair the wire row against canonical completion, ForceReplyToOriginClient (via ReduceSingleRecord)
             // makes ScenarioSync echo the snapshot to the sender even if revision unchanged, so their UI matches.
             var forceOriginReply = false;
@@ -298,7 +307,7 @@ namespace Server.System.PersistentSync
         }
 
         /// <summary>
-        /// When merging a <see cref="ContractIntentPayloadKind.ParameterProgressObserved"/> row into canonical state,
+        /// When merging a ParameterProgressObserved row into canonical state,
         /// never let an incoming PARAM regress below what the server already recorded as <c>Complete</c> (same
         /// contract GUID, matched by stock PARAM <c>name</c>). Incoming may still advance incomplete → complete.
         /// </summary>
@@ -457,15 +466,15 @@ namespace Server.System.PersistentSync
 
         /// <summary>
         /// Canonical invariant: the server's contract store must mirror the stock KSP contract state machine.
-        /// Legitimate transitions are one-way: Offered -&gt; Active/Finished, Active -&gt; Finished, Finished is terminal.
-        /// A producer's <c>FullReconcile</c> is an <b>upsert</b>, not a wipe: we preserve every canonical row whose
+        /// Legitimate transitions are one-way: Offered to Active or Finished, Active to Finished; Finished is terminal.
+        /// A producer's <c>FullReconcile</c> is an upsert, not a wipe: we preserve every canonical row whose
         /// incoming counterpart is missing or regresses state, regardless of placement (Offered, Active, or Finished).
         /// This protects player-committed work (accepted missions, completed history) AND the server-authoritative
-        /// offer pool against producers whose local <c>ContractSystem</c> has transiently pruned rows — for example
+        /// offer pool against producers whose local <c>ContractSystem</c> has transiently pruned rows, for example
         /// a reconnecting client whose stock <c>Contract.Update()</c> has withdrawn offers for expired deadlines
         /// immediately after the server snapshot applied, or a client whose per-tier offer caps locally truncated
-        /// the list before the producer reconcile ran. Offers are retired by <i>state transition</i>
-        /// (Offered -&gt; Withdrawn/Declined/etc. via the explicit command intents or a producer-proposed forward
+        /// the list before the producer reconcile ran. Offers are retired by state transition
+        /// (Offered to Withdrawn, Declined, etc. via the explicit command intents or a producer-proposed forward
         /// transition in the incoming set), never by omission from a producer reconcile.
         /// </summary>
         private static ReduceResult<Canonical> ReduceFullReplace(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)
@@ -551,10 +560,10 @@ namespace Server.System.PersistentSync
 
         /// <summary>
         /// Mirrors the stock KSP <c>Contract.State</c> machine. Allowed transitions (or identity):
-        ///   Offered/Available -&gt; any state.
-        ///   Active -&gt; Active (identity) or Finished (terminal).
-        ///   Finished -&gt; Finished (identity only; terminal rows are immutable in the canonical store).
-        /// Returns false for any regression (Active -&gt; Offered, Finished -&gt; non-Finished, etc.).
+        /// Offered or Available to any state.
+        /// Active to Active (identity) or Finished (terminal).
+        /// Finished to Finished (identity only; terminal rows are immutable in the canonical store).
+        /// Returns false for any regression (Active to Offered, Finished to non-Finished, etc.).
         /// </summary>
         private static bool IsForwardContractStateTransition(ContractSnapshotInfo canonical, ContractSnapshotInfo incoming)
         {
@@ -854,8 +863,8 @@ namespace Server.System.PersistentSync
 
         /// <summary>
         /// Evicts surplus offered rows when inserting <paramref name="newlyInserted"/> caused the offered pool to
-        /// exceed <see cref="MaxOfferedPoolSize"/> or <see cref="MaxOfferedPerContractType"/>. Evictions are always
-        /// oldest-first by <c>Order</c> and only touch offered (<see cref="ContractSnapshotPlacement.Current"/>)
+        /// exceed MaxOfferedPoolSize or MaxOfferedPerContractType. Evictions are always
+        /// oldest-first by <c>Order</c> and only touch offered (Current)
         /// rows; active/finished/declined records are never evicted so accepted missions and history are preserved.
         /// The newly-inserted record itself is never evicted even if it is the oldest offered row, so a valid
         /// observation never silently no-ops due to caps alone.
@@ -1230,10 +1239,7 @@ namespace Server.System.PersistentSync
         /// <summary>Typed canonical state: contracts keyed by GUID.</summary>
         public sealed class Canonical
         {
-            public Canonical(Dictionary<Guid, ContractSnapshotInfo> contractsByGuid)
-            {
-                ContractsByGuid = contractsByGuid ?? new Dictionary<Guid, ContractSnapshotInfo>();
-            }
+            public Canonical(Dictionary<Guid, ContractSnapshotInfo> contractsByGuid) => ContractsByGuid = contractsByGuid ?? new Dictionary<Guid, ContractSnapshotInfo>();
 
             public Dictionary<Guid, ContractSnapshotInfo> ContractsByGuid { get; }
         }

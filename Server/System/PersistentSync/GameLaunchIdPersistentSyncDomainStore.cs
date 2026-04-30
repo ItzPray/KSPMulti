@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -9,13 +9,22 @@ namespace Server.System.PersistentSync
 {
     /// <summary>
     /// Owns the LMP scenario <c>LmpGameLaunchId</c>: authoritative high-water <c>Game.launchID</c> for the universe.
-    /// Server canonical advances with <see cref="System.Math.Max"/> on each intent or server mutation so clients
-    /// reporting vessel-era part stamps cannot lower the counter. <see cref="LoadCanonical"/> also reconciles
-    /// against <see cref="VesselStoreSystem"/> so legacy saves without this file still pick up existing vessels.
+    /// Server canonical advances with Max on each intent or server mutation so clients
+    /// reporting vessel-era part stamps cannot lower the counter. LoadCanonical also reconciles
+    /// against VesselStoreSystem so legacy saves without this file still pick up existing vessels.
     /// </summary>
     public sealed class GameLaunchIdPersistentSyncDomainStore : ScenarioSyncDomainStore<ScalarCanonical<uint>>
     {
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.GameLaunchId;
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("GameLaunchId", 11);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("LmpGameLaunchId")
+                .UsesServerDomain<GameLaunchIdPersistentSyncDomainStore>();
+        }
+
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 

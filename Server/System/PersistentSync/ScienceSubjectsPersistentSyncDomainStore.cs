@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -11,10 +11,19 @@ namespace Server.System.PersistentSync
 {
     public sealed class ScienceSubjectsPersistentSyncDomainStore : ScenarioSyncDomainStore<ScienceSubjectsPersistentSyncDomainStore.Canonical>
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ScienceSubjects", 8);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ResearchAndDevelopment")
+                .UsesServerDomain<ScienceSubjectsPersistentSyncDomainStore>();
+        }
+
         private const string ScienceNodeName = "Science";
         private const string ScienceIdFieldName = "id";
 
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.ScienceSubjects;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
 
@@ -157,10 +166,7 @@ namespace Server.System.PersistentSync
         /// <summary>Typed canonical state: science subjects keyed by Id (ordinal, sorted for deterministic iteration).</summary>
         public sealed class Canonical
         {
-            public Canonical(SortedDictionary<string, ScienceSubjectSnapshotInfo> subjects)
-            {
-                Subjects = subjects ?? new SortedDictionary<string, ScienceSubjectSnapshotInfo>(StringComparer.Ordinal);
-            }
+            public Canonical(SortedDictionary<string, ScienceSubjectSnapshotInfo> subjects) => Subjects = subjects ?? new SortedDictionary<string, ScienceSubjectSnapshotInfo>(StringComparer.Ordinal);
 
             public SortedDictionary<string, ScienceSubjectSnapshotInfo> Subjects { get; }
         }

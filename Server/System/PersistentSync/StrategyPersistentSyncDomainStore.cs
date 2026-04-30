@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -11,11 +11,20 @@ namespace Server.System.PersistentSync
 {
     public sealed class StrategyPersistentSyncDomainStore : ScenarioSyncDomainStore<StrategyPersistentSyncDomainStore.Canonical>
     {
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Strategy", 6);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("StrategySystem")
+                .UsesServerDomain<StrategyPersistentSyncDomainStore>();
+        }
+
         private const string StrategiesNodeName = "STRATEGIES";
         private const string StrategyNodeName = "STRATEGY";
         private const string StrategyNameFieldName = "name";
 
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Strategy;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "StrategySystem";
 
@@ -182,10 +191,7 @@ namespace Server.System.PersistentSync
         /// <summary>Typed canonical state: strategies keyed by Name (ordinal, sorted for deterministic iteration).</summary>
         public sealed class Canonical
         {
-            public Canonical(SortedDictionary<string, StrategySnapshotInfo> strategies)
-            {
-                Strategies = strategies ?? new SortedDictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal);
-            }
+            public Canonical(SortedDictionary<string, StrategySnapshotInfo> strategies) => Strategies = strategies ?? new SortedDictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal);
 
             public SortedDictionary<string, StrategySnapshotInfo> Strategies { get; }
         }

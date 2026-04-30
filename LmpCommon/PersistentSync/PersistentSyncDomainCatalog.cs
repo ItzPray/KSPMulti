@@ -1,40 +1,36 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace LmpCommon.PersistentSync
 {
+    /// <summary>
+    /// Runtime catalog of persistent sync domain definitions (order, applicability, materialization, and stock scenarios).
+    /// Definitions are supplied once via <see cref="Configure"/> from <see cref="PersistentSyncDomainRegistrar.BuildDefinitions"/> during server/client startup.
+    /// </summary>
     public static class PersistentSyncDomainCatalog
     {
-        // One catalog row is the source of truth for registration, startup applicability, and legacy scenario bypasses.
-        // Keep wire ids explicit. Reordering these entries must not change PersistentSyncDomainId values.
-        private static readonly PersistentSyncDomainDefinition[] Definitions =
+        // One catalog row remains the source of truth for registration, startup applicability, and legacy scenario bypasses.
+        // Keep wire ids explicit on each definition; registrar order must not change PersistentSyncDomainId values.
+        private static PersistentSyncDomainDefinition[] _definitions = new PersistentSyncDomainDefinition[0];
+        private static Dictionary<PersistentSyncDomainId, PersistentSyncDomainDefinition> _byId =
+            new Dictionary<PersistentSyncDomainId, PersistentSyncDomainDefinition>();
+
+        public static IReadOnlyList<PersistentSyncDomainDefinition> AllOrdered => _definitions;
+
+        public static void Configure(IEnumerable<PersistentSyncDomainDefinition> definitions)
         {
-            Define(PersistentSyncDomainId.Funds, 0, GameMode.Career, PersistentSyncCapabilityFlags.Funding, PersistentSyncMaterializationSlot.Funding, "Funding"),
-            Define(PersistentSyncDomainId.Science, 1, GameMode.Career | GameMode.Science, PersistentSyncCapabilityFlags.ResearchAndDevelopment, PersistentSyncMaterializationSlot.ResearchAndDevelopment, "ResearchAndDevelopment"),
-            Define(PersistentSyncDomainId.Reputation, 2, GameMode.Career, PersistentSyncCapabilityFlags.Reputation, PersistentSyncMaterializationSlot.Reputation, "Reputation"),
-            Define(PersistentSyncDomainId.Strategy, 3, GameMode.Career, PersistentSyncCapabilityFlags.StrategySystem, PersistentSyncMaterializationSlot.StrategySystem, "StrategySystem"),
-            Define(PersistentSyncDomainId.Achievements, 4, GameMode.Career | GameMode.Science, PersistentSyncCapabilityFlags.ProgressTracking, PersistentSyncMaterializationSlot.None, "ProgressTracking"),
-            Define(PersistentSyncDomainId.ScienceSubjects, 5, GameMode.Career | GameMode.Science, PersistentSyncCapabilityFlags.ResearchAndDevelopment, PersistentSyncMaterializationSlot.ResearchAndDevelopment, "ResearchAndDevelopment"),
-            Define(PersistentSyncDomainId.Technology, 6, GameMode.Career | GameMode.Science, PersistentSyncCapabilityFlags.ResearchAndDevelopment, PersistentSyncMaterializationSlot.ResearchAndDevelopment, "ResearchAndDevelopment"),
-            Define(PersistentSyncDomainId.ExperimentalParts, 7, GameMode.Career | GameMode.Science, PersistentSyncCapabilityFlags.ResearchAndDevelopment, PersistentSyncMaterializationSlot.ResearchAndDevelopment, "ResearchAndDevelopment"),
-            Define(PersistentSyncDomainId.PartPurchases, 8, GameMode.Career | GameMode.Science, PersistentSyncCapabilityFlags.ResearchAndDevelopment, PersistentSyncCapabilityFlags.PartPurchaseMechanism, PersistentSyncMaterializationSlot.ResearchAndDevelopment, "ResearchAndDevelopment"),
-            Define(PersistentSyncDomainId.UpgradeableFacilities, 9, GameMode.Career, PersistentSyncCapabilityFlags.UpgradeableFacilities, PersistentSyncMaterializationSlot.UpgradeableFacilities, "ScenarioUpgradeableFacilities"),
-            Define(PersistentSyncDomainId.Contracts, 10, GameMode.Career, PersistentSyncCapabilityFlags.ContractSystem, PersistentSyncMaterializationSlot.None, "ContractSystem"),
-            Define(PersistentSyncDomainId.GameLaunchId, 11, GameMode.Sandbox, PersistentSyncCapabilityFlags.None, PersistentSyncMaterializationSlot.None, "LmpGameLaunchId")
-        };
-
-        private static readonly Dictionary<PersistentSyncDomainId, PersistentSyncDomainDefinition> ById =
-            Definitions.ToDictionary(d => d.DomainId);
-
-        public static IReadOnlyList<PersistentSyncDomainDefinition> AllOrdered => Definitions;
+            var ordered = (definitions ?? Enumerable.Empty<PersistentSyncDomainDefinition>()).ToArray();
+            _definitions = ordered;
+            _byId = ordered.ToDictionary(d => d.DomainId);
+        }
 
         public static PersistentSyncDomainDefinition Get(PersistentSyncDomainId domainId)
         {
-            if (!ById.TryGetValue(domainId, out var definition))
+            if (!_byId.TryGetValue(domainId, out var definition))
             {
-                throw new ArgumentOutOfRangeException(nameof(domainId), domainId, "Persistent sync domain is not in the catalog.");
+                throw new ArgumentOutOfRangeException(nameof(domainId), domainId, "Persistent sync domain is not registered.");
             }
 
             return definition;
@@ -42,12 +38,21 @@ namespace LmpCommon.PersistentSync
 
         public static bool TryGet(PersistentSyncDomainId domainId, out PersistentSyncDomainDefinition definition)
         {
-            return ById.TryGetValue(domainId, out definition);
+            return _byId.TryGetValue(domainId, out definition);
         }
 
         public static int GetOrder(PersistentSyncDomainId domainId)
         {
-            return Get(domainId).Order;
+            var definition = Get(domainId);
+            for (var i = 0; i < _definitions.Length; i++)
+            {
+                if (_definitions[i].DomainId == definition.DomainId)
+                {
+                    return i;
+                }
+            }
+
+            return int.MaxValue;
         }
 
         public static bool IsDomainApplicableForInitialSync(
@@ -55,7 +60,7 @@ namespace LmpCommon.PersistentSync
             GameMode serverGameMode,
             in PersistentSyncSessionCapabilities caps)
         {
-            if (!ById.TryGetValue(domainId, out var definition))
+            if (!_byId.TryGetValue(domainId, out var definition))
             {
                 return false;
             }
@@ -64,12 +69,7 @@ namespace LmpCommon.PersistentSync
                 ? (serverGameMode & (GameMode.Career | GameMode.Science)) == 0
                 : (serverGameMode & definition.InitialSyncGameModes) != 0;
 
-            if (!matchesGameMode)
-            {
-                return false;
-            }
-
-            return HasCapabilities(caps, definition.RequiredCapabilities);
+            return matchesGameMode && HasCapabilities(caps, definition.RequiredCapabilities);
         }
 
         public static bool IsDomainApplicableForShareProducer(
@@ -77,19 +77,15 @@ namespace LmpCommon.PersistentSync
             GameMode serverGameMode,
             in PersistentSyncSessionCapabilities caps)
         {
-            if (!IsDomainApplicableForInitialSync(domainId, serverGameMode, in caps))
-            {
-                return false;
-            }
-
-            return HasCapabilities(caps, Get(domainId).ProducerRequiredCapabilities);
+            return IsDomainApplicableForInitialSync(domainId, serverGameMode, in caps)
+                   && HasCapabilities(caps, Get(domainId).ProducerRequiredCapabilities);
         }
 
         public static IEnumerable<PersistentSyncDomainId> GetRequiredDomainsForInitialSync(
             GameMode serverGameMode,
             PersistentSyncSessionCapabilities caps)
         {
-            foreach (var definition in Definitions)
+            foreach (var definition in _definitions)
             {
                 if (IsDomainApplicableForInitialSync(definition.DomainId, serverGameMode, in caps))
                 {
@@ -101,38 +97,8 @@ namespace LmpCommon.PersistentSync
         public static ISet<string> GetServerScenarioBypasses()
         {
             return new HashSet<string>(
-                Definitions.SelectMany(d => d.ServerScenarioBypasses),
+                _definitions.SelectMany(d => d.ServerScenarioBypasses),
                 StringComparer.Ordinal);
-        }
-
-        private static PersistentSyncDomainDefinition Define(
-            PersistentSyncDomainId domainId,
-            int order,
-            GameMode initialSyncGameModes,
-            PersistentSyncCapabilityFlags requiredCapabilities,
-            PersistentSyncMaterializationSlot materializationSlot,
-            params string[] serverScenarioBypasses)
-        {
-            return Define(domainId, order, initialSyncGameModes, requiredCapabilities, PersistentSyncCapabilityFlags.None, materializationSlot, serverScenarioBypasses);
-        }
-
-        private static PersistentSyncDomainDefinition Define(
-            PersistentSyncDomainId domainId,
-            int order,
-            GameMode initialSyncGameModes,
-            PersistentSyncCapabilityFlags requiredCapabilities,
-            PersistentSyncCapabilityFlags producerRequiredCapabilities,
-            PersistentSyncMaterializationSlot materializationSlot,
-            params string[] serverScenarioBypasses)
-        {
-            return new PersistentSyncDomainDefinition(
-                domainId,
-                order,
-                initialSyncGameModes,
-                requiredCapabilities,
-                producerRequiredCapabilities,
-                materializationSlot,
-                serverScenarioBypasses);
         }
 
         private static bool HasCapabilities(PersistentSyncSessionCapabilities caps, PersistentSyncCapabilityFlags required)

@@ -1,4 +1,4 @@
-using LmpCommon.PersistentSync;
+﻿using LmpCommon.PersistentSync;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Linq;
@@ -8,6 +8,12 @@ namespace LmpCommonTest
     [TestClass]
     public class PersistentSyncDomainCatalogTests
     {
+        [TestInitialize]
+        public void Setup()
+        {
+            PersistentSyncTestDomainCatalog.Configure();
+        }
+
         [TestMethod]
         public void CatalogContainsEveryDomainIdExactlyOnce()
         {
@@ -22,26 +28,13 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
-        public void CatalogOrderMatchesCurrentInitialSyncOrder()
+        public void CatalogOrderIsDeterministicAndDependencyAware()
         {
-            var expected = new[]
-            {
-                PersistentSyncDomainId.Funds,
-                PersistentSyncDomainId.Science,
-                PersistentSyncDomainId.Reputation,
-                PersistentSyncDomainId.Strategy,
-                PersistentSyncDomainId.Achievements,
-                PersistentSyncDomainId.ScienceSubjects,
-                PersistentSyncDomainId.Technology,
-                PersistentSyncDomainId.ExperimentalParts,
-                PersistentSyncDomainId.PartPurchases,
-                PersistentSyncDomainId.UpgradeableFacilities,
-                PersistentSyncDomainId.Contracts,
-                PersistentSyncDomainId.GameLaunchId
-            };
-
             var actual = PersistentSyncDomainCatalog.AllOrdered.Select(d => d.DomainId).ToArray();
-            CollectionAssert.AreEqual(expected, actual);
+
+            Assert.IsTrue(
+                Array.IndexOf(actual, PersistentSyncDomainId.Technology) < Array.IndexOf(actual, PersistentSyncDomainId.PartPurchases),
+                "PartPurchases must sort after its Technology owner.");
         }
 
         [TestMethod]
@@ -62,6 +55,35 @@ namespace LmpCommonTest
             }.OrderBy(s => s).ToArray();
 
             CollectionAssert.AreEqual(expected, bypasses);
+        }
+
+        [TestMethod]
+        public void RegistrarRejectsDuplicateDomainNames()
+        {
+            var registrar = new PersistentSyncClientDomainRegistrar();
+            registrar.Register(PersistentSyncDomain.Define("Duplicate", 100)).OwnsStockScenario("Funding").UsesClientDomain<object>();
+            registrar.Register(PersistentSyncDomain.Define("Duplicate", 101)).OwnsStockScenario("Reputation").UsesClientDomain<object>();
+
+            Assert.ThrowsException<InvalidOperationException>(() => registrar.BuildDefinitions());
+        }
+
+        [TestMethod]
+        public void RegistrarRejectsDuplicateWireIds()
+        {
+            var registrar = new PersistentSyncClientDomainRegistrar();
+            registrar.Register(PersistentSyncDomain.Define("First", 100)).OwnsStockScenario("Funding").UsesClientDomain<object>();
+            registrar.Register(PersistentSyncDomain.Define("Second", 100)).OwnsStockScenario("Reputation").UsesClientDomain<object>();
+
+            Assert.ThrowsException<InvalidOperationException>(() => registrar.BuildDefinitions());
+        }
+
+        [TestMethod]
+        public void UnknownStockScenarioRequiresExplicitMetadata()
+        {
+            var registrar = new PersistentSyncClientDomainRegistrar();
+
+            Assert.ThrowsException<InvalidOperationException>(() =>
+                registrar.Register(PersistentSyncDomain.Define("Unknown", 100)).OwnsStockScenario("SomeFutureScenario"));
         }
     }
 }

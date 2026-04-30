@@ -301,37 +301,51 @@ namespace LmpClient.Systems.PersistentSync
 
         private static Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain> CreateRegisteredDomains(Assembly assembly)
         {
-            // New domains should add one catalog row and one parameterless client domain. The catalog decides order.
-            var domains = assembly
+            var registrar = new PersistentSyncClientDomainRegistrar();
+            var domainTypes = assembly
                 .GetTypes()
                 .Where(t => !t.IsAbstract && !t.IsInterface && typeof(IPersistentSyncClientDomain).IsAssignableFrom(t))
-                .Select(CreateClientDomain)
                 .ToList();
 
-            var missingCatalog = domains
-                .Where(d => !PersistentSyncDomainCatalog.TryGet(d.DomainId, out _))
-                .Select(d => d.GetType().FullName)
-                .OrderBy(n => n)
-                .ToList();
-            if (missingCatalog.Count > 0)
+            foreach (var domainType in domainTypes)
             {
-                throw new InvalidOperationException("Persistent sync client domains missing catalog entries: " + string.Join(", ", missingCatalog.ToArray()));
+                InvokeDomainRegistration(domainType, registrar);
             }
 
-            var duplicateIds = domains
-                .GroupBy(d => d.DomainId)
-                .Where(g => g.Count() > 1)
-                .Select(g => g.Key.ToString())
+            var definitions = registrar.BuildDefinitions();
+            PersistentSyncDomainCatalog.Configure(definitions);
+
+            var registeredTypes = new HashSet<Type>(definitions.Select(d => d.DomainType));
+            var unregisteredTypes = domainTypes
+                .Where(t => !registeredTypes.Contains(t))
+                .Select(t => t.FullName)
                 .OrderBy(n => n)
-                .ToList();
-            if (duplicateIds.Count > 0)
+                .ToArray();
+            if (unregisteredTypes.Length > 0)
             {
-                throw new InvalidOperationException("Duplicate persistent sync client domains: " + string.Join(", ", duplicateIds.ToArray()));
+                throw new InvalidOperationException("Persistent sync client domains missing self-registration: " + string.Join(", ", unregisteredTypes));
             }
 
-            return domains
-                .OrderBy(d => PersistentSyncDomainCatalog.GetOrder(d.DomainId))
+            return definitions
+                .Select(d => CreateClientDomain(d.DomainType))
                 .ToDictionary(d => d.DomainId);
+        }
+
+        private static void InvokeDomainRegistration(Type domainType, PersistentSyncClientDomainRegistrar registrar)
+        {
+            var method = domainType.GetMethod(
+                "RegisterPersistentSyncDomain",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] { typeof(PersistentSyncClientDomainRegistrar) },
+                null);
+
+            if (method == null)
+            {
+                return;
+            }
+
+            registrar.WithCurrentDomainType(domainType, () => method.Invoke(null, new object[] { registrar }));
         }
 
         private static IPersistentSyncClientDomain CreateClientDomain(Type type)

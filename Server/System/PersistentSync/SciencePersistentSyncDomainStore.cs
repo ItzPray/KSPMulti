@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Server.Client;
 using Server.Settings.Structures;
@@ -8,7 +8,16 @@ namespace Server.System.PersistentSync
 {
     public class SciencePersistentSyncDomainStore : ScalarPersistentSyncDomainStore<float>
     {
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Science;
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Science", 1);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("ResearchAndDevelopment")
+                .UsesServerDomain<SciencePersistentSyncDomainStore>();
+        }
+
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         protected override string ScenarioName => "ResearchAndDevelopment";
         protected override string ScenarioFieldName => "sci";
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;

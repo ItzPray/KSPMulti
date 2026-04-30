@@ -1,4 +1,4 @@
-using LmpCommon.Enums;
+﻿using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Server.Client;
 using Server.Settings.Structures;
@@ -8,7 +8,16 @@ namespace Server.System.PersistentSync
 {
     public class FundsPersistentSyncDomainStore : ScalarPersistentSyncDomainStore<double>
     {
-        public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
+        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Funds", 0);
+
+        public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+        {
+            registrar.Register(Domain)
+                .OwnsStockScenario("Funding")
+                .UsesServerDomain<FundsPersistentSyncDomainStore>();
+        }
+
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         protected override string ScenarioName => "Funding";
         protected override string ScenarioFieldName => "funds";
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
