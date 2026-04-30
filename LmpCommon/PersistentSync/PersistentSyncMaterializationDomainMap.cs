@@ -8,29 +8,7 @@ namespace LmpCommon.PersistentSync
     {
         public static PersistentSyncMaterializationSlot GetSlot(PersistentSyncDomainId domainId)
         {
-            switch (domainId)
-            {
-                case PersistentSyncDomainId.GameLaunchId:
-                    return PersistentSyncMaterializationSlot.None;
-                case PersistentSyncDomainId.Funds:
-                    return PersistentSyncMaterializationSlot.Funding;
-                case PersistentSyncDomainId.Reputation:
-                    return PersistentSyncMaterializationSlot.Reputation;
-                case PersistentSyncDomainId.Strategy:
-                    return PersistentSyncMaterializationSlot.StrategySystem;
-                case PersistentSyncDomainId.Science:
-                case PersistentSyncDomainId.Technology:
-                case PersistentSyncDomainId.ExperimentalParts:
-                case PersistentSyncDomainId.PartPurchases:
-                case PersistentSyncDomainId.ScienceSubjects:
-                    return PersistentSyncMaterializationSlot.ResearchAndDevelopment;
-                case PersistentSyncDomainId.UpgradeableFacilities:
-                    return PersistentSyncMaterializationSlot.UpgradeableFacilities;
-                case PersistentSyncDomainId.Contracts:
-                case PersistentSyncDomainId.Achievements:
-                default:
-                    return PersistentSyncMaterializationSlot.None;
-            }
+            return PersistentSyncDomainCatalog.Get(domainId).MaterializationSlot;
         }
     }
 }

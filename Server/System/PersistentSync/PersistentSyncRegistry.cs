@@ -9,23 +9,14 @@ using Server.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace Server.System.PersistentSync
 {
     public static class PersistentSyncRegistry
     {
         private static readonly Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain> Domains = new Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain>();
-        private static readonly HashSet<string> ServerScenarioBypasses = new HashSet<string>
-        {
-            "Funding",
-            "Reputation",
-            "ScenarioUpgradeableFacilities",
-            "ContractSystem",
-            "StrategySystem",
-            "ProgressTracking",
-            "ResearchAndDevelopment",
-            "LmpGameLaunchId"
-        };
+        private static readonly ISet<string> ServerScenarioBypasses = PersistentSyncDomainCatalog.GetServerScenarioBypasses();
         private static bool _initialized;
 
         /// <summary>
@@ -37,21 +28,10 @@ namespace Server.System.PersistentSync
         {
             Domains.Clear();
             GameLaunchIdScenarioBootstrap.EnsureScenarioInStore();
-            Register(new GameLaunchIdPersistentSyncDomainStore());
-            Register(new FundsPersistentSyncDomainStore());
-            Register(new SciencePersistentSyncDomainStore());
-            Register(new ReputationPersistentSyncDomainStore());
-            Register(new UpgradeableFacilitiesPersistentSyncDomainStore());
-            Register(new ContractsPersistentSyncDomainStore());
-            Register(new StrategyPersistentSyncDomainStore());
-            Register(new AchievementsPersistentSyncDomainStore());
-            Register(new ScienceSubjectsPersistentSyncDomainStore());
-            var technologyStore = new TechnologyPersistentSyncDomainStore();
-            Register(technologyStore);
-            Register(new ExperimentalPartsPersistentSyncDomainStore());
-            // PartPurchases is a projection over Technology's canonical (see class XML doc). Inject the
-            // Technology store so PartPurchases never has to Reach into the registry at intent time.
-            Register(new PartPurchasesPersistentSyncDomainStore(technologyStore));
+            foreach (var domain in CreateRegisteredDomains(typeof(IPersistentSyncServerDomain).Assembly))
+            {
+                Register(domain);
+            }
 
             foreach (var domain in Domains.Values)
             {
@@ -404,6 +384,64 @@ namespace Server.System.PersistentSync
         private static void Register(IPersistentSyncServerDomain domain)
         {
             Domains[domain.DomainId] = domain;
+        }
+
+        public static IReadOnlyCollection<IPersistentSyncServerDomain> CreateRegisteredDomainsForTests(Assembly assembly)
+        {
+            return CreateRegisteredDomains(assembly.GetTypes());
+        }
+
+        public static IReadOnlyCollection<IPersistentSyncServerDomain> CreateRegisteredDomainsForTests(params Type[] domainTypes)
+        {
+            return CreateRegisteredDomains(domainTypes);
+        }
+
+        private static IReadOnlyCollection<IPersistentSyncServerDomain> CreateRegisteredDomains(Assembly assembly)
+        {
+            return CreateRegisteredDomains(assembly.GetTypes());
+        }
+
+        private static IReadOnlyCollection<IPersistentSyncServerDomain> CreateRegisteredDomains(IEnumerable<Type> domainTypes)
+        {
+            var domains = domainTypes
+                .Where(t => !t.IsAbstract && !t.IsInterface && typeof(IPersistentSyncServerDomain).IsAssignableFrom(t))
+                .Select(CreateDomain)
+                .ToList();
+
+            var missingCatalog = domains
+                .Where(d => !PersistentSyncDomainCatalog.TryGet(d.DomainId, out _))
+                .Select(d => d.GetType().FullName)
+                .OrderBy(n => n)
+                .ToList();
+            if (missingCatalog.Count > 0)
+            {
+                throw new InvalidOperationException("Persistent sync server domains missing catalog entries: " + string.Join(", ", missingCatalog));
+            }
+
+            var duplicateIds = domains
+                .GroupBy(d => d.DomainId)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key.ToString())
+                .OrderBy(n => n)
+                .ToList();
+            if (duplicateIds.Count > 0)
+            {
+                throw new InvalidOperationException("Duplicate persistent sync server domains: " + string.Join(", ", duplicateIds));
+            }
+
+            return domains
+                .OrderBy(d => PersistentSyncDomainCatalog.GetOrder(d.DomainId))
+                .ToArray();
+        }
+
+        private static IPersistentSyncServerDomain CreateDomain(Type type)
+        {
+            if (type.GetConstructor(Type.EmptyTypes) == null)
+            {
+                throw new InvalidOperationException($"Persistent sync server domain {type.FullName} must have a public parameterless constructor.");
+            }
+
+            return (IPersistentSyncServerDomain)Activator.CreateInstance(type);
         }
 
         private static PersistentSyncSnapshotMsgData CreateSnapshotMessage(PersistentSyncDomainSnapshot snapshot)

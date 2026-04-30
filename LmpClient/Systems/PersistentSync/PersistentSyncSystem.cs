@@ -6,8 +6,10 @@ using LmpClient.Systems.SettingsSys;
 using LmpClient.Utilities;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace LmpClient.Systems.PersistentSync
 {
@@ -28,21 +30,7 @@ namespace LmpClient.Systems.PersistentSync
         public PersistentSyncReconciler Reconciler { get; } = new PersistentSyncReconciler();
 
         public Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain> Domains { get; } =
-            new Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain>
-            {
-                [PersistentSyncDomainId.GameLaunchId] = new GameLaunchIdPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.Funds] = new FundsPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.Science] = new SciencePersistentSyncClientDomain(),
-                [PersistentSyncDomainId.Reputation] = new ReputationPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.Strategy] = new StrategyPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.Achievements] = new AchievementsPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.ScienceSubjects] = new ScienceSubjectsPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.Technology] = new TechnologyPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.ExperimentalParts] = new ExperimentalPartsPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.PartPurchases] = new PartPurchasesPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.UpgradeableFacilities] = new UpgradeableFacilitiesPersistentSyncClientDomain(),
-                [PersistentSyncDomainId.Contracts] = new ContractsPersistentSyncClientDomain()
-            };
+            CreateRegisteredDomains(typeof(PersistentSyncSystem).Assembly);
 
         protected override void OnEnabled()
         {
@@ -304,6 +292,56 @@ namespace LmpClient.Systems.PersistentSync
             {
                 Reconciler.FlushPendingState();
             }
+        }
+
+        public static Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain> CreateRegisteredDomainsForTests(Assembly assembly)
+        {
+            return CreateRegisteredDomains(assembly);
+        }
+
+        private static Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain> CreateRegisteredDomains(Assembly assembly)
+        {
+            // New domains should add one catalog row and one parameterless client domain. The catalog decides order.
+            var domains = assembly
+                .GetTypes()
+                .Where(t => !t.IsAbstract && !t.IsInterface && typeof(IPersistentSyncClientDomain).IsAssignableFrom(t))
+                .Select(CreateClientDomain)
+                .ToList();
+
+            var missingCatalog = domains
+                .Where(d => !PersistentSyncDomainCatalog.TryGet(d.DomainId, out _))
+                .Select(d => d.GetType().FullName)
+                .OrderBy(n => n)
+                .ToList();
+            if (missingCatalog.Count > 0)
+            {
+                throw new InvalidOperationException("Persistent sync client domains missing catalog entries: " + string.Join(", ", missingCatalog.ToArray()));
+            }
+
+            var duplicateIds = domains
+                .GroupBy(d => d.DomainId)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key.ToString())
+                .OrderBy(n => n)
+                .ToList();
+            if (duplicateIds.Count > 0)
+            {
+                throw new InvalidOperationException("Duplicate persistent sync client domains: " + string.Join(", ", duplicateIds.ToArray()));
+            }
+
+            return domains
+                .OrderBy(d => PersistentSyncDomainCatalog.GetOrder(d.DomainId))
+                .ToDictionary(d => d.DomainId);
+        }
+
+        private static IPersistentSyncClientDomain CreateClientDomain(Type type)
+        {
+            if (type.GetConstructor(Type.EmptyTypes) == null)
+            {
+                throw new InvalidOperationException($"Persistent sync client domain {type.FullName} must have a public parameterless constructor.");
+            }
+
+            return (IPersistentSyncClientDomain)Activator.CreateInstance(type);
         }
     }
 }

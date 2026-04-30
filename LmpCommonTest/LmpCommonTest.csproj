@@ -65,6 +65,7 @@
   <ItemGroup>
     <Compile Include="EventDomainSerializersPlaceholderTests.cs" />
     <Compile Include="MessageStoreTest.cs" />
+    <Compile Include="PersistentSyncDomainCatalogTests.cs" />
     <Compile Include="PersistentSyncDomainApplicabilityTests.cs" />
     <Compile Include="PersistentSyncMaterializationDomainMapTests.cs" />
     <Compile Include="PersistentSyncReconcilerStateTests.cs" />

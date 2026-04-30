@@ -190,6 +190,38 @@ namespace ServerPersistentSyncTest
             }
         }
 
+        [TestMethod]
+        public void ServerRegistryAutoDiscoversCatalogDomainsInCatalogOrder()
+        {
+            var domains = PersistentSyncRegistry
+                .CreateRegisteredDomainsForTests(typeof(IPersistentSyncServerDomain).Assembly)
+                .ToArray();
+
+            var expected = PersistentSyncDomainCatalog.AllOrdered.Select(d => d.DomainId).ToArray();
+            var actual = domains.Select(d => d.DomainId).ToArray();
+
+            CollectionAssert.AreEqual(expected, actual);
+            Assert.IsTrue(
+                Array.IndexOf(actual, PersistentSyncDomainId.Technology) < Array.IndexOf(actual, PersistentSyncDomainId.PartPurchases),
+                "Projection domains must register after their owner.");
+        }
+
+        [TestMethod]
+        public void ServerRegistryRejectsDuplicateDomainIds()
+        {
+            Assert.ThrowsException<InvalidOperationException>(() =>
+                PersistentSyncRegistry.CreateRegisteredDomainsForTests(
+                    typeof(DuplicateFundsDomainA),
+                    typeof(DuplicateFundsDomainB)));
+        }
+
+        [TestMethod]
+        public void ServerRegistryRejectsCataloglessDomains()
+        {
+            Assert.ThrowsException<InvalidOperationException>(() =>
+                PersistentSyncRegistry.CreateRegisteredDomainsForTests(typeof(CataloglessDomain)));
+        }
+
         private static bool InheritsFromOpenGeneric(Type candidate, Type openGenericBase)
         {
             for (var current = candidate; current != null && current != typeof(object); current = current.BaseType)
@@ -305,6 +337,32 @@ namespace ServerPersistentSyncTest
                 public int Value { get; }
                 public Canonical(int value) { Value = value; }
             }
+        }
+
+        private sealed class DuplicateFundsDomainA : TestDomainBase
+        {
+            public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
+        }
+
+        private sealed class DuplicateFundsDomainB : TestDomainBase
+        {
+            public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
+        }
+
+        private sealed class CataloglessDomain : TestDomainBase
+        {
+            public override PersistentSyncDomainId DomainId => (PersistentSyncDomainId)250;
+        }
+
+        private abstract class TestDomainBase : IPersistentSyncServerDomain
+        {
+            public abstract PersistentSyncDomainId DomainId { get; }
+            public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
+            public void LoadFromPersistence(bool createdFromScratch) { }
+            public PersistentSyncDomainSnapshot GetCurrentSnapshot() => null;
+            public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data) => null;
+            public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason) => null;
+            public bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => true;
         }
     }
 }
