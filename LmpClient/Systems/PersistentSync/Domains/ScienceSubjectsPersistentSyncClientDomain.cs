@@ -25,7 +25,7 @@ using Strategies;
 namespace LmpClient.Systems.PersistentSync
 {
     [PersistentSyncStockScenario("ResearchAndDevelopment")]
-    public class ScienceSubjectsPersistentSyncClientDomain : SyncClientDomain<ScienceSubjectSnapshotInfo[]>
+    public class ScienceSubjectsPersistentSyncClientDomain : SyncClientDomain<ScienceSubjectsPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
@@ -35,9 +35,9 @@ namespace LmpClient.Systems.PersistentSync
 
         private ScienceSubjectSnapshotInfo[] _pendingSubjects;
 
-        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, ScienceSubjectSnapshotInfo[] payload)
+        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, ScienceSubjectsPayload payload)
         {
-            _pendingSubjects = payload ?? new ScienceSubjectSnapshotInfo[0];
+            _pendingSubjects = payload?.Items ?? Array.Empty<ScienceSubjectSnapshotInfo>();
         }
 
         public override PersistentSyncApplyOutcome FlushPendingState()

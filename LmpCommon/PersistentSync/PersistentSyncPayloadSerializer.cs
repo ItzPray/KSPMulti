@@ -4,7 +4,6 @@ using LmpCommon.PersistentSync.Payloads.Strategy;
 using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
 using LmpCommon.PersistentSync.Payloads.PartPurchases;
 using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
-using LmpCommon.PersistentSync.Payloads.Contracts;
 using LmpCommon.PersistentSync.Payloads.Achievements;
 using System;
 using System.Collections;
@@ -30,8 +29,15 @@ namespace LmpCommon.PersistentSync
             if (write == null) throw new ArgumentNullException(nameof(write));
             lock (CodecLock)
             {
-                CustomCodecs[typeof(T)] = new PersistentSyncPayloadCodec<T>(read, write);
+                RegisterCustomUnlocked(read, write);
             }
+        }
+
+        internal static void RegisterCustomUnlocked<T>(Func<PersistentSyncPayloadReader, T> read, Action<PersistentSyncPayloadWriter, T> write)
+        {
+            if (read == null) throw new ArgumentNullException(nameof(read));
+            if (write == null) throw new ArgumentNullException(nameof(write));
+            CustomCodecs[typeof(T)] = new PersistentSyncPayloadCodec<T>(read, write);
         }
 
         public static byte[] Serialize<T>(T value)
@@ -59,6 +65,8 @@ namespace LmpCommon.PersistentSync
             return Deserialize<T>(payload, payload?.Length ?? 0);
         }
 
+        private static bool _payloadCodecRegistrarsInitialized;
+
         private static IPersistentSyncPayloadCodec GetCodec(Type type)
         {
             if (type == null) throw new ArgumentNullException(nameof(type));
@@ -82,20 +90,27 @@ namespace LmpCommon.PersistentSync
 
         private static void RegisterBuiltInCustomCodecs()
         {
-            if (CustomCodecs.ContainsKey(typeof(ContractIntentPayload)))
+            if (_payloadCodecRegistrarsInitialized)
             {
                 return;
             }
 
-            RegisterCustom<ContractIntentPayload>(
-                PersistentSyncContractPayloadCodec.ReadContractIntentPayload,
-                PersistentSyncContractPayloadCodec.WriteContractIntentPayload);
-            RegisterCustom<ContractSnapshotPayload>(
-                PersistentSyncContractPayloadCodec.ReadContractSnapshotPayload,
-                PersistentSyncContractPayloadCodec.WriteContractSnapshotPayload);
-            RegisterCustom<ContractsPayload>(
-                PersistentSyncContractPayloadCodec.ReadContractsPayload,
-                PersistentSyncContractPayloadCodec.WriteContractsPayload);
+            _payloadCodecRegistrarsInitialized = true;
+            var registry = new PersistentSyncPayloadCodecRegistry();
+            foreach (var registrar in DiscoverPayloadCodecRegistrars())
+            {
+                registrar.Register(registry);
+            }
+        }
+
+        private static IEnumerable<IPersistentSyncPayloadCodecRegistrar> DiscoverPayloadCodecRegistrars()
+        {
+            const string payloadsNs = "LmpCommon.PersistentSync.Payloads.";
+            return typeof(IPersistentSyncPayloadCodecRegistrar).Assembly.GetExportedTypes()
+                .Where(t => t.IsClass && !t.IsAbstract && typeof(IPersistentSyncPayloadCodecRegistrar).IsAssignableFrom(t))
+                .Where(t => t.Namespace != null && t.Namespace.StartsWith(payloadsNs, StringComparison.Ordinal))
+                .OrderBy(t => t.FullName, StringComparer.Ordinal)
+                .Select(t => (IPersistentSyncPayloadCodecRegistrar)Activator.CreateInstance(t));
         }
 
         private static IPersistentSyncPayloadCodec BuildConventionCodec(Type type)
@@ -427,6 +442,12 @@ namespace LmpCommon.PersistentSync
                 }
             }
         }
+
+        /// <summary>Allows envelope codecs to reuse convention serialization for a former root-array wire shape.</summary>
+        internal static object ReadConventionRoot(PersistentSyncPayloadReader reader, Type type) => ReadValue(reader, type);
+
+        internal static void WriteConventionRoot(PersistentSyncPayloadWriter writer, Type type, object value) =>
+            WriteValue(writer, type, value);
     }
 
     public sealed class PersistentSyncPayloadReader : IDisposable

@@ -25,12 +25,15 @@ namespace Server.System
 
             if (PersistentSyncRegistry.IsPersistentSyncInitialized)
             {
-                var payload = PersistentSyncPayloadSerializer.Serialize(new[]
+                var payload = PersistentSyncPayloadSerializer.Serialize(new ScienceSubjectsPayload
                 {
-                    new ScienceSubjectSnapshotInfo
+                    Items = new[]
                     {
-                        Id = data.ScienceSubject.Id,
-                        Data = data.ScienceSubject.Data
+                        new ScienceSubjectSnapshotInfo
+                        {
+                            Id = data.ScienceSubject.Id,
+                            Data = data.ScienceSubject.Data
+                        }
                     }
                 });
                 PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.ScienceSubjects, payload, $"LegacyScienceSubject:{data.ScienceSubject.Id}");

@@ -13,6 +13,7 @@ using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.Message.Interface;
 using LmpCommon.PersistentSync;
+using System;
 
 namespace LmpClient.Systems.PersistentSync
 {
@@ -47,6 +48,13 @@ namespace LmpClient.Systems.PersistentSync
             SendIntent(domainId, clientKnownRevision, PersistentSyncPayloadSerializer.Serialize(payload), reason);
         }
 
+        public void SendIntent<TDomain, TPayload>(TPayload payload, string reason)
+            where TDomain : SyncClientDomain<TPayload>
+        {
+            var domainId = PersistentSyncDomainNaming.InferDomainName(typeof(TDomain));
+            SendIntent(domainId, System.GetKnownRevision(domainId), payload, reason);
+        }
+
         public void SendFundsIntent(double funds, string reason)
         {
             SendIntent(PersistentSyncDomainNames.Funds, System.GetKnownRevision(PersistentSyncDomainNames.Funds), funds, reason);
@@ -67,7 +75,7 @@ namespace LmpClient.Systems.PersistentSync
             SendIntent(
                 PersistentSyncDomainNames.UpgradeableFacilities,
                 System.GetKnownRevision(PersistentSyncDomainNames.UpgradeableFacilities),
-                new[] { new UpgradeableFacilityLevelPayload { FacilityId = facilityId, Level = level } },
+                new UpgradeableFacilitiesPayload { Items = new[] { new UpgradeableFacilityLevelPayload { FacilityId = facilityId, Level = level } } },
                 reason);
         }
 
@@ -87,27 +95,27 @@ namespace LmpClient.Systems.PersistentSync
 
         public void SendStrategyIntent(StrategySnapshotInfo[] strategies, string reason)
         {
-            SendIntent(PersistentSyncDomainNames.Strategy, System.GetKnownRevision(PersistentSyncDomainNames.Strategy), strategies, reason);
+            SendIntent(PersistentSyncDomainNames.Strategy, System.GetKnownRevision(PersistentSyncDomainNames.Strategy), new StrategyPayload { Items = strategies ?? Array.Empty<StrategySnapshotInfo>() }, reason);
         }
 
         public void SendAchievementsIntent(AchievementSnapshotInfo[] achievements, string reason)
         {
-            SendIntent(PersistentSyncDomainNames.Achievements, System.GetKnownRevision(PersistentSyncDomainNames.Achievements), achievements, reason);
+            SendIntent(PersistentSyncDomainNames.Achievements, System.GetKnownRevision(PersistentSyncDomainNames.Achievements), new AchievementsPayload { Items = achievements ?? Array.Empty<AchievementSnapshotInfo>() }, reason);
         }
 
         public void SendScienceSubjectsIntent(ScienceSubjectSnapshotInfo[] subjects, string reason)
         {
-            SendIntent(PersistentSyncDomainNames.ScienceSubjects, System.GetKnownRevision(PersistentSyncDomainNames.ScienceSubjects), subjects, reason);
+            SendIntent(PersistentSyncDomainNames.ScienceSubjects, System.GetKnownRevision(PersistentSyncDomainNames.ScienceSubjects), new ScienceSubjectsPayload { Items = subjects ?? Array.Empty<ScienceSubjectSnapshotInfo>() }, reason);
         }
 
         public void SendExperimentalPartsIntent(ExperimentalPartSnapshotInfo[] parts, string reason)
         {
-            SendIntent(PersistentSyncDomainNames.ExperimentalParts, System.GetKnownRevision(PersistentSyncDomainNames.ExperimentalParts), parts, reason);
+            SendIntent(PersistentSyncDomainNames.ExperimentalParts, System.GetKnownRevision(PersistentSyncDomainNames.ExperimentalParts), new ExperimentalPartsPayload { Items = parts ?? Array.Empty<ExperimentalPartSnapshotInfo>() }, reason);
         }
 
         public void SendPartPurchasesIntent(PartPurchaseSnapshotInfo[] purchases, string reason)
         {
-            SendIntent(PersistentSyncDomainNames.PartPurchases, System.GetKnownRevision(PersistentSyncDomainNames.PartPurchases), purchases, reason);
+            SendIntent(PersistentSyncDomainNames.PartPurchases, System.GetKnownRevision(PersistentSyncDomainNames.PartPurchases), new PartPurchasesPayload { Items = purchases ?? Array.Empty<PartPurchaseSnapshotInfo>() }, reason);
         }
     }
 }

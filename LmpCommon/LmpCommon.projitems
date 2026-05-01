@@ -172,6 +172,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Screenshot\ScreenshotListRequestMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Screenshot\ScreenshotNotificationMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Settings\SetingsReplyMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Settings\SettingsCatalogJoinMerge.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\Settings\PersistentSyncCatalogMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadBaseMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadClientBaseMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\LaunchPad\LaunchPadLaunchDeniedMsgData.cs" />

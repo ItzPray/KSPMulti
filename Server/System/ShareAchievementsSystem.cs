@@ -25,12 +25,15 @@ namespace Server.System
 
             if (PersistentSyncRegistry.IsPersistentSyncInitialized)
             {
-                var payload = PersistentSyncPayloadSerializer.Serialize(new[]
+                var payload = PersistentSyncPayloadSerializer.Serialize(new AchievementsPayload
                 {
-                    new AchievementSnapshotInfo
+                    Items = new[]
                     {
-                        Id = data.Id,
-                        Data = data.Data
+                        new AchievementSnapshotInfo
+                        {
+                            Id = data.Id,
+                            Data = data.Data
+                        }
                     }
                 });
                 PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.Achievements, payload, $"LegacyAchievements:{data.Id}");

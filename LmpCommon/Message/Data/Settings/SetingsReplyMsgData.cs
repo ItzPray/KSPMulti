@@ -84,6 +84,84 @@ namespace LmpCommon.Message.Data.Settings
 
         public override string ClassName { get; } = nameof(SettingsReplyMsgData);
 
+        /// <summary>
+        /// Deep enough copy for join buffering: strings are immutable; value types copy by assignment.
+        /// </summary>
+        public SettingsReplyMsgData CloneForBuffering()
+        {
+            return new SettingsReplyMsgData
+            {
+                WarpMode = WarpMode,
+                GameMode = GameMode,
+                TerrainQuality = TerrainQuality,
+                AllowCheats = AllowCheats,
+                AllowAdmin = AllowAdmin,
+                AllowSackKerbals = AllowSackKerbals,
+                MaxNumberOfAsteroids = MaxNumberOfAsteroids,
+                MaxNumberOfComets = MaxNumberOfComets,
+                ConsoleIdentifier = ConsoleIdentifier,
+                GameDifficulty = GameDifficulty,
+                SafetyBubbleDistance = SafetyBubbleDistance,
+                MaxVesselParts = MaxVesselParts,
+                VesselUpdatesMsInterval = VesselUpdatesMsInterval,
+                SecondaryVesselUpdatesMsInterval = SecondaryVesselUpdatesMsInterval,
+                AllowOtherLaunchSites = AllowOtherLaunchSites,
+                AllowStockVessels = AllowStockVessels,
+                CanRevert = CanRevert,
+                AutoHireCrews = AutoHireCrews,
+                BypassEntryPurchaseAfterResearch = BypassEntryPurchaseAfterResearch,
+                IndestructibleFacilities = IndestructibleFacilities,
+                MissingCrewsRespawn = MissingCrewsRespawn,
+                ReentryHeatScale = ReentryHeatScale,
+                ResourceAbundance = ResourceAbundance,
+                FundsGainMultiplier = FundsGainMultiplier,
+                FundsLossMultiplier = FundsLossMultiplier,
+                RepGainMultiplier = RepGainMultiplier,
+                RepLossMultiplier = RepLossMultiplier,
+                RepLossDeclined = RepLossDeclined,
+                ScienceGainMultiplier = ScienceGainMultiplier,
+                StartingFunds = StartingFunds,
+                StartingReputation = StartingReputation,
+                StartingScience = StartingScience,
+                RespawnTimer = RespawnTimer,
+                EnableCommNet = EnableCommNet,
+                EnableKerbalExperience = EnableKerbalExperience,
+                ImmediateLevelUp = ImmediateLevelUp,
+                ResourceTransferObeyCrossfeed = ResourceTransferObeyCrossfeed,
+                BuildingImpactDamageMult = BuildingImpactDamageMult,
+                PartUpgradesInCareerAndSandbox = PartUpgradesInCareerAndSandbox,
+                EnableFullSASInSandbox = EnableFullSASInSandbox,
+                RequireSignalForControl = RequireSignalForControl,
+                DsnModifier = DsnModifier,
+                RangeModifier = RangeModifier,
+                OcclusionMultiplierVac = OcclusionMultiplierVac,
+                OcclusionMultiplierAtm = OcclusionMultiplierAtm,
+                EnableGroundStations = EnableGroundStations,
+                PlasmaBlackout = PlasmaBlackout,
+                ActionGroupsAlways = ActionGroupsAlways,
+                GKerbalLimits = GKerbalLimits,
+                GPartLimits = GPartLimits,
+                PressurePartLimits = PressurePartLimits,
+                KerbalGToleranceMult = KerbalGToleranceMult,
+                AllowNegativeCurrency = AllowNegativeCurrency,
+                MinScreenshotIntervalMs = MinScreenshotIntervalMs,
+                MaxScreenshotWidth = MaxScreenshotWidth,
+                MaxScreenshotHeight = MaxScreenshotHeight,
+                MinCraftLibraryRequestIntervalMs = MinCraftLibraryRequestIntervalMs,
+                PrintMotdInChat = PrintMotdInChat,
+                LaunchPadCoordMode = LaunchPadCoordMode,
+                LaunchPadOverflowBubble = LaunchPadOverflowBubble,
+                LaunchPadSlotCount = LaunchPadSlotCount,
+                LaunchPadLeaseTimeoutSeconds = LaunchPadLeaseTimeoutSeconds,
+                LaunchPadReservationDurationSeconds = LaunchPadReservationDurationSeconds,
+                LaunchPadKsceEnforceOptionalDllMatch = LaunchPadKsceEnforceOptionalDllMatch,
+                LaunchPadKsceOptionalDllRelativePath = LaunchPadKsceOptionalDllRelativePath ?? string.Empty,
+                LaunchPadKsceOptionalDllSha256 = LaunchPadKsceOptionalDllSha256 ?? string.Empty,
+                LaunchPadKsceMinPluginFileVersion = LaunchPadKsceMinPluginFileVersion ?? string.Empty,
+                LaunchPadKsceMaxPluginFileVersion = LaunchPadKsceMaxPluginFileVersion ?? string.Empty
+            };
+        }
+
         internal override void InternalSerialize(NetOutgoingMessage lidgrenMsg)
         {
             base.InternalSerialize(lidgrenMsg);

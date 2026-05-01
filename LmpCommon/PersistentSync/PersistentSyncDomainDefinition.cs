@@ -63,5 +63,29 @@ namespace LmpCommon.PersistentSync
         public string[] ServerScenarioBypasses { get; }
         public string ScenarioName { get; }
         public string ScalarFieldName { get; }
+
+        /// <summary>
+        /// Rebuilds this definition with the server's authoritative wire id and applicability metadata from the settings catalog.
+        /// </summary>
+        public PersistentSyncDomainDefinition WithServerCatalogRow(PersistentSyncCatalogRowWire row)
+        {
+            if (!string.Equals(Name, row.DomainName, StringComparison.Ordinal))
+            {
+                throw new ArgumentException($"Catalog row domain '{row.DomainName}' does not match definition '{Name}'.", nameof(row));
+            }
+
+            return new PersistentSyncDomainDefinition(
+                new PersistentSyncDomainKey(Key.Name, row.WireId),
+                (GameMode)row.InitialSyncGameModes,
+                (PersistentSyncCapabilityFlags)row.RequiredCapabilities,
+                (PersistentSyncCapabilityFlags)row.ProducerRequiredCapabilities,
+                (PersistentSyncMaterializationSlot)row.MaterializationSlot,
+                DomainType,
+                AfterDomains,
+                ServerScenarioBypasses,
+                row.WireId,
+                ScenarioName,
+                ScalarFieldName);
+        }
     }
 }

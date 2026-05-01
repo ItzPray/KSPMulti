@@ -65,7 +65,8 @@
   <ItemGroup>
     <Compile Include="EventDomainSerializersPlaceholderTests.cs" />
     <Compile Include="MessageStoreTest.cs" />
-    <Compile Include="PersistentSyncDomainCatalogTests.cs" />
+    <Compile Include="PersistentSyncCatalogTests.cs" />
+    <Compile Include="PersistentSyncPerfSmokeTests.cs" />
     <Compile Include="PersistentSyncTestDomainCatalog.cs" />
     <Compile Include="PersistentSyncDomainApplicabilityTests.cs" />
     <Compile Include="PersistentSyncMaterializationDomainMapTests.cs" />
@@ -81,6 +82,7 @@
     </Compile>
     <Compile Include="SerializationTests.cs" />
     <Compile Include="SessionAdmissionTests.cs" />
+    <Compile Include="SettingsCatalogJoinMergeTests.cs" />
     <Compile Include="TimeTests.cs" />
   </ItemGroup>
   <ItemGroup>

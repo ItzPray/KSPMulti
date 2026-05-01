@@ -29,8 +29,61 @@ namespace LmpClient.Systems.PersistentSync
 
         public PersistentSyncReconciler Reconciler { get; } = new PersistentSyncReconciler();
 
-        public Dictionary<string, IPersistentSyncClientDomain> Domains { get; } =
-            CreateRegisteredDomains(typeof(PersistentSyncSystem).Assembly);
+        private static PersistentSyncDomainDefinition[] _clientLocalDefinitions;
+
+        public Dictionary<string, IPersistentSyncClientDomain> Domains { get; } = InitDomains();
+
+        private static Dictionary<string, IPersistentSyncClientDomain> InitDomains()
+        {
+            return CreateRegisteredDomains(typeof(PersistentSyncSystem).Assembly, out _clientLocalDefinitions);
+        }
+
+        /// <summary>
+        /// Applies the server-authoritative persistent sync catalog from the settings reply. When rows are empty,
+        /// falls back to locally registered wire ids (test harness / uninitialized server catalog).
+        /// </summary>
+        public static bool TryApplyPersistentSyncCatalog(byte catalogWireVersion, PersistentSyncCatalogRowWire[] rows, out string failureReason)
+        {
+            failureReason = null;
+            if (_clientLocalDefinitions == null || _clientLocalDefinitions.Length == 0)
+            {
+                failureReason = "Persistent sync local definitions are not initialized.";
+                return false;
+            }
+
+            PersistentSyncDomainDefinition[] merged;
+            if (rows == null || rows.Length == 0)
+            {
+                LunaLog.Log("[PersistentSync] Settings catalog empty; using locally registered wire assignments.");
+                if (!PersistentSyncCatalogMerger.TryMergeLocalOnly(_clientLocalDefinitions, out merged, out failureReason))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if (catalogWireVersion != PersistentSyncCatalogWire.CurrentVersion)
+                {
+                    failureReason =
+                        $"[KSPMP] Unsupported persistent sync catalog wire version {catalogWireVersion}. Update this client.";
+                    return false;
+                }
+
+                if (!PersistentSyncCatalogMerger.TryMerge(_clientLocalDefinitions, rows, out merged, out failureReason))
+                {
+                    return false;
+                }
+            }
+
+            PersistentSyncDomainCatalog.Configure(merged);
+            return true;
+        }
+
+        public static bool IsLiveFor<TDomain>() where TDomain : IPersistentSyncClientDomain
+        {
+            var domainName = PersistentSyncDomainNaming.InferDomainName(typeof(TDomain));
+            return IsLiveForDomain(domainName);
+        }
 
         protected override void OnEnabled()
         {
@@ -152,6 +205,31 @@ namespace LmpClient.Systems.PersistentSync
         public long GetKnownRevision(string domainId)
         {
             return Reconciler.GetKnownRevision(domainId);
+        }
+
+        /// <summary>Delegates to <see cref="Singleton"/> message sender; no-op if the system is not constructed.</summary>
+        public static void SendIntent<TDomain, TPayload>(TPayload payload, string reason)
+            where TDomain : SyncClientDomain<TPayload>
+        {
+            var s = Singleton;
+            if (s == null)
+            {
+                return;
+            }
+
+            s.MessageSender.SendIntent<TDomain, TPayload>(payload, reason);
+        }
+
+        /// <summary>Delegates to <see cref="Singleton"/> message sender.</summary>
+        public static void SendIntent(string domainId, long clientKnownRevision, byte[] payload, string reason)
+        {
+            Singleton?.MessageSender.SendIntent(domainId, clientKnownRevision, payload, reason);
+        }
+
+        /// <summary>Delegates to <see cref="Singleton"/> message sender.</summary>
+        public static void SendIntent<TPayload>(string domainId, long clientKnownRevision, TPayload payload, string reason)
+        {
+            Singleton?.MessageSender.SendIntent(domainId, clientKnownRevision, payload, reason);
         }
 
         /// <summary>
@@ -296,10 +374,17 @@ namespace LmpClient.Systems.PersistentSync
 
         public static Dictionary<string, IPersistentSyncClientDomain> CreateRegisteredDomainsForTests(Assembly assembly)
         {
-            return CreateRegisteredDomains(assembly);
+            var dict = CreateRegisteredDomains(assembly, out var defs);
+            if (!PersistentSyncCatalogMerger.TryMergeLocalOnly(defs, out var merged, out var err))
+            {
+                throw new InvalidOperationException(err);
+            }
+
+            PersistentSyncDomainCatalog.Configure(merged);
+            return dict;
         }
 
-        private static Dictionary<string, IPersistentSyncClientDomain> CreateRegisteredDomains(Assembly assembly)
+        private static Dictionary<string, IPersistentSyncClientDomain> CreateRegisteredDomains(Assembly assembly, out PersistentSyncDomainDefinition[] definitions)
         {
             var registrar = new PersistentSyncClientDomainRegistrar();
             var domainTypes = assembly
@@ -312,10 +397,10 @@ namespace LmpClient.Systems.PersistentSync
                 InvokeDomainRegistration(domainType, registrar);
             }
 
-            var definitions = registrar.BuildDefinitions();
-            PersistentSyncDomainCatalog.Configure(definitions);
+            var definitionsList = registrar.BuildDefinitions();
+            definitions = definitionsList.ToArray();
 
-            var registeredTypes = new HashSet<Type>(definitions.Select(d => d.DomainType));
+            var registeredTypes = new HashSet<Type>(definitionsList.Select(d => d.DomainType));
             var unregisteredTypes = domainTypes
                 .Where(t => !registeredTypes.Contains(t))
                 .Select(t => t.FullName)
@@ -326,7 +411,7 @@ namespace LmpClient.Systems.PersistentSync
                 throw new InvalidOperationException("Persistent sync client domains missing self-registration: " + string.Join(", ", unregisteredTypes));
             }
 
-            return definitions
+            return definitionsList
                 .Select(d => CreateClientDomain(d.DomainType))
                 .ToDictionary(d => d.DomainId);
         }

@@ -25,12 +25,15 @@ namespace Server.System
 
             if (PersistentSyncRegistry.IsPersistentSyncInitialized)
             {
-                var payload = PersistentSyncPayloadSerializer.Serialize(new[]
+                var payload = PersistentSyncPayloadSerializer.Serialize(new StrategyPayload
                 {
-                    new StrategySnapshotInfo
+                    Items = new[]
                     {
-                        Name = data.Strategy.Name,
-                        Data = data.Strategy.Data
+                        new StrategySnapshotInfo
+                        {
+                            Name = data.Strategy.Name,
+                            Data = data.Strategy.Data
+                        }
                     }
                 });
                 PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.Strategy, payload, $"LegacyStrategy:{data.Strategy.Name}");

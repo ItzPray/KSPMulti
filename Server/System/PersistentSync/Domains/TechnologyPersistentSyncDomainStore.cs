@@ -166,15 +166,15 @@ namespace Server.System.PersistentSync
         /// </summary>
         private PersistentSyncDomainApplyResult ApplyPartPurchasesInternal(PartPurchaseSnapshotInfo[] records, long? clientKnownRevision, string reason, bool isServerMutation)
         {
-            var payload = PersistentSyncPayloadSerializer.Serialize(records ?? new PartPurchaseSnapshotInfo[0]);
+            var payload = PersistentSyncPayloadSerializer.Serialize(new PartPurchasesPayload { Items = records ?? Array.Empty<PartPurchaseSnapshotInfo>() });
             var proxyReason = "[PartPurchases] " + (reason ?? string.Empty);
 
             // Route through a thin internal seam that bypasses Technology's ReduceIntent (which interprets
             // payload as Technology wire format) and instead reduces the PartPurchases wire format.
-            return ApplyWithCustomReduce<PartPurchaseSnapshotInfo[]>(payload, clientKnownRevision, proxyReason, isServerMutation,
-                (current, records) =>
+            return ApplyWithCustomReduce<PartPurchasesPayload>(payload, clientKnownRevision, proxyReason, isServerMutation,
+                (current, partPurchasesPayload) =>
                 {
-                    var reduced = ReducePartPurchases(ToCanonical(current.Payload), records);
+                    var reduced = ReducePartPurchases(ToCanonical(current.Payload), partPurchasesPayload?.Items);
                     return reduced == null || !reduced.Accepted
                         ? ReduceResult<PayloadBox>.Reject()
                         : ReduceResult<PayloadBox>.Accept(

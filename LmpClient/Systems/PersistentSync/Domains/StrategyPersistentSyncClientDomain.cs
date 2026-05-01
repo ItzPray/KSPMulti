@@ -25,7 +25,7 @@ using Strategies;
 namespace LmpClient.Systems.PersistentSync
 {
     [PersistentSyncStockScenario("StrategySystem")]
-    public class StrategyPersistentSyncClientDomain : SyncClientDomain<StrategySnapshotInfo[]>
+    public class StrategyPersistentSyncClientDomain : SyncClientDomain<StrategyPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
@@ -35,9 +35,10 @@ namespace LmpClient.Systems.PersistentSync
 
         private Dictionary<string, StrategySnapshotInfo> _pendingStrategies;
 
-        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, StrategySnapshotInfo[] payload)
+        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, StrategyPayload payload)
         {
-            _pendingStrategies = (payload ?? new StrategySnapshotInfo[0])
+            var items = payload?.Items ?? Array.Empty<StrategySnapshotInfo>();
+            _pendingStrategies = items
                 .Where(strategy => strategy != null && !string.IsNullOrEmpty(strategy.Name))
                 .ToDictionary(strategy => strategy.Name, strategy => strategy, StringComparer.Ordinal);
         }

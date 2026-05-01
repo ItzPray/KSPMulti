@@ -154,8 +154,10 @@ namespace LmpCommonTest
                 new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/TrackingStation", Level = 1 }
             };
 
-            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(facilities);
-            var roundTripFacilities = PersistentSyncPayloadSerializer.Deserialize<UpgradeableFacilityLevelPayload[]>(snapshotPayload, snapshotPayload.Length)
+            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilitiesPayload { Items = facilities });
+            var legacyArrayPayload = PersistentSyncPayloadSerializer.Serialize(facilities);
+            CollectionAssert.AreEqual(legacyArrayPayload, snapshotPayload);
+            var roundTripFacilities = PersistentSyncPayloadSerializer.Deserialize<UpgradeableFacilitiesPayload>(snapshotPayload, snapshotPayload.Length).Items
                 .ToDictionary(level => level.FacilityId, level => level.Level);
 
             Assert.AreEqual(2, roundTripFacilities["SpaceCenter/MissionControl"]);
@@ -296,7 +298,7 @@ namespace LmpCommonTest
             CollectionAssert.AreEqual(
                 LegacyFacilityLevels(new[] { new UpgradeableFacilityLevelPayload { FacilityId = "A", Level = 1 }, new UpgradeableFacilityLevelPayload { FacilityId = "B", Level = 2 } }),
                 PersistentSyncPayloadSerializer.Serialize(
-                    new[] { new UpgradeableFacilityLevelPayload { FacilityId = "A", Level = 1 }, new UpgradeableFacilityLevelPayload { FacilityId = "B", Level = 2 } }));
+                    new UpgradeableFacilitiesPayload { Items = new[] { new UpgradeableFacilityLevelPayload { FacilityId = "A", Level = 1 }, new UpgradeableFacilityLevelPayload { FacilityId = "B", Level = 2 } } }));
             CollectionAssert.AreEqual(
                 LegacyBlobArray("Tech", "basicRocketry", contract.Data, contract.Data.Length)
                     .Concat(LegacyPartPurchases(Array.Empty<PartPurchaseSnapshotInfo>()))
@@ -304,19 +306,19 @@ namespace LmpCommonTest
                 PersistentSyncPayloadSerializer.Serialize(new TechnologyPayload { Technologies = new[] { new TechnologySnapshotInfo { TechId = "basicRocketry", Data = contract.Data } } }));
             CollectionAssert.AreEqual(
                 LegacyBlobArray("Name", "BailoutGrant", contract.Data, contract.Data.Length),
-                PersistentSyncPayloadSerializer.Serialize(new[] { new StrategySnapshotInfo { Name = "BailoutGrant", Data = contract.Data } }));
+                PersistentSyncPayloadSerializer.Serialize(new StrategyPayload { Items = new[] { new StrategySnapshotInfo { Name = "BailoutGrant", Data = contract.Data } } }));
             CollectionAssert.AreEqual(
                 LegacyBlobArray("Id", "Kerbin", contract.Data, contract.Data.Length),
-                PersistentSyncPayloadSerializer.Serialize(new[] { new AchievementSnapshotInfo { Id = "Kerbin", Data = contract.Data } }));
+                PersistentSyncPayloadSerializer.Serialize(new AchievementsPayload { Items = new[] { new AchievementSnapshotInfo { Id = "Kerbin", Data = contract.Data } } }));
             CollectionAssert.AreEqual(
                 LegacyBlobArray("Id", "crewReport@Kerbin", contract.Data, contract.Data.Length),
-                PersistentSyncPayloadSerializer.Serialize(new[] { new ScienceSubjectSnapshotInfo { Id = "crewReport@Kerbin", Data = contract.Data } }));
+                PersistentSyncPayloadSerializer.Serialize(new ScienceSubjectsPayload { Items = new[] { new ScienceSubjectSnapshotInfo { Id = "crewReport@Kerbin", Data = contract.Data } } }));
             CollectionAssert.AreEqual(
                 LegacyExperimentalParts(new[] { new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 } }),
-                PersistentSyncPayloadSerializer.Serialize(new[] { new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 } }));
+                PersistentSyncPayloadSerializer.Serialize(new ExperimentalPartsPayload { Items = new[] { new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 } } }));
             CollectionAssert.AreEqual(
                 LegacyPartPurchases(new[] { new PartPurchaseSnapshotInfo { TechId = "engineering101", PartNames = new[] { "radialDecoupler", "stackSeparator" } } }),
-                PersistentSyncPayloadSerializer.Serialize(new[] { new PartPurchaseSnapshotInfo { TechId = "engineering101", PartNames = new[] { "radialDecoupler", "stackSeparator" } } }));
+                PersistentSyncPayloadSerializer.Serialize(new PartPurchasesPayload { Items = new[] { new PartPurchaseSnapshotInfo { TechId = "engineering101", PartNames = new[] { "radialDecoupler", "stackSeparator" } } } }));
             CollectionAssert.AreEqual(
                 LegacyContractSnapshot(ContractSnapshotPayloadMode.Delta, new[] { contract }),
                 PersistentSyncPayloadSerializer.Serialize(new ContractsPayload { Snapshot = new ContractSnapshotPayload { Contracts = new[] { contract }.ToList() } }));
@@ -447,8 +449,9 @@ namespace LmpCommonTest
                 }
             };
 
-            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(strategyPayload);
-            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<StrategySnapshotInfo[]>(snapshotPayload);
+            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new StrategyPayload { Items = strategyPayload });
+            CollectionAssert.AreEqual(PersistentSyncPayloadSerializer.Serialize(strategyPayload), snapshotPayload);
+            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<StrategyPayload>(snapshotPayload, snapshotPayload.Length).Items;
 
             Assert.AreEqual(1, roundTrip.Length);
             Assert.AreEqual("BailoutGrant", roundTrip[0].Name);
@@ -467,8 +470,9 @@ namespace LmpCommonTest
                 }
             };
 
-            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(achievementPayload);
-            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<AchievementSnapshotInfo[]>(snapshotPayload);
+            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new AchievementsPayload { Items = achievementPayload });
+            CollectionAssert.AreEqual(PersistentSyncPayloadSerializer.Serialize(achievementPayload), snapshotPayload);
+            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<AchievementsPayload>(snapshotPayload, snapshotPayload.Length).Items;
 
             Assert.AreEqual(1, roundTrip.Length);
             Assert.AreEqual("Kerbin", roundTrip[0].Id);
@@ -487,8 +491,9 @@ namespace LmpCommonTest
                 }
             };
 
-            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(subjectPayload);
-            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<ScienceSubjectSnapshotInfo[]>(snapshotPayload);
+            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new ScienceSubjectsPayload { Items = subjectPayload });
+            CollectionAssert.AreEqual(PersistentSyncPayloadSerializer.Serialize(subjectPayload), snapshotPayload);
+            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<ScienceSubjectsPayload>(snapshotPayload, snapshotPayload.Length).Items;
 
             Assert.AreEqual(1, roundTrip.Length);
             Assert.AreEqual(subjectPayload[0].Id, roundTrip[0].Id);
@@ -498,12 +503,14 @@ namespace LmpCommonTest
         [TestMethod]
         public void TestExperimentalPartsSnapshotPayloadRoundTrip()
         {
-            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new[]
+            var parts = new[]
             {
                 new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 },
                 new ExperimentalPartSnapshotInfo { PartName = "radialDecoupler", Count = 1 }
-            });
-            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<ExperimentalPartSnapshotInfo[]>(snapshotPayload);
+            };
+            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new ExperimentalPartsPayload { Items = parts });
+            CollectionAssert.AreEqual(PersistentSyncPayloadSerializer.Serialize(parts), snapshotPayload);
+            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<ExperimentalPartsPayload>(snapshotPayload, snapshotPayload.Length).Items;
 
             Assert.AreEqual(2, roundTrip.Length);
             Assert.AreEqual("liquidEngine", roundTrip[0].PartName);
@@ -515,15 +522,17 @@ namespace LmpCommonTest
         [TestMethod]
         public void TestPartPurchasesSnapshotPayloadRoundTrip()
         {
-            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new[]
+            var purchases = new[]
             {
                 new PartPurchaseSnapshotInfo
                 {
                     TechId = "engineering101",
                     PartNames = new[] { "radialDecoupler", "stackSeparator" }
                 }
-            });
-            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<PartPurchaseSnapshotInfo[]>(snapshotPayload);
+            };
+            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new PartPurchasesPayload { Items = purchases });
+            CollectionAssert.AreEqual(PersistentSyncPayloadSerializer.Serialize(purchases), snapshotPayload);
+            var roundTrip = PersistentSyncPayloadSerializer.Deserialize<PartPurchasesPayload>(snapshotPayload, snapshotPayload.Length).Items;
 
             Assert.AreEqual(1, roundTrip.Length);
             Assert.AreEqual("engineering101", roundTrip[0].TechId);

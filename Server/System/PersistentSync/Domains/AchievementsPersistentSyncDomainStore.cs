@@ -18,7 +18,7 @@ using System.Text;
 namespace Server.System.PersistentSync
 {
     [PersistentSyncStockScenario("ProgressTracking")]
-    public sealed class AchievementsPersistentSyncDomainStore : SyncDomainStore<AchievementSnapshotInfo[]>
+    public sealed class AchievementsPersistentSyncDomainStore : SyncDomainStore<AchievementsPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -29,32 +29,32 @@ namespace Server.System.PersistentSync
         private const string ProgressNodeName = "Progress";
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
-        protected override AchievementSnapshotInfo[] CreateDefaultPayload()
+        protected override AchievementsPayload CreateDefaultPayload()
         {
-            return BuildSnapshotPayload(CreateEmptyCanonical());
+            return new AchievementsPayload { Items = BuildSnapshotPayload(CreateEmptyCanonical()) };
         }
 
-        protected override AchievementSnapshotInfo[] LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        protected override AchievementsPayload LoadPayload(ConfigNode scenario, bool createdFromScratch)
         {
-            return BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch));
+            return new AchievementsPayload { Items = BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch)) };
         }
 
-        protected override ReduceResult<AchievementSnapshotInfo[]> ReducePayload(ClientStructure client, AchievementSnapshotInfo[] current, AchievementSnapshotInfo[] incoming, string reason, bool isServerMutation)
+        protected override ReduceResult<AchievementsPayload> ReducePayload(ClientStructure client, AchievementsPayload current, AchievementsPayload incoming, string reason, bool isServerMutation)
         {
-            var reduced = ReducePayloadState(ToCanonical(current), incoming, reason, isServerMutation);
+            var reduced = ReducePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
             return reduced == null || !reduced.Accepted
-                ? ReduceResult<AchievementSnapshotInfo[]>.Reject()
-                : ReduceResult<AchievementSnapshotInfo[]>.Accept(BuildSnapshotPayload(reduced.NextState), reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+                ? ReduceResult<AchievementsPayload>.Reject()
+                : ReduceResult<AchievementsPayload>.Accept(new AchievementsPayload { Items = BuildSnapshotPayload(reduced.NextState) }, reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
         }
 
-        protected override ConfigNode WritePayload(ConfigNode scenario, AchievementSnapshotInfo[] payload)
+        protected override ConfigNode WritePayload(ConfigNode scenario, AchievementsPayload payload)
         {
-            return WriteCanonicalState(scenario, ToCanonical(payload));
+            return WriteCanonicalState(scenario, ToCanonical(payload.Items));
         }
 
-        protected override bool PayloadsAreEqual(AchievementSnapshotInfo[] left, AchievementSnapshotInfo[] right)
+        protected override bool PayloadsAreEqual(AchievementsPayload left, AchievementsPayload right)
         {
-            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+            return AreEquivalent(ToCanonical(left.Items), ToCanonical(right.Items));
         }
 
         private static Canonical CreateEmptyCanonical()

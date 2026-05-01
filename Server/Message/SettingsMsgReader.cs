@@ -2,11 +2,16 @@
 using LmpCommon.Message.Data.Settings;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Server;
+using LmpCommon.PersistentSync;
 using Server.Client;
 using Server.Context;
+using Server.Log;
 using Server.Message.Base;
 using Server.Server;
 using Server.Settings.Structures;
+using Server.System.PersistentSync;
+using System;
+using System.Linq;
 
 namespace Server.Message
 {
@@ -94,6 +99,39 @@ namespace Server.Message
             }
 
             MessageQueuer.SendToClient<SetingsSrvMsg>(client, msgData);
+
+            var catalogMsg = ServerContext.ServerMessageFactory.CreateNewMessageData<PersistentSyncCatalogMsgData>();
+            if (PersistentSyncRegistry.IsPersistentSyncInitialized)
+            {
+                catalogMsg.PersistentSyncCatalogWireVersion = PersistentSyncCatalogWire.CurrentVersion;
+                var catalogRows = new PersistentSyncCatalogRowWire[PersistentSyncDomainCatalog.AllOrdered.Count];
+                var i = 0;
+                foreach (var def in PersistentSyncDomainCatalog.AllOrdered.OrderBy(d => d.WireId))
+                {
+                    var domain = PersistentSyncRegistry.GetRegisteredDomain(def.DomainId)
+                        ?? throw new InvalidOperationException($"Persistent sync catalog build failed: no server domain instance for '{def.DomainId}'.");
+                    catalogRows[i++] = new PersistentSyncCatalogRowWire
+                    {
+                        WireId = def.WireId,
+                        DomainName = def.Name,
+                        AuthorityPolicy = (byte)domain.AuthorityPolicy,
+                        MaterializationSlot = (byte)def.MaterializationSlot,
+                        RequiredCapabilities = (uint)def.RequiredCapabilities,
+                        ProducerRequiredCapabilities = (uint)def.ProducerRequiredCapabilities,
+                        InitialSyncGameModes = (ushort)(int)def.InitialSyncGameModes
+                    };
+                }
+
+                catalogMsg.PersistentSyncCatalogRows = catalogRows;
+            }
+            else
+            {
+                LunaLog.Warning("[PersistentSync] Settings reply: registry not initialized; omitting persistent sync catalog.");
+                catalogMsg.PersistentSyncCatalogWireVersion = 0;
+                catalogMsg.PersistentSyncCatalogRows = Array.Empty<PersistentSyncCatalogRowWire>();
+            }
+
+            MessageQueuer.SendToClient<SetingsSrvMsg>(client, catalogMsg);
         }
     }
 }

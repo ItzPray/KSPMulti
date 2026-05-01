@@ -25,12 +25,15 @@ namespace Server.System
 
             if (PersistentSyncRegistry.IsPersistentSyncInitialized)
             {
-                var payload = PersistentSyncPayloadSerializer.Serialize(new[]
+                var payload = PersistentSyncPayloadSerializer.Serialize(new PartPurchasesPayload
                 {
-                    new PartPurchaseSnapshotInfo
+                    Items = new[]
                     {
-                        TechId = data.TechId,
-                        PartNames = new[] { data.PartName }
+                        new PartPurchaseSnapshotInfo
+                        {
+                            TechId = data.TechId,
+                            PartNames = new[] { data.PartName }
+                        }
                     }
                 });
                 PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.PartPurchases, payload, $"LegacyPartPurchase:{data.TechId}:{data.PartName}");

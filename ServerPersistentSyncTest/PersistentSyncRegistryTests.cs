@@ -156,7 +156,7 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(1, initialSnapshot["SpaceCenter/MissionControl"]);
             Assert.AreEqual(0, initialSnapshot["SpaceCenter/TrackingStation"]);
 
-            var payload = PersistentSyncPayloadSerializer.Serialize(new[] { new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 2 } });
+            var payload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilitiesPayload { Items = new[] { new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 2 } } });
             var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.UpgradeableFacilities, payload, "Mission Control upgrade"));
 
             Assert.IsTrue(result.Accepted);
@@ -213,7 +213,7 @@ namespace ServerPersistentSyncTest
             var store = new UpgradeableFacilitiesPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var payload = PersistentSyncPayloadSerializer.Serialize(new[] { new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 1 } });
+            var payload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilitiesPayload { Items = new[] { new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 1 } } });
             var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.UpgradeableFacilities, payload, "No-op"));
 
             Assert.IsTrue(result.Accepted);
@@ -237,7 +237,7 @@ namespace ServerPersistentSyncTest
                 store.GetCurrentSnapshot().NumBytes);
             Assert.AreEqual(2, before["SpaceCenter/MissionControl"]);
 
-            var downgradePayload = PersistentSyncPayloadSerializer.Serialize(new[] { new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 0 } });
+            var downgradePayload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilitiesPayload { Items = new[] { new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 0 } } });
             var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.UpgradeableFacilities, downgradePayload, "Spurious KSC init"));
 
             Assert.IsTrue(result.Accepted);
@@ -467,7 +467,6 @@ CONTRACTS
         }
 
         [TestMethod]
-        [Ignore("Pending follow-up: normalize contract no-op equivalence beyond payload formatting.")]
         public void ContractsDomainNoRevisionIncrementOnEquivalentMutation()
         {
             var contract = CreateContractSnapshotInfo(
@@ -482,8 +481,8 @@ CONTRACTS
             var store = new ContractsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new ContractsPayload { Snapshot = new ContractSnapshotPayload { Contracts = new[] { CreateContractSnapshotInfo(contract.ContractGuid, "Offered", ContractSnapshotPlacement.Current, -1, "Incomplete", "50,0,3,3,0") }.ToList() } });
-            var result = store.ApplyServerMutation(mutationPayload, "No-op");
+            var snapshot = store.GetCurrentSnapshot();
+            var result = store.ApplyServerMutation(snapshot.Payload, "No-op");
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(result.Changed);
@@ -635,10 +634,11 @@ Tech
             var store = new StrategyPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var initialSnapshot = PersistentSyncPayloadSerializer.Deserialize<StrategySnapshotInfo[]>(store.GetCurrentSnapshot().Payload);
+            var snap = store.GetCurrentSnapshot();
+            var initialSnapshot = PersistentSyncPayloadSerializer.Deserialize<StrategyPayload>(snap.Payload, snap.NumBytes).Items;
             Assert.AreEqual(2, initialSnapshot.Length);
 
-            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new[] { CreateStrategySnapshotInfo("recovery", 0.75f, true) });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new StrategyPayload { Items = new[] { CreateStrategySnapshotInfo("recovery", 0.75f, true) } });
             var result = store.ApplyServerMutation(mutationPayload, "Activate recovery");
 
             Assert.IsTrue(result.Accepted);
@@ -658,7 +658,7 @@ Tech
             var store = new AchievementsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new[] { CreateAchievementSnapshotInfo("Duna", "Complete") });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new AchievementsPayload { Items = new[] { CreateAchievementSnapshotInfo("Duna", "Complete") } });
             var result = store.ApplyServerMutation(mutationPayload, "Reach Duna");
 
             Assert.IsTrue(result.Accepted);
@@ -681,10 +681,11 @@ Tech
             var store = new ScienceSubjectsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var initialSnapshot = PersistentSyncPayloadSerializer.Deserialize<ScienceSubjectSnapshotInfo[]>(store.GetCurrentSnapshot().Payload);
+            var ssSnap = store.GetCurrentSnapshot();
+            var initialSnapshot = PersistentSyncPayloadSerializer.Deserialize<ScienceSubjectsPayload>(ssSnap.Payload, ssSnap.NumBytes).Items;
             Assert.AreEqual(1, initialSnapshot.Length);
 
-            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new[] { CreateScienceSubjectSnapshotInfo("evaReport@MunInSpaceHigh", 2f, 8f) });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new ScienceSubjectsPayload { Items = new[] { CreateScienceSubjectSnapshotInfo("evaReport@MunInSpaceHigh", 2f, 8f) } });
             var result = store.ApplyServerMutation(mutationPayload, "Mun EVA");
 
             Assert.IsTrue(result.Accepted);
@@ -711,17 +712,20 @@ Tech
             var partPurchasesStore = new PartPurchasesPersistentSyncDomainStore(technologyStore);
             partPurchasesStore.LoadFromPersistence(false);
 
-            var experimentalPayload = PersistentSyncPayloadSerializer.Serialize(new[] { new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 } });
+            var experimentalPayload = PersistentSyncPayloadSerializer.Serialize(new ExperimentalPartsPayload { Items = new[] { new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 } } });
             var experimentalResult = experimentalStore.ApplyServerMutation(experimentalPayload, "More stock");
             Assert.IsTrue(experimentalResult.Accepted);
             Assert.IsTrue(experimentalResult.Changed);
 
-            var purchasePayload = PersistentSyncPayloadSerializer.Serialize(new[]
+            var purchasePayload = PersistentSyncPayloadSerializer.Serialize(new PartPurchasesPayload
             {
-                new PartPurchaseSnapshotInfo
+                Items = new[]
                 {
-                    TechId = "basicRocketry",
-                    PartNames = new[] { "liquidEngine", "solidBooster" }
+                    new PartPurchaseSnapshotInfo
+                    {
+                        TechId = "basicRocketry",
+                        PartNames = new[] { "liquidEngine", "solidBooster" }
+                    }
                 }
             });
             var purchaseResult = partPurchasesStore.ApplyServerMutation(purchasePayload, "Buy part");
@@ -737,7 +741,7 @@ Tech
             // PartPurchases wire snapshot is projected from Technology's canonical, so the returned payload
             // must reflect the mutation we just routed through it.
             var projectedSnapshot = partPurchasesStore.GetCurrentSnapshot();
-            var projected = PersistentSyncPayloadSerializer.Deserialize<PartPurchaseSnapshotInfo[]>(projectedSnapshot.Payload);
+            var projected = PersistentSyncPayloadSerializer.Deserialize<PartPurchasesPayload>(projectedSnapshot.Payload, projectedSnapshot.NumBytes).Items;
             Assert.AreEqual(1, projected.Length);
             Assert.AreEqual("basicRocketry", projected[0].TechId);
             CollectionAssert.AreEqual(new[] { "liquidEngine", "solidBooster" }, projected[0].PartNames);
@@ -765,12 +769,15 @@ Tech
 
             // Mutation routed through PartPurchases: the owner advances first (it owns the canonical), and
             // the projection reprojects the owner's new revision.
-            var purchasePayload = PersistentSyncPayloadSerializer.Serialize(new[]
+            var purchasePayload = PersistentSyncPayloadSerializer.Serialize(new PartPurchasesPayload
             {
-                new PartPurchaseSnapshotInfo
+                Items = new[]
                 {
-                    TechId = "basicRocketry",
-                    PartNames = new[] { "liquidEngine" }
+                    new PartPurchaseSnapshotInfo
+                    {
+                        TechId = "basicRocketry",
+                        PartNames = new[] { "liquidEngine" }
+                    }
                 }
             });
             var projectionResult = partPurchasesStore.ApplyServerMutation(purchasePayload, "Buy part");
@@ -1553,7 +1560,8 @@ lmpOfferTitle = {title}
 
         private static Dictionary<string, int> DeserializeFacilityLevels(byte[] payload, int numBytes)
         {
-            return PersistentSyncPayloadSerializer.Deserialize<UpgradeableFacilityLevelPayload[]>(payload, numBytes)
+            var envelope = PersistentSyncPayloadSerializer.Deserialize<UpgradeableFacilitiesPayload>(payload, numBytes);
+            return (envelope?.Items ?? Array.Empty<UpgradeableFacilityLevelPayload>())
                 .ToDictionary(level => level.FacilityId, level => level.Level);
         }
 

@@ -25,7 +25,7 @@ using Strategies;
 namespace LmpClient.Systems.PersistentSync
 {
     [PersistentSyncStockScenario("ProgressTracking")]
-    public class AchievementsPersistentSyncClientDomain : SyncClientDomain<AchievementSnapshotInfo[]>
+    public class AchievementsPersistentSyncClientDomain : SyncClientDomain<AchievementsPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
@@ -35,9 +35,9 @@ namespace LmpClient.Systems.PersistentSync
 
         private AchievementSnapshotInfo[] _pendingAchievements;
 
-        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, AchievementSnapshotInfo[] payload)
+        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, AchievementsPayload payload)
         {
-            _pendingAchievements = payload ?? new AchievementSnapshotInfo[0];
+            _pendingAchievements = payload?.Items ?? Array.Empty<AchievementSnapshotInfo>();
         }
 
         public override PersistentSyncApplyOutcome FlushPendingState()

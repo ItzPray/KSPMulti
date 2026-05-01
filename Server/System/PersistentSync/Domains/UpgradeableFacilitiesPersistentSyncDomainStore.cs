@@ -19,7 +19,7 @@ using System.Linq;
 namespace Server.System.PersistentSync
 {
     [PersistentSyncStockScenario("ScenarioUpgradeableFacilities")]
-    public sealed class UpgradeableFacilitiesPersistentSyncDomainStore : SyncDomainStore<UpgradeableFacilityLevelPayload[]>
+    public sealed class UpgradeableFacilitiesPersistentSyncDomainStore : SyncDomainStore<UpgradeableFacilitiesPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -44,41 +44,41 @@ namespace Server.System.PersistentSync
         };
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
-        protected override UpgradeableFacilityLevelPayload[] CreateDefaultPayload()
+        protected override UpgradeableFacilitiesPayload CreateDefaultPayload()
         {
-            return BuildSnapshotPayload(CreateEmptyCanonical());
+            return new UpgradeableFacilitiesPayload { Items = BuildSnapshotPayload(CreateEmptyCanonical()) };
         }
 
-        protected override UpgradeableFacilityLevelPayload[] LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        protected override UpgradeableFacilitiesPayload LoadPayload(ConfigNode scenario, bool createdFromScratch)
         {
-            return BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch));
+            return new UpgradeableFacilitiesPayload { Items = BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch)) };
         }
 
-        protected override ReduceResult<UpgradeableFacilityLevelPayload[]> ReducePayload(ClientStructure client, UpgradeableFacilityLevelPayload[] current, UpgradeableFacilityLevelPayload[] incoming, string reason, bool isServerMutation)
+        protected override ReduceResult<UpgradeableFacilitiesPayload> ReducePayload(ClientStructure client, UpgradeableFacilitiesPayload current, UpgradeableFacilitiesPayload incoming, string reason, bool isServerMutation)
         {
-            var state = ToCanonical(current);
-            foreach (var intent in incoming ?? new UpgradeableFacilityLevelPayload[0])
+            var state = ToCanonical(current.Items);
+            foreach (var intent in incoming?.Items ?? Array.Empty<UpgradeableFacilityLevelPayload>())
             {
                 var reduced = ReducePayloadState(state, intent, reason, isServerMutation);
                 if (reduced == null || !reduced.Accepted)
                 {
-                    return ReduceResult<UpgradeableFacilityLevelPayload[]>.Reject();
+                    return ReduceResult<UpgradeableFacilitiesPayload>.Reject();
                 }
 
                 state = reduced.NextState ?? state;
             }
 
-            return ReduceResult<UpgradeableFacilityLevelPayload[]>.Accept(BuildSnapshotPayload(state));
+            return ReduceResult<UpgradeableFacilitiesPayload>.Accept(new UpgradeableFacilitiesPayload { Items = BuildSnapshotPayload(state) });
         }
 
-        protected override ConfigNode WritePayload(ConfigNode scenario, UpgradeableFacilityLevelPayload[] payload)
+        protected override ConfigNode WritePayload(ConfigNode scenario, UpgradeableFacilitiesPayload payload)
         {
-            return WriteCanonicalState(scenario, ToCanonical(payload));
+            return WriteCanonicalState(scenario, ToCanonical(payload.Items));
         }
 
-        protected override bool PayloadsAreEqual(UpgradeableFacilityLevelPayload[] left, UpgradeableFacilityLevelPayload[] right)
+        protected override bool PayloadsAreEqual(UpgradeableFacilitiesPayload left, UpgradeableFacilitiesPayload right)
         {
-            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+            return AreEquivalent(ToCanonical(left.Items), ToCanonical(right.Items));
         }
 
         private static Canonical CreateEmptyCanonical()

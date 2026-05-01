@@ -1,5 +1,6 @@
 using LmpClient;
 using LmpClient.Base;
+using LmpClient.Network;
 using LmpClient.Systems.Network;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
@@ -40,8 +41,9 @@ namespace LmpClient.Systems.PersistentSync
             var bufferedSnapshot = CopySnapshot(data);
             if (!System.Domains.TryGetValue(bufferedSnapshot.DomainId, out var domain))
             {
-                PsLog($"snapshot missing domain handler domain={bufferedSnapshot.DomainId} revision={bufferedSnapshot.Revision}");
-                RequestResync(bufferedSnapshot.DomainId, "MissingDomainHandler");
+                PsLog($"snapshot missing domain handler domain={bufferedSnapshot.DomainId} revision={bufferedSnapshot.Revision} disconnecting");
+                NetworkConnection.Disconnect(
+                    $"[KSPMP] Persistent sync protocol error: no client handler for domain '{bufferedSnapshot.DomainId}'. Update client or verify catalog.");
                 return;
             }
 

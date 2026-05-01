@@ -19,7 +19,7 @@ using System.Linq;
 namespace Server.System.PersistentSync
 {
     [PersistentSyncStockScenario("ResearchAndDevelopment")]
-    public sealed class ExperimentalPartsPersistentSyncDomainStore : SyncDomainStore<ExperimentalPartSnapshotInfo[]>
+    public sealed class ExperimentalPartsPersistentSyncDomainStore : SyncDomainStore<ExperimentalPartsPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -30,32 +30,32 @@ namespace Server.System.PersistentSync
         private const string ExpPartsNodeName = "ExpParts";
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
-        protected override ExperimentalPartSnapshotInfo[] CreateDefaultPayload()
+        protected override ExperimentalPartsPayload CreateDefaultPayload()
         {
-            return BuildSnapshotPayload(CreateEmptyCanonical());
+            return new ExperimentalPartsPayload { Items = BuildSnapshotPayload(CreateEmptyCanonical()) };
         }
 
-        protected override ExperimentalPartSnapshotInfo[] LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        protected override ExperimentalPartsPayload LoadPayload(ConfigNode scenario, bool createdFromScratch)
         {
-            return BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch));
+            return new ExperimentalPartsPayload { Items = BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch)) };
         }
 
-        protected override ReduceResult<ExperimentalPartSnapshotInfo[]> ReducePayload(ClientStructure client, ExperimentalPartSnapshotInfo[] current, ExperimentalPartSnapshotInfo[] incoming, string reason, bool isServerMutation)
+        protected override ReduceResult<ExperimentalPartsPayload> ReducePayload(ClientStructure client, ExperimentalPartsPayload current, ExperimentalPartsPayload incoming, string reason, bool isServerMutation)
         {
-            var reduced = ReducePayloadState(ToCanonical(current), incoming, reason, isServerMutation);
+            var reduced = ReducePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
             return reduced == null || !reduced.Accepted
-                ? ReduceResult<ExperimentalPartSnapshotInfo[]>.Reject()
-                : ReduceResult<ExperimentalPartSnapshotInfo[]>.Accept(BuildSnapshotPayload(reduced.NextState), reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+                ? ReduceResult<ExperimentalPartsPayload>.Reject()
+                : ReduceResult<ExperimentalPartsPayload>.Accept(new ExperimentalPartsPayload { Items = BuildSnapshotPayload(reduced.NextState) }, reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
         }
 
-        protected override ConfigNode WritePayload(ConfigNode scenario, ExperimentalPartSnapshotInfo[] payload)
+        protected override ConfigNode WritePayload(ConfigNode scenario, ExperimentalPartsPayload payload)
         {
-            return WriteCanonicalState(scenario, ToCanonical(payload));
+            return WriteCanonicalState(scenario, ToCanonical(payload.Items));
         }
 
-        protected override bool PayloadsAreEqual(ExperimentalPartSnapshotInfo[] left, ExperimentalPartSnapshotInfo[] right)
+        protected override bool PayloadsAreEqual(ExperimentalPartsPayload left, ExperimentalPartsPayload right)
         {
-            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+            return AreEquivalent(ToCanonical(left.Items), ToCanonical(right.Items));
         }
 
         private static Canonical CreateEmptyCanonical()

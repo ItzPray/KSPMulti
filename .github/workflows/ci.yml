@@ -26,5 +26,12 @@ jobs:
         with:
           dotnet-version: 5.0.x
 
+      - name: Persistent Sync authoring gate
+        shell: pwsh
+        run: ./Scripts/VerifyPersistentSyncAuthoring.ps1
+
+      - name: Test (ServerPersistentSync)
+        run: dotnet test ServerPersistentSyncTest/ServerPersistentSyncTest.csproj -c Release
+
       - name: Test (Server)
         run: dotnet test ServerTest/ServerTest.csproj -c Release

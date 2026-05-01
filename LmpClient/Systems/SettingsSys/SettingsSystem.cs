@@ -19,6 +19,7 @@ namespace LmpClient.Systems.SettingsSys
         protected override void OnDisabled()
         {
             base.OnDisabled();
+            SettingsCatalogJoinLatch.Reset();
             ServerSettings = new SettingsServerStructure();
         }
 

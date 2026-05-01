@@ -98,6 +98,7 @@ namespace LmpClient.Systems.Network
                     break;
                 case ClientState.Handshaked:
                     MainSystem.Singleton.Status = "Handshaking successful";
+                    SettingsCatalogJoinLatch.Reset();
                     SettingsSystem.Singleton.Enabled = true;
                     MainSystem.NetworkState = ClientState.SyncingSettings;
                     SettingsSystem.Singleton.MessageSender.SendSettingsRequest();

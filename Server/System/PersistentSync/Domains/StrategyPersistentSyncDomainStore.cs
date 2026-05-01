@@ -18,7 +18,7 @@ using System.Text;
 namespace Server.System.PersistentSync
 {
     [PersistentSyncStockScenario("StrategySystem")]
-    public sealed class StrategyPersistentSyncDomainStore : SyncDomainStore<StrategySnapshotInfo[]>
+    public sealed class StrategyPersistentSyncDomainStore : SyncDomainStore<StrategyPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -31,32 +31,32 @@ namespace Server.System.PersistentSync
         private const string StrategyNameFieldName = "name";
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
-        protected override StrategySnapshotInfo[] CreateDefaultPayload()
+        protected override StrategyPayload CreateDefaultPayload()
         {
-            return BuildSnapshotPayload(CreateEmptyCanonical());
+            return new StrategyPayload { Items = BuildSnapshotPayload(CreateEmptyCanonical()) };
         }
 
-        protected override StrategySnapshotInfo[] LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        protected override StrategyPayload LoadPayload(ConfigNode scenario, bool createdFromScratch)
         {
-            return BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch));
+            return new StrategyPayload { Items = BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch)) };
         }
 
-        protected override ReduceResult<StrategySnapshotInfo[]> ReducePayload(ClientStructure client, StrategySnapshotInfo[] current, StrategySnapshotInfo[] incoming, string reason, bool isServerMutation)
+        protected override ReduceResult<StrategyPayload> ReducePayload(ClientStructure client, StrategyPayload current, StrategyPayload incoming, string reason, bool isServerMutation)
         {
-            var reduced = ReducePayloadState(ToCanonical(current), incoming, reason, isServerMutation);
+            var reduced = ReducePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
             return reduced == null || !reduced.Accepted
-                ? ReduceResult<StrategySnapshotInfo[]>.Reject()
-                : ReduceResult<StrategySnapshotInfo[]>.Accept(BuildSnapshotPayload(reduced.NextState), reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+                ? ReduceResult<StrategyPayload>.Reject()
+                : ReduceResult<StrategyPayload>.Accept(new StrategyPayload { Items = BuildSnapshotPayload(reduced.NextState) }, reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
         }
 
-        protected override ConfigNode WritePayload(ConfigNode scenario, StrategySnapshotInfo[] payload)
+        protected override ConfigNode WritePayload(ConfigNode scenario, StrategyPayload payload)
         {
-            return WriteCanonicalState(scenario, ToCanonical(payload));
+            return WriteCanonicalState(scenario, ToCanonical(payload.Items));
         }
 
-        protected override bool PayloadsAreEqual(StrategySnapshotInfo[] left, StrategySnapshotInfo[] right)
+        protected override bool PayloadsAreEqual(StrategyPayload left, StrategyPayload right)
         {
-            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+            return AreEquivalent(ToCanonical(left.Items), ToCanonical(right.Items));
         }
 
         private static Canonical CreateEmptyCanonical()

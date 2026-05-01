@@ -25,12 +25,15 @@ namespace Server.System
 
             if (PersistentSyncRegistry.IsPersistentSyncInitialized)
             {
-                var payload = PersistentSyncPayloadSerializer.Serialize(new[]
+                var payload = PersistentSyncPayloadSerializer.Serialize(new ExperimentalPartsPayload
                 {
-                    new ExperimentalPartSnapshotInfo
+                    Items = new[]
                     {
-                        PartName = data.PartName,
-                        Count = data.Count
+                        new ExperimentalPartSnapshotInfo
+                        {
+                            PartName = data.PartName,
+                            Count = data.Count
+                        }
                     }
                 });
                 PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.ExperimentalParts, payload, $"LegacyExperimentalPart:{data.PartName}");

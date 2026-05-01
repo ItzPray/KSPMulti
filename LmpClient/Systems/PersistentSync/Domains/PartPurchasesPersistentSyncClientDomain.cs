@@ -25,7 +25,7 @@ using Strategies;
 namespace LmpClient.Systems.PersistentSync
 {
     [PersistentSyncStockScenario("ResearchAndDevelopment")]
-    public class PartPurchasesPersistentSyncClientDomain : SyncClientDomain<PartPurchaseSnapshotInfo[]>
+    public class PartPurchasesPersistentSyncClientDomain : SyncClientDomain<PartPurchasesPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
@@ -44,9 +44,9 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private Dictionary<string, PartPurchaseSnapshotInfo> _authoritativePurchases;
 
-        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, PartPurchaseSnapshotInfo[] payload)
+        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, PartPurchasesPayload payload)
         {
-            _pendingPurchases = (payload ?? new PartPurchaseSnapshotInfo[0])
+            _pendingPurchases = (payload?.Items ?? Array.Empty<PartPurchaseSnapshotInfo>())
                 .Where(value => value != null && !string.IsNullOrEmpty(value.TechId))
                 .ToDictionary(value => value.TechId, value => value, StringComparer.Ordinal);
             _authoritativePurchases = new Dictionary<string, PartPurchaseSnapshotInfo>(_pendingPurchases, StringComparer.Ordinal);

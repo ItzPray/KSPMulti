@@ -18,7 +18,7 @@ using System.Text;
 namespace Server.System.PersistentSync
 {
     [PersistentSyncStockScenario("ResearchAndDevelopment")]
-    public sealed class ScienceSubjectsPersistentSyncDomainStore : SyncDomainStore<ScienceSubjectSnapshotInfo[]>
+    public sealed class ScienceSubjectsPersistentSyncDomainStore : SyncDomainStore<ScienceSubjectsPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -30,32 +30,32 @@ namespace Server.System.PersistentSync
         private const string ScienceIdFieldName = "id";
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
-        protected override ScienceSubjectSnapshotInfo[] CreateDefaultPayload()
+        protected override ScienceSubjectsPayload CreateDefaultPayload()
         {
-            return BuildSnapshotPayload(CreateEmptyCanonical());
+            return new ScienceSubjectsPayload { Items = BuildSnapshotPayload(CreateEmptyCanonical()) };
         }
 
-        protected override ScienceSubjectSnapshotInfo[] LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        protected override ScienceSubjectsPayload LoadPayload(ConfigNode scenario, bool createdFromScratch)
         {
-            return BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch));
+            return new ScienceSubjectsPayload { Items = BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch)) };
         }
 
-        protected override ReduceResult<ScienceSubjectSnapshotInfo[]> ReducePayload(ClientStructure client, ScienceSubjectSnapshotInfo[] current, ScienceSubjectSnapshotInfo[] incoming, string reason, bool isServerMutation)
+        protected override ReduceResult<ScienceSubjectsPayload> ReducePayload(ClientStructure client, ScienceSubjectsPayload current, ScienceSubjectsPayload incoming, string reason, bool isServerMutation)
         {
-            var reduced = ReducePayloadState(ToCanonical(current), incoming, reason, isServerMutation);
+            var reduced = ReducePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
             return reduced == null || !reduced.Accepted
-                ? ReduceResult<ScienceSubjectSnapshotInfo[]>.Reject()
-                : ReduceResult<ScienceSubjectSnapshotInfo[]>.Accept(BuildSnapshotPayload(reduced.NextState), reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+                ? ReduceResult<ScienceSubjectsPayload>.Reject()
+                : ReduceResult<ScienceSubjectsPayload>.Accept(new ScienceSubjectsPayload { Items = BuildSnapshotPayload(reduced.NextState) }, reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
         }
 
-        protected override ConfigNode WritePayload(ConfigNode scenario, ScienceSubjectSnapshotInfo[] payload)
+        protected override ConfigNode WritePayload(ConfigNode scenario, ScienceSubjectsPayload payload)
         {
-            return WriteCanonicalState(scenario, ToCanonical(payload));
+            return WriteCanonicalState(scenario, ToCanonical(payload.Items));
         }
 
-        protected override bool PayloadsAreEqual(ScienceSubjectSnapshotInfo[] left, ScienceSubjectSnapshotInfo[] right)
+        protected override bool PayloadsAreEqual(ScienceSubjectsPayload left, ScienceSubjectsPayload right)
         {
-            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+            return AreEquivalent(ToCanonical(left.Items), ToCanonical(right.Items));
         }
 
         private static Canonical CreateEmptyCanonical()

@@ -534,6 +534,7 @@
     <Compile Include="Systems\Scenario\ScenarioMessageSender.cs" />
     <Compile Include="Systems\SettingsSys\SettingsServerStructure.cs" />
     <Compile Include="Systems\SettingsSys\SettingsMessageHandler.cs" />
+    <Compile Include="Systems\SettingsSys\SettingsCatalogJoinLatch.cs" />
     <Compile Include="Systems\SettingsSys\SettingsMessageSender.cs" />
     <Compile Include="Systems\Status\StatusMessageSender.cs" />
     <Compile Include="Systems\SystemsHandler.cs" />

@@ -25,7 +25,7 @@ namespace LmpClient.Systems.ShareScience
                 return;
             }
 
-            PersistentSyncSystem.Singleton.MessageSender.SendScienceIntent(science, reason);
+            PersistentSyncSystem.SendIntent<SciencePersistentSyncClientDomain, float>(science, reason);
             LunaLog.Log($"Science changed to: {science} with reason: {reason}");
         }
     }

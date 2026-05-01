@@ -19,7 +19,8 @@ namespace LmpCommon.Message.Server
         /// <inheritdoc />
         protected override Dictionary<ushort, Type> SubTypeDictionary { get; } = new Dictionary<ushort, Type>
         {
-            [(ushort)SettingsMessageType.Reply] = typeof(SettingsReplyMsgData)
+            [(ushort)SettingsMessageType.Reply] = typeof(SettingsReplyMsgData),
+            [(ushort)SettingsMessageType.PersistentSyncCatalog] = typeof(PersistentSyncCatalogMsgData)
         };
 
         public override ServerMessageType MessageType => ServerMessageType.Settings;

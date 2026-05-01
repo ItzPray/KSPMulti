@@ -21,7 +21,7 @@ using Upgradeables;
 namespace LmpClient.Systems.PersistentSync
 {
     [PersistentSyncStockScenario("ScenarioUpgradeableFacilities")]
-    public class UpgradeableFacilitiesPersistentSyncClientDomain : SyncClientDomain<UpgradeableFacilityLevelPayload[]>
+    public class UpgradeableFacilitiesPersistentSyncClientDomain : SyncClientDomain<UpgradeableFacilitiesPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
@@ -43,9 +43,9 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private Coroutine _delayedStopIgnoringFacilityEventsCoroutine;
 
-        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, UpgradeableFacilityLevelPayload[] payload)
+        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, UpgradeableFacilitiesPayload payload)
         {
-            _pendingFacilityLevels = (payload ?? new UpgradeableFacilityLevelPayload[0])
+            _pendingFacilityLevels = (payload?.Items ?? Array.Empty<UpgradeableFacilityLevelPayload>())
                 .ToDictionary(level => level.FacilityId, level => level.Level, StringComparer.Ordinal);
             _authoritativeLevelsFromServer = CloneLevelMap(_pendingFacilityLevels);
 

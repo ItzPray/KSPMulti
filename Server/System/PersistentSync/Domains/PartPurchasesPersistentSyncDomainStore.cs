@@ -9,6 +9,7 @@ using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Server.Client;
+using System;
 
 namespace Server.System.PersistentSync
 {
@@ -58,13 +59,13 @@ namespace Server.System.PersistentSync
             string reason,
             bool isServerMutation)
         {
-            var intent = PersistentSyncPayloadSerializer.Deserialize<PartPurchaseSnapshotInfo[]>(payload ?? global::System.Array.Empty<byte>(), payload?.Length ?? 0);
-            return owner.ApplyPartPurchasesIntent(intent, clientKnownRevision, reason, isServerMutation);
+            var intent = PersistentSyncPayloadSerializer.Deserialize<PartPurchasesPayload>(payload ?? global::System.Array.Empty<byte>(), payload?.Length ?? 0);
+            return owner.ApplyPartPurchasesIntent(intent?.Items ?? Array.Empty<PartPurchaseSnapshotInfo>(), clientKnownRevision, reason, isServerMutation);
         }
 
         protected override byte[] RenderSnapshotPayload(TechnologyPersistentSyncDomainStore owner)
         {
-            return PersistentSyncPayloadSerializer.Serialize(owner?.BuildPartPurchasesSnapshotPayload() ?? new PartPurchaseSnapshotInfo[0]);
+            return PersistentSyncPayloadSerializer.Serialize(new PartPurchasesPayload { Items = owner?.BuildPartPurchasesSnapshotPayload() ?? Array.Empty<PartPurchaseSnapshotInfo>() });
         }
     }
 }
