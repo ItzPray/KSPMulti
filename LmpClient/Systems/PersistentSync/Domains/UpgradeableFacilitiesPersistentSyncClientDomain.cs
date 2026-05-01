@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpClient;
 using LmpClient.Systems.KscScene;
 using LmpClient.Systems.ShareUpgradeableFacilities;
@@ -12,14 +20,12 @@ using Upgradeables;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    public class UpgradeableFacilitiesPersistentSyncClientDomain : TypedPersistentSyncClientDomain<UpgradeableFacilityLevelPayload[]>
+    [PersistentSyncStockScenario("ScenarioUpgradeableFacilities")]
+    public class UpgradeableFacilitiesPersistentSyncClientDomain : SyncClientDomain<UpgradeableFacilityLevelPayload[]>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("UpgradeableFacilities", 3);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ScenarioUpgradeableFacilities")
+            registrar.RegisterCurrent()
                 .UsesClientDomain<UpgradeableFacilitiesPersistentSyncClientDomain>();
         }
 
@@ -37,16 +43,13 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private Coroutine _delayedStopIgnoringFacilityEventsCoroutine;
 
-        public override string DomainId => Domain.LegacyId;
-
-        protected override PersistentSyncApplyOutcome ApplySnapshot(UpgradeableFacilityLevelPayload[] payload, PersistentSyncBufferedSnapshot snapshot)
+        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, UpgradeableFacilityLevelPayload[] payload)
         {
             _pendingFacilityLevels = (payload ?? new UpgradeableFacilityLevelPayload[0])
                 .ToDictionary(level => level.FacilityId, level => level.Level, StringComparer.Ordinal);
             _authoritativeLevelsFromServer = CloneLevelMap(_pendingFacilityLevels);
 
             LunaLog.Log($"[PersistentSync] UpgradeableFacilities ApplySnapshot revision={snapshot.Revision} received levels=[{FormatLevelMap(_pendingFacilityLevels)}]");
-            return FlushPendingState();
         }
 
         /// <summary>

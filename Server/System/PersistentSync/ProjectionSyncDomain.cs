@@ -47,7 +47,16 @@ namespace Server.System.PersistentSync
             _injectedOwner = owner;
         }
 
-        public abstract string DomainId { get; }
+        public virtual string DomainId
+        {
+            get
+            {
+                var domainName = PersistentSyncDomainNaming.InferDomainName(GetType());
+                return PersistentSyncDomainCatalog.TryGetByName(domainName, out var definition)
+                    ? definition.DomainId
+                    : domainName;
+            }
+        }
 
         /// <summary>
         /// Projection domains advertise a floor authority; their per-intent gate runs through the owner
@@ -105,8 +114,7 @@ namespace Server.System.PersistentSync
             var ownerResult = ApplyToOwner(
                 owner,
                 client,
-                data?.Payload ?? Array.Empty<byte>(),
-                data?.NumBytes ?? (data?.Payload?.Length ?? 0),
+                ExactPayload(data?.Payload, data?.NumBytes ?? (data?.Payload?.Length ?? 0)),
                 data?.ClientKnownRevision,
                 data?.Reason,
                 isServerMutation: false);
@@ -114,7 +122,7 @@ namespace Server.System.PersistentSync
             return Reproject(ownerResult, owner);
         }
 
-        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
+        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, string reason)
         {
             var owner = ResolveOwner();
             if (owner == null)
@@ -122,7 +130,7 @@ namespace Server.System.PersistentSync
                 return Rejected();
             }
 
-            var ownerResult = ApplyToOwner(owner, null, payload ?? Array.Empty<byte>(), numBytes, null, reason, isServerMutation: true);
+            var ownerResult = ApplyToOwner(owner, null, payload ?? Array.Empty<byte>(), null, reason, isServerMutation: true);
             return Reproject(ownerResult, owner);
         }
 
@@ -133,7 +141,7 @@ namespace Server.System.PersistentSync
         /// that inherit the owner's authority semantics, call <see cref="AuthorizeByPolicy"/> or delegate to
         /// the resolved owner's <see cref="IPersistentSyncServerDomain.AuthorizeIntent"/>.
         /// </summary>
-        public abstract bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes);
+        public abstract bool AuthorizeIntent(ClientStructure client, byte[] payload);
 
         /// <summary>
         /// Canonical policy-based authority check — evaluates <see cref="AuthorityPolicy"/> through the
@@ -153,7 +161,6 @@ namespace Server.System.PersistentSync
             TOwner owner,
             ClientStructure client,
             byte[] payload,
-            int numBytes,
             long? clientKnownRevision,
             string reason,
             bool isServerMutation);
@@ -206,55 +213,24 @@ namespace Server.System.PersistentSync
         {
             return new PersistentSyncDomainApplyResult { Accepted = false };
         }
+
+        private static byte[] ExactPayload(byte[] payload, int numBytes)
+        {
+            payload = payload ?? Array.Empty<byte>();
+            if (numBytes < 0)
+            {
+                numBytes = 0;
+            }
+
+            if (numBytes >= payload.Length)
+            {
+                return payload;
+            }
+
+            var exact = new byte[numBytes];
+            Buffer.BlockCopy(payload, 0, exact, 0, numBytes);
+            return exact;
+        }
     }
 
-    public abstract class ProjectionSyncDomain<TOwner, TIntentPayload, TSnapshotPayload> : ProjectionSyncDomain<TOwner>
-        where TOwner : class, IPersistentSyncServerDomain
-    {
-        protected ProjectionSyncDomain()
-        {
-        }
-
-        protected ProjectionSyncDomain(TOwner owner)
-            : base(owner)
-        {
-        }
-
-        public sealed override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes)
-        {
-            return AuthorizeIntent(client, PersistentSyncPayloadSerializer.Deserialize<TIntentPayload>(payload ?? Array.Empty<byte>(), numBytes));
-        }
-
-        protected virtual bool AuthorizeIntent(ClientStructure client, TIntentPayload intent)
-        {
-            return AuthorizeByPolicy(client);
-        }
-
-        protected sealed override PersistentSyncDomainApplyResult ApplyToOwner(
-            TOwner owner,
-            ClientStructure client,
-            byte[] payload,
-            int numBytes,
-            long? clientKnownRevision,
-            string reason,
-            bool isServerMutation)
-        {
-            return ApplyToOwner(owner, client, PersistentSyncPayloadSerializer.Deserialize<TIntentPayload>(payload ?? Array.Empty<byte>(), numBytes), clientKnownRevision, reason, isServerMutation);
-        }
-
-        protected abstract PersistentSyncDomainApplyResult ApplyToOwner(
-            TOwner owner,
-            ClientStructure client,
-            TIntentPayload intent,
-            long? clientKnownRevision,
-            string reason,
-            bool isServerMutation);
-
-        protected sealed override byte[] RenderSnapshotPayload(TOwner owner)
-        {
-            return PersistentSyncPayloadSerializer.Serialize(BuildSnapshotPayload(owner));
-        }
-
-        protected abstract TSnapshotPayload BuildSnapshotPayload(TOwner owner);
-    }
 }

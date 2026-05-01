@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -85,9 +93,9 @@ namespace LmpCommon.PersistentSync
             RegisterCustom<ContractSnapshotPayload>(
                 PersistentSyncContractPayloadCodec.ReadContractSnapshotPayload,
                 PersistentSyncContractPayloadCodec.WriteContractSnapshotPayload);
-            RegisterCustom<ContractMutationPayload>(
-                PersistentSyncContractPayloadCodec.ReadContractMutationPayload,
-                PersistentSyncContractPayloadCodec.WriteContractMutationPayload);
+            RegisterCustom<ContractsPayload>(
+                PersistentSyncContractPayloadCodec.ReadContractsPayload,
+                PersistentSyncContractPayloadCodec.WriteContractsPayload);
         }
 
         private static IPersistentSyncPayloadCodec BuildConventionCodec(Type type)

@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using KSP.UI.Screens;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
@@ -43,7 +51,7 @@ namespace LmpClient.Systems.ShareStrategy
 
         public static bool ApplyStrategySnapshot(string strategyName, byte[] data, int numBytes, string source, bool refreshUi)
         {
-            return ShareStrategySystem.Singleton.ApplyStrategySnapshot(new LmpCommon.PersistentSync.StrategySnapshotInfo
+            return ShareStrategySystem.Singleton.ApplyStrategySnapshot(new StrategySnapshotInfo
             {
                 Name = strategyName,
                 Data = data

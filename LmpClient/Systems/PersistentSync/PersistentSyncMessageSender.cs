@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Network;
@@ -56,17 +64,25 @@ namespace LmpClient.Systems.PersistentSync
 
         public void SendUpgradeableFacilityIntent(string facilityId, int level, string reason)
         {
-            SendIntent(PersistentSyncDomainNames.UpgradeableFacilities, System.GetKnownRevision(PersistentSyncDomainNames.UpgradeableFacilities), new UpgradeableFacilityLevelPayload { FacilityId = facilityId, Level = level }, reason);
+            SendIntent(
+                PersistentSyncDomainNames.UpgradeableFacilities,
+                System.GetKnownRevision(PersistentSyncDomainNames.UpgradeableFacilities),
+                new[] { new UpgradeableFacilityLevelPayload { FacilityId = facilityId, Level = level } },
+                reason);
         }
 
         public void SendContractsIntentPayload(ContractIntentPayload payload, string reason)
         {
-            SendIntent(PersistentSyncDomainNames.Contracts, System.GetKnownRevision(PersistentSyncDomainNames.Contracts), payload, reason);
+            SendIntent(PersistentSyncDomainNames.Contracts, System.GetKnownRevision(PersistentSyncDomainNames.Contracts), new ContractsPayload { Intent = payload }, reason);
         }
 
         public void SendTechnologyIntent(TechnologySnapshotInfo[] technologies, string reason)
         {
-            SendIntent(PersistentSyncDomainNames.Technology, System.GetKnownRevision(PersistentSyncDomainNames.Technology), technologies, reason);
+            SendIntent(
+                PersistentSyncDomainNames.Technology,
+                System.GetKnownRevision(PersistentSyncDomainNames.Technology),
+                new TechnologyPayload { Technologies = technologies ?? new TechnologySnapshotInfo[0] },
+                reason);
         }
 
         public void SendStrategyIntent(StrategySnapshotInfo[] strategies, string reason)

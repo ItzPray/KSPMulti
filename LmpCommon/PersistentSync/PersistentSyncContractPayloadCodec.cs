@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -102,24 +110,24 @@ namespace LmpCommon.PersistentSync
             return result;
         }
 
-        internal static ContractMutationPayload ReadContractMutationPayload(PersistentSyncPayloadReader reader)
+        internal static ContractsPayload ReadContractsPayload(PersistentSyncPayloadReader reader)
         {
             var firstInt = reader.ReadInt32();
             if (firstInt == ContractIntentSentinel)
             {
-                return new ContractMutationPayload
+                return new ContractsPayload
                 {
                     Intent = ReadContractIntentPayloadAfterSentinel(reader)
                 };
             }
 
-            return new ContractMutationPayload
+            return new ContractsPayload
             {
                 Snapshot = ReadContractSnapshotPayload(reader, firstInt)
             };
         }
 
-        internal static void WriteContractMutationPayload(PersistentSyncPayloadWriter writer, ContractMutationPayload payload)
+        internal static void WriteContractsPayload(PersistentSyncPayloadWriter writer, ContractsPayload payload)
         {
             if (payload?.Intent != null)
             {

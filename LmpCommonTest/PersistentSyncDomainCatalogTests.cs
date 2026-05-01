@@ -18,12 +18,23 @@ namespace LmpCommonTest
         public void CatalogContainsEveryDomainIdExactlyOnce()
         {
             var catalogIds = PersistentSyncDomainCatalog.AllOrdered.Select(d => d.DomainId).ToArray();
-            var enumIds = Enum.GetValues(typeof(string))
-                .Cast<string>()
-                .OrderBy(id => (byte)id)
-                .ToArray();
+            var expectedIds = new[]
+            {
+                PersistentSyncDomainNames.Funds,
+                PersistentSyncDomainNames.Science,
+                PersistentSyncDomainNames.Reputation,
+                PersistentSyncDomainNames.UpgradeableFacilities,
+                PersistentSyncDomainNames.Contracts,
+                PersistentSyncDomainNames.Technology,
+                PersistentSyncDomainNames.Strategy,
+                PersistentSyncDomainNames.Achievements,
+                PersistentSyncDomainNames.ScienceSubjects,
+                PersistentSyncDomainNames.ExperimentalParts,
+                PersistentSyncDomainNames.PartPurchases,
+                PersistentSyncDomainNames.GameLaunchId
+            };
 
-            CollectionAssert.AreEquivalent(enumIds, catalogIds);
+            CollectionAssert.AreEquivalent(expectedIds, catalogIds);
             Assert.AreEqual(catalogIds.Length, catalogIds.Distinct().Count(), "Every persistent sync domain must have exactly one catalog row.");
         }
 
@@ -61,8 +72,8 @@ namespace LmpCommonTest
         public void RegistrarRejectsDuplicateDomainNames()
         {
             var registrar = new PersistentSyncClientDomainRegistrar();
-            registrar.Register(PersistentSyncDomain.Define("Duplicate", 100)).OwnsStockScenario("Funding").UsesClientDomain<object>();
-            registrar.Register(PersistentSyncDomain.Define("Duplicate", 101)).OwnsStockScenario("Reputation").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey("Duplicate", 100)).WithStockScenarioMetadata("Funding").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey("Duplicate", 101)).WithStockScenarioMetadata("Reputation").UsesClientDomain<object>();
 
             Assert.ThrowsException<InvalidOperationException>(() => registrar.BuildDefinitions());
         }
@@ -71,8 +82,8 @@ namespace LmpCommonTest
         public void RegistrarRejectsDuplicateWireIds()
         {
             var registrar = new PersistentSyncClientDomainRegistrar();
-            registrar.Register(PersistentSyncDomain.Define("First", 100)).OwnsStockScenario("Funding").UsesClientDomain<object>();
-            registrar.Register(PersistentSyncDomain.Define("Second", 100)).OwnsStockScenario("Reputation").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey("First", 100)).WithStockScenarioMetadata("Funding").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey("Second", 100)).WithStockScenarioMetadata("Reputation").UsesClientDomain<object>();
 
             Assert.ThrowsException<InvalidOperationException>(() => registrar.BuildDefinitions());
         }
@@ -83,7 +94,7 @@ namespace LmpCommonTest
             var registrar = new PersistentSyncClientDomainRegistrar();
 
             Assert.ThrowsException<InvalidOperationException>(() =>
-                registrar.Register(PersistentSyncDomain.Define("Unknown", 100)).OwnsStockScenario("SomeFutureScenario"));
+                registrar.Register(new PersistentSyncDomainKey("Unknown", 100)).WithStockScenarioMetadata("SomeFutureScenario"));
         }
     }
 }

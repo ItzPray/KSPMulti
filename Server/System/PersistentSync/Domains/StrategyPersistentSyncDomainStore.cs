@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
@@ -9,7 +17,8 @@ using System.Text;
 
 namespace Server.System.PersistentSync
 {
-    public sealed class StrategyPersistentSyncDomainStore : ScenarioSyncDomainStore<StrategyPersistentSyncDomainStore.Canonical, StrategySnapshotInfo[], StrategySnapshotInfo[]>
+    [PersistentSyncStockScenario("StrategySystem")]
+    public sealed class StrategyPersistentSyncDomainStore : SyncDomainStore<StrategySnapshotInfo[]>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -20,17 +29,42 @@ namespace Server.System.PersistentSync
         private const string StrategiesNodeName = "STRATEGIES";
         private const string StrategyNodeName = "STRATEGY";
         private const string StrategyNameFieldName = "name";
-
-        public override string DomainId => PersistentSyncDomainNames.Strategy;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-        protected override string ScenarioName => "StrategySystem";
 
-        protected override Canonical CreateEmpty()
+        protected override StrategySnapshotInfo[] CreateDefaultPayload()
+        {
+            return BuildSnapshotPayload(CreateEmptyCanonical());
+        }
+
+        protected override StrategySnapshotInfo[] LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        {
+            return BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch));
+        }
+
+        protected override ReduceResult<StrategySnapshotInfo[]> ReducePayload(ClientStructure client, StrategySnapshotInfo[] current, StrategySnapshotInfo[] incoming, string reason, bool isServerMutation)
+        {
+            var reduced = ReducePayloadState(ToCanonical(current), incoming, reason, isServerMutation);
+            return reduced == null || !reduced.Accepted
+                ? ReduceResult<StrategySnapshotInfo[]>.Reject()
+                : ReduceResult<StrategySnapshotInfo[]>.Accept(BuildSnapshotPayload(reduced.NextState), reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+        }
+
+        protected override ConfigNode WritePayload(ConfigNode scenario, StrategySnapshotInfo[] payload)
+        {
+            return WriteCanonicalState(scenario, ToCanonical(payload));
+        }
+
+        protected override bool PayloadsAreEqual(StrategySnapshotInfo[] left, StrategySnapshotInfo[] right)
+        {
+            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+        }
+
+        private static Canonical CreateEmptyCanonical()
         {
             return new Canonical(new SortedDictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal));
         }
 
-        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        private static Canonical LoadCanonicalState(ConfigNode scenario, bool createdFromScratch)
         {
             var map = new SortedDictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal);
             var strategiesNode = scenario?.GetNode(StrategiesNodeName)?.Value;
@@ -51,7 +85,7 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, StrategySnapshotInfo[] intent, string reason, bool isServerMutation)
+        private static ReduceResult<Canonical> ReducePayloadState(Canonical current, StrategySnapshotInfo[] intent, string reason, bool isServerMutation)
         {
             var next = new SortedDictionary<string, StrategySnapshotInfo>(current.Strategies, StringComparer.Ordinal);
             foreach (var record in intent ?? Enumerable.Empty<StrategySnapshotInfo>())
@@ -68,7 +102,7 @@ namespace Server.System.PersistentSync
             return ReduceResult<Canonical>.Accept(new Canonical(next));
         }
 
-        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
+        private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)
         {
             var strategiesNode = scenario.GetNode(StrategiesNodeName)?.Value;
             if (strategiesNode == null)
@@ -90,12 +124,12 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected override StrategySnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
+        private static StrategySnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
         {
             return canonical.Strategies.Values.Select(CloneInfo).ToArray();
         }
 
-        protected override bool AreEquivalent(Canonical a, Canonical b)
+        private static bool AreEquivalent(Canonical a, Canonical b)
         {
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
@@ -177,6 +211,21 @@ namespace Server.System.PersistentSync
                 Name = source.Name,
                 Data = data
             };
+        }
+
+        private static Canonical ToCanonical(StrategySnapshotInfo[] payload)
+        {
+            var map = new SortedDictionary<string, StrategySnapshotInfo>(StringComparer.Ordinal);
+            foreach (var record in payload ?? new StrategySnapshotInfo[0])
+            {
+                var normalized = NormalizeSnapshotInfo(record);
+                if (normalized != null)
+                {
+                    map[normalized.Name] = normalized;
+                }
+            }
+
+            return new Canonical(map);
         }
 
         /// <summary>Typed canonical state: strategies keyed by Name (ordinal, sorted for deterministic iteration).</summary>

@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
@@ -18,7 +26,8 @@ namespace Server.System.PersistentSync
     /// cref="PartPurchasesPersistentSyncDomainStore"/> projects from this domain's canonical state and routes
     /// its intents here; it does not write the scenario.
     /// </summary>
-    public sealed class TechnologyPersistentSyncDomainStore : ScenarioSyncDomainStore<TechnologyPersistentSyncDomainStore.Canonical, TechnologySnapshotInfo[], TechnologySnapshotInfo[]>
+    [PersistentSyncStockScenario("ResearchAndDevelopment")]
+    public sealed class TechnologyPersistentSyncDomainStore : SyncDomainStore<TechnologyPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -31,17 +40,14 @@ namespace Server.System.PersistentSync
         private const string TechStateFieldName = "state";
         private const string TechCostFieldName = "cost";
         private const string TechPartFieldName = "part";
-
-        public override string DomainId => PersistentSyncDomainNames.Technology;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-        protected override string ScenarioName => "ResearchAndDevelopment";
 
         /// <summary>
         /// Exposes the current canonical state for PartPurchasesPersistentSyncDomainStore to
         /// project its wire snapshot. Internal so projection domains living in the same assembly can read it
         /// without widening the public API.
         /// </summary>
-        internal Canonical CurrentForProjection => CurrentForTests;
+        internal Canonical CurrentForProjection => ToCanonical(CurrentForTests?.Payload);
 
         /// <summary>
         /// Routing hook used by PartPurchasesPersistentSyncDomainStore to fold its decoded
@@ -53,14 +59,52 @@ namespace Server.System.PersistentSync
             return ApplyPartPurchasesInternal(records, clientKnownRevision, reason, isServerMutation);
         }
 
-        protected override Canonical CreateEmpty()
+        protected override TechnologyPayload CreateDefaultPayload()
+        {
+            return BuildPayload(CreateEmptyCanonical());
+        }
+
+        protected override TechnologyPayload LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        {
+            return BuildPayload(LoadCanonicalState(scenario, createdFromScratch));
+        }
+
+        protected override ReduceResult<TechnologyPayload> ReducePayload(ClientStructure client, TechnologyPayload current, TechnologyPayload incoming, string reason, bool isServerMutation)
+        {
+            var canonical = ToCanonical(current);
+            var techReduced = ReduceTechnologyPayload(canonical, incoming?.Technologies, reason, isServerMutation);
+            if (techReduced == null || !techReduced.Accepted)
+            {
+                return ReduceResult<TechnologyPayload>.Reject();
+            }
+
+            var partsReduced = ReducePartPurchases(techReduced.NextState ?? canonical, incoming?.PartPurchases);
+            if (partsReduced == null || !partsReduced.Accepted)
+            {
+                return ReduceResult<TechnologyPayload>.Reject();
+            }
+
+            return ReduceResult<TechnologyPayload>.Accept(BuildPayload(partsReduced.NextState), partsReduced.ForceReplyToOriginClient, partsReduced.ReplyToProducerClient);
+        }
+
+        protected override ConfigNode WritePayload(ConfigNode scenario, TechnologyPayload payload)
+        {
+            return WriteCanonicalState(scenario, ToCanonical(payload));
+        }
+
+        protected override bool PayloadsAreEqual(TechnologyPayload left, TechnologyPayload right)
+        {
+            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+        }
+
+        private static Canonical CreateEmptyCanonical()
         {
             return new Canonical(
                 new SortedDictionary<string, TechStateInfo>(StringComparer.Ordinal),
                 new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal));
         }
 
-        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        private static Canonical LoadCanonicalState(ConfigNode scenario, bool createdFromScratch)
         {
             var techStates = new SortedDictionary<string, TechStateInfo>(StringComparer.Ordinal);
             var partsByTech = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
@@ -96,7 +140,7 @@ namespace Server.System.PersistentSync
             return new Canonical(techStates, partsByTech);
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, TechnologySnapshotInfo[] intent, string reason, bool isServerMutation)
+        private static ReduceResult<Canonical> ReduceTechnologyPayload(Canonical current, TechnologySnapshotInfo[] intent, string reason, bool isServerMutation)
         {
             var nextStates = new SortedDictionary<string, TechStateInfo>(current.TechStates, StringComparer.Ordinal);
 
@@ -105,7 +149,7 @@ namespace Server.System.PersistentSync
                 var normalized = NormalizeSnapshotInfo(technology);
                 if (normalized == null) continue;
 
-                var parsed = ParseSnapshotNode(normalized.Data, normalized.Data.Length);
+                var parsed = ParseSnapshotNode(normalized.Data);
                 var techId = normalized.TechId;
                 var state = parsed.GetValue(TechStateFieldName)?.Value ?? string.Empty;
                 var cost = parsed.GetValue(TechCostFieldName)?.Value ?? string.Empty;
@@ -127,8 +171,17 @@ namespace Server.System.PersistentSync
 
             // Route through a thin internal seam that bypasses Technology's ReduceIntent (which interprets
             // payload as Technology wire format) and instead reduces the PartPurchases wire format.
-            return ApplyWithCustomReduce<PartPurchaseSnapshotInfo[]>(payload, payload.Length, clientKnownRevision, proxyReason, isServerMutation,
-                ReducePartPurchases);
+            return ApplyWithCustomReduce<PartPurchaseSnapshotInfo[]>(payload, clientKnownRevision, proxyReason, isServerMutation,
+                (current, records) =>
+                {
+                    var reduced = ReducePartPurchases(ToCanonical(current.Payload), records);
+                    return reduced == null || !reduced.Accepted
+                        ? ReduceResult<PayloadBox>.Reject()
+                        : ReduceResult<PayloadBox>.Accept(
+                            new PayloadBox(BuildPayload(reduced.NextState)),
+                            reduced.ForceReplyToOriginClient,
+                            reduced.ReplyToProducerClient);
+                });
         }
 
         private static ReduceResult<Canonical> ReducePartPurchases(Canonical current, PartPurchaseSnapshotInfo[] records)
@@ -160,7 +213,7 @@ namespace Server.System.PersistentSync
             return ReduceResult<Canonical>.Accept(new Canonical(current.TechStates, nextParts));
         }
 
-        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
+        private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)
         {
             // Technology is the sole writer of Tech/* nodes: the scalar id/state/cost fields AND the
             // repeated part= values. Build each node wholesale from canonical state so the on-disk
@@ -211,14 +264,18 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected override TechnologySnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
+        private static TechnologyPayload BuildPayload(Canonical canonical)
         {
             var records = canonical.TechStates.Values
                 .Select(state => state.ToSnapshotInfo())
                 .Select(CloneInfo)
                 .ToArray();
             LunaLog.Normal($"[PersistentSync] Technology BuildSnapshotPayload: techCount={canonical.TechStates.Count}");
-            return records;
+            return new TechnologyPayload
+            {
+                Technologies = records,
+                PartPurchases = BuildPartPurchasesPayload(canonical)
+            };
         }
 
         /// <summary>
@@ -228,7 +285,12 @@ namespace Server.System.PersistentSync
         /// </summary>
         internal PartPurchaseSnapshotInfo[] BuildPartPurchasesSnapshotPayload()
         {
-            var canonical = CurrentForTests ?? CreateEmpty();
+            return BuildPartPurchasesPayload(CurrentForProjection);
+        }
+
+        private static PartPurchaseSnapshotInfo[] BuildPartPurchasesPayload(Canonical canonical)
+        {
+            canonical = canonical ?? CreateEmptyCanonical();
             return canonical.PartsByTech
                 .Where(value => value.Value != null && value.Value.Count > 0)
                 .Select(value => new PartPurchaseSnapshotInfo
@@ -239,7 +301,7 @@ namespace Server.System.PersistentSync
                 .ToArray();
         }
 
-        protected override bool AreEquivalent(Canonical a, Canonical b)
+        private static bool AreEquivalent(Canonical a, Canonical b)
         {
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
@@ -322,7 +384,7 @@ namespace Server.System.PersistentSync
                 return null;
             }
 
-            var node = ParseSnapshotNode(technology.Data, technology.Data.Length);
+            var node = ParseSnapshotNode(technology.Data);
             var techId = node?.GetValue(TechIdFieldName)?.Value;
             if (string.IsNullOrEmpty(techId))
             {
@@ -340,9 +402,10 @@ namespace Server.System.PersistentSync
             };
         }
 
-        private static ConfigNode ParseSnapshotNode(byte[] data, int numBytes)
+        private static ConfigNode ParseSnapshotNode(byte[] data)
         {
-            return new ConfigNode(Encoding.UTF8.GetString(data, 0, numBytes));
+            data = data ?? Array.Empty<byte>();
+            return new ConfigNode(Encoding.UTF8.GetString(data, 0, data.Length));
         }
 
         private static string BuildBareNodeText(string techId, string state, string cost)
@@ -363,6 +426,44 @@ namespace Server.System.PersistentSync
                 TechId = source.TechId,
                 Data = data
             };
+        }
+
+        private static Canonical ToCanonical(TechnologyPayload payload)
+        {
+            var techStates = new SortedDictionary<string, TechStateInfo>(StringComparer.Ordinal);
+            foreach (var technology in payload?.Technologies ?? new TechnologySnapshotInfo[0])
+            {
+                var normalized = NormalizeSnapshotInfo(technology);
+                if (normalized == null)
+                {
+                    continue;
+                }
+
+                var parsed = ParseSnapshotNode(normalized.Data);
+                techStates[normalized.TechId] = new TechStateInfo(
+                    normalized.TechId,
+                    parsed.GetValue(TechStateFieldName)?.Value ?? string.Empty,
+                    parsed.GetValue(TechCostFieldName)?.Value ?? string.Empty);
+            }
+
+            var partsByTech = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+            foreach (var record in payload?.PartPurchases ?? new PartPurchaseSnapshotInfo[0])
+            {
+                if (record == null || string.IsNullOrEmpty(record.TechId))
+                {
+                    continue;
+                }
+
+                var parts = new SortedSet<string>(
+                    (record.PartNames ?? new string[0]).Where(value => !string.IsNullOrEmpty(value)),
+                    StringComparer.Ordinal);
+                if (parts.Count > 0)
+                {
+                    partsByTech[record.TechId] = parts;
+                }
+            }
+
+            return new Canonical(techStates, partsByTech);
         }
 
         /// <summary>

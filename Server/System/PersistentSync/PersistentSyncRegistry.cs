@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.Message.Server;
@@ -117,7 +125,7 @@ namespace Server.System.PersistentSync
                 return RejectedAuthorityApplyResult();
             }
 
-            if (!domain.AuthorizeIntent(client, data.Payload, data.NumBytes))
+            if (!domain.AuthorizeIntent(client, ExactPayload(data.Payload, data.NumBytes)))
             {
                 LogAuthorityIntentRejected(clientName, data.DomainId, domain.AuthorityPolicy, DescribeAuthorityRejectionCategory(domain));
                 return RejectedAuthorityApplyResult();
@@ -234,7 +242,7 @@ namespace Server.System.PersistentSync
                 {
                     try
                     {
-                        var rows = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(snapshot.Payload, snapshot.NumBytes)?.Contracts?.Count ?? 0;
+                        var rows = PersistentSyncPayloadSerializer.Deserialize<ContractsPayload>(snapshot.Payload, snapshot.NumBytes)?.Snapshot?.Contracts?.Count ?? 0;
                         LunaLog.Normal(
                             $"[PersistentSync] snapshot send target=singleClient client={clientName} domain={snapshot.DomainId} " +
                             $"revision={snapshot.Revision} contractWireRows={rows} payloadBytes={snapshot.NumBytes}");
@@ -309,7 +317,12 @@ namespace Server.System.PersistentSync
             return null;
         }
 
-        public static PersistentSyncDomainApplyResult ApplyServerMutation(string domainId, byte[] payload, int numBytes, string reason)
+        public static PersistentSyncDomainApplyResult ApplyServerMutation(string domainId, byte[] payload, string reason)
+        {
+            return ApplyServerMutationSlice(domainId, payload, payload?.Length ?? 0, reason);
+        }
+
+        public static PersistentSyncDomainApplyResult ApplyServerMutationSlice(string domainId, byte[] payload, int numBytes, string reason)
         {
             if (!_initialized)
             {
@@ -324,7 +337,7 @@ namespace Server.System.PersistentSync
             }
 
             var revisionBefore = domain.GetCurrentSnapshot().Revision;
-            var result = domain.ApplyServerMutation(payload, numBytes, reason);
+            var result = domain.ApplyServerMutation(ExactPayload(payload, numBytes), reason);
 
             if (!result.Accepted)
             {
@@ -348,6 +361,24 @@ namespace Server.System.PersistentSync
             }
 
             return result;
+        }
+
+        private static byte[] ExactPayload(byte[] payload, int numBytes)
+        {
+            payload = payload ?? Array.Empty<byte>();
+            if (numBytes < 0)
+            {
+                numBytes = 0;
+            }
+
+            if (numBytes >= payload.Length)
+            {
+                return payload;
+            }
+
+            var exact = new byte[numBytes];
+            Buffer.BlockCopy(payload, 0, exact, 0, numBytes);
+            return exact;
         }
 
         public static IReadOnlyCollection<PersistentSyncDomainSnapshot> GetSnapshots(IEnumerable<string> domainIds)

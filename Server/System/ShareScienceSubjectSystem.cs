@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Server;
 using LmpCommon.PersistentSync;
@@ -25,7 +33,7 @@ namespace Server.System
                         Data = data.ScienceSubject.Data
                     }
                 });
-                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.ScienceSubjects, payload, payload.Length, $"LegacyScienceSubject:{data.ScienceSubject.Id}");
+                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.ScienceSubjects, payload, $"LegacyScienceSubject:{data.ScienceSubject.Id}");
                 return;
             }
 

@@ -25,7 +25,7 @@ namespace Server.System.PersistentSync
     ///
     /// See <c>AGENTS.md</c> &quot;Scenario Sync Domain Contract&quot; for the mandatory rules this base class enforces.
     /// </summary>
-    public abstract class ScenarioSyncDomainStore<TCanonical> : IPersistentSyncServerDomain
+    public abstract class SyncDomainStoreBase<TCanonical> : IPersistentSyncServerDomain
         where TCanonical : class
     {
         private readonly object _stateLock = new object();
@@ -33,14 +33,48 @@ namespace Server.System.PersistentSync
         private TCanonical _current;
         private long _revision;
 
-        public abstract string DomainId { get; }
+        public virtual string DomainId
+        {
+            get
+            {
+                var domainName = PersistentSyncDomainNaming.InferDomainName(GetType());
+                return PersistentSyncDomainCatalog.TryGetByName(domainName, out var definition)
+                    ? definition.DomainId
+                    : domainName;
+            }
+        }
         public abstract PersistentAuthorityPolicy AuthorityPolicy { get; }
 
         /// <summary>
         /// Name of the scenario node in <see cref="ScenarioStoreSystem.CurrentScenarios"/> this domain owns. Required so
         /// the base class can enforce the &quot;one scenario, one domain&quot; rule and scope the scenario write lock.
         /// </summary>
-        protected abstract string ScenarioName { get; }
+        protected virtual string ScenarioName
+        {
+            get
+            {
+                var domainName = PersistentSyncDomainNaming.InferDomainName(GetType());
+                var stockScenario = (PersistentSyncStockScenarioAttribute)Attribute.GetCustomAttribute(
+                    GetType(),
+                    typeof(PersistentSyncStockScenarioAttribute));
+                if (!string.IsNullOrEmpty(stockScenario?.ScenarioName))
+                {
+                    return stockScenario.ScenarioName;
+                }
+
+                var ownedScenario = (PersistentSyncOwnedScenarioAttribute)Attribute.GetCustomAttribute(
+                    GetType(),
+                    typeof(PersistentSyncOwnedScenarioAttribute));
+                if (!string.IsNullOrEmpty(ownedScenario?.ScenarioName))
+                {
+                    return ownedScenario.ScenarioName;
+                }
+
+                return PersistentSyncDomainCatalog.TryGetByName(domainName, out var definition)
+                    ? definition.ScenarioName
+                    : null;
+            }
+        }
 
         /// <summary>
         /// Exposed only for the ScenarioSyncReducerPipelineTests base-class regression harness. Do not call from
@@ -122,7 +156,7 @@ namespace Server.System.PersistentSync
                 return Rejected();
             }
 
-            return ApplyInternal(client, data.Payload, data.NumBytes, data.ClientKnownRevision, data.Reason, isServerMutation: false);
+            return ApplyInternal(client, ExactPayload(data.Payload, data.NumBytes), data.ClientKnownRevision, data.Reason, isServerMutation: false);
         }
 
         /// <summary>
@@ -137,7 +171,7 @@ namespace Server.System.PersistentSync
         /// <item><description>For mixed per-intent authority (e.g. Contracts), decode the payload and dispatch.</description></item>
         /// </list>
         /// </summary>
-        public abstract bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes);
+        public abstract bool AuthorizeIntent(ClientStructure client, byte[] payload);
 
         /// <summary>
         /// Canonical policy-based authority check — evaluates <see cref="AuthorityPolicy"/> through the
@@ -149,9 +183,9 @@ namespace Server.System.PersistentSync
             return PersistentSyncRegistry.ValidateClientMaySubmitIntent(client, this);
         }
 
-        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
+        public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, string reason)
         {
-            return ApplyInternal(null, payload, numBytes, null, reason, isServerMutation: true);
+            return ApplyInternal(null, payload ?? Array.Empty<byte>(), null, reason, isServerMutation: true);
         }
 
         /// <summary>
@@ -161,15 +195,14 @@ namespace Server.System.PersistentSync
         /// Internal so only same-assembly domain stores (e.g. PartPurchases projecting onto Technology) can
         /// invoke it.
         /// </summary>
-        internal PersistentSyncDomainApplyResult ApplyWithCustomReduce(byte[] payload, int numBytes, long? clientKnownRevision, string reason, bool isServerMutation, Func<TCanonical, byte[], ReduceResult<TCanonical>> reducer)
+        internal PersistentSyncDomainApplyResult ApplyWithCustomReduce(byte[] payload, long? clientKnownRevision, string reason, bool isServerMutation, Func<TCanonical, byte[], ReduceResult<TCanonical>> reducer)
         {
             if (reducer == null) throw new ArgumentNullException(nameof(reducer));
-            return ApplyInternal(null, payload, numBytes, clientKnownRevision, reason, isServerMutation, reducer);
+            return ApplyInternal(null, payload ?? Array.Empty<byte>(), clientKnownRevision, reason, isServerMutation, reducer);
         }
 
         internal PersistentSyncDomainApplyResult ApplyWithCustomReduce<TPayload>(
             byte[] payload,
-            int numBytes,
             long? clientKnownRevision,
             string reason,
             bool isServerMutation,
@@ -178,18 +211,18 @@ namespace Server.System.PersistentSync
             if (reducer == null) throw new ArgumentNullException(nameof(reducer));
             return ApplyInternal(
                 null,
-                payload,
-                numBytes,
+                payload ?? Array.Empty<byte>(),
                 clientKnownRevision,
                 reason,
                 isServerMutation,
                 (current, rawPayload) => reducer(
                     current,
-                    PersistentSyncPayloadSerializer.Deserialize<TPayload>(rawPayload, numBytes)));
+                    PersistentSyncPayloadSerializer.Deserialize<TPayload>(rawPayload, rawPayload.Length)));
         }
 
-        private PersistentSyncDomainApplyResult ApplyInternal(ClientStructure client, byte[] payload, int numBytes, long? clientKnownRevision, string reason, bool isServerMutation, Func<TCanonical, byte[], ReduceResult<TCanonical>> customReducer = null)
+        private PersistentSyncDomainApplyResult ApplyInternal(ClientStructure client, byte[] payload, long? clientKnownRevision, string reason, bool isServerMutation, Func<TCanonical, byte[], ReduceResult<TCanonical>> customReducer = null)
         {
+            payload = payload ?? Array.Empty<byte>();
             lock (_stateLock)
             {
                 var previous = _current ?? (_current = CreateEmpty());
@@ -197,8 +230,8 @@ namespace Server.System.PersistentSync
                 try
                 {
                     reduce = customReducer != null
-                        ? customReducer(previous, payload ?? Array.Empty<byte>())
-                        : ReduceIntent(client, previous, payload ?? Array.Empty<byte>(), numBytes, reason, isServerMutation);
+                        ? customReducer(previous, payload)
+                        : ReduceIntent(client, previous, payload, reason, isServerMutation);
                 }
                 catch (Exception ex)
                 {
@@ -299,7 +332,7 @@ namespace Server.System.PersistentSync
         /// <see cref="ReduceResult{T}"/> describing the next state. Domains must not mutate <paramref name="current"/>
         /// in place: always return a new immutable snapshot or the same reference if the reduce was a no-op.
         /// </summary>
-        protected abstract ReduceResult<TCanonical> ReduceIntent(ClientStructure client, TCanonical current, byte[] payload, int numBytes, string reason, bool isServerMutation);
+        protected abstract ReduceResult<TCanonical> ReduceIntent(ClientStructure client, TCanonical current, byte[] payload, string reason, bool isServerMutation);
 
         /// <summary>
         /// Rebuild the scenario node graph from <paramref name="canonical"/>. Called under the scenario write lock
@@ -338,38 +371,24 @@ namespace Server.System.PersistentSync
         /// <paramref name="scenario"/> freely.
         /// </summary>
         protected virtual bool ShouldWriteBackAfterLoad(TCanonical loaded, ConfigNode scenario) => false;
-    }
 
-    public abstract class ScenarioSyncDomainStore<TCanonical, TIntentPayload, TSnapshotPayload> : ScenarioSyncDomainStore<TCanonical>
-        where TCanonical : class
-    {
-        public sealed override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes)
+        private static byte[] ExactPayload(byte[] payload, int numBytes)
         {
-            return AuthorizeIntent(client, DecodeIntent(payload, numBytes));
-        }
+            payload = payload ?? Array.Empty<byte>();
+            if (numBytes < 0)
+            {
+                numBytes = 0;
+            }
 
-        protected virtual bool AuthorizeIntent(ClientStructure client, TIntentPayload intent)
-        {
-            return AuthorizeByPolicy(client);
-        }
+            if (numBytes >= payload.Length)
+            {
+                return payload;
+            }
 
-        protected sealed override ReduceResult<TCanonical> ReduceIntent(ClientStructure client, TCanonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
-        {
-            return ReduceIntent(client, current, DecodeIntent(payload, numBytes), reason, isServerMutation);
-        }
-
-        protected abstract ReduceResult<TCanonical> ReduceIntent(ClientStructure client, TCanonical current, TIntentPayload intent, string reason, bool isServerMutation);
-
-        protected sealed override byte[] SerializeSnapshot(TCanonical canonical)
-        {
-            return PersistentSyncPayloadSerializer.Serialize(BuildSnapshotPayload(canonical));
-        }
-
-        protected abstract TSnapshotPayload BuildSnapshotPayload(TCanonical canonical);
-
-        private static TIntentPayload DecodeIntent(byte[] payload, int numBytes)
-        {
-            return PersistentSyncPayloadSerializer.Deserialize<TIntentPayload>(payload ?? Array.Empty<byte>(), numBytes);
+            var exact = new byte[numBytes];
+            Buffer.BlockCopy(payload, 0, exact, 0, numBytes);
+            return exact;
         }
     }
+
 }

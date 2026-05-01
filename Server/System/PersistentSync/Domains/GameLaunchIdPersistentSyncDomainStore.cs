@@ -13,7 +13,8 @@ namespace Server.System.PersistentSync
     /// reporting vessel-era part stamps cannot lower the counter. LoadCanonical also reconciles
     /// against VesselStoreSystem so legacy saves without this file still pick up existing vessels.
     /// </summary>
-    public sealed class GameLaunchIdPersistentSyncDomainStore : ScenarioSyncDomainStore<ScalarCanonical<uint>, PersistentSyncValueWithReason<uint>, uint>
+    [PersistentSyncOwnedScenario(GameLaunchIdScenarioBootstrap.ScenarioKey, ScalarField = "launchID")]
+    public sealed class GameLaunchIdPersistentSyncDomainStore : SyncDomainStore<uint>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -21,18 +22,14 @@ namespace Server.System.PersistentSync
                 .UsesServerDomain<GameLaunchIdPersistentSyncDomainStore>();
         }
 
-        public override string DomainId => PersistentSyncDomainNames.GameLaunchId;
-
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
-        protected override string ScenarioName => GameLaunchIdScenarioBootstrap.ScenarioKey;
-
-        protected override ScalarCanonical<uint> CreateEmpty()
+        protected override uint CreateDefaultPayload()
         {
-            return new ScalarCanonical<uint>(1);
+            return 1u;
         }
 
-        protected override ScalarCanonical<uint> LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        protected override uint LoadPayload(ConfigNode scenario, bool createdFromScratch)
         {
             var fromFile = ParseLaunchIdFromScenario(scenario);
             var fromVessels = ScanMaxLaunchIdAcrossLoadedVessels();
@@ -42,65 +39,44 @@ namespace Server.System.PersistentSync
                 merged = 1;
             }
 
-            return new ScalarCanonical<uint>(merged);
+            return merged;
         }
 
-        protected override ReduceResult<ScalarCanonical<uint>> ReduceIntent(
+        protected override ReduceResult<uint> ReducePayload(
             ClientStructure client,
-            ScalarCanonical<uint> current,
-            PersistentSyncValueWithReason<uint> intent,
+            uint current,
+            uint incoming,
             string reason,
             bool isServerMutation)
         {
             try
             {
-                var incoming = intent?.Value ?? 1u;
-                var next = global::System.Math.Max(current?.Value ?? 1u, incoming);
+                var next = global::System.Math.Max(current < 1 ? 1u : current, incoming < 1 ? 1u : incoming);
                 if (next < 1)
                 {
                     next = 1;
                 }
 
-                return ReduceResult<ScalarCanonical<uint>>.Accept(new ScalarCanonical<uint>(next));
+                return ReduceResult<uint>.Accept(next);
             }
             catch
             {
-                return ReduceResult<ScalarCanonical<uint>>.Reject();
+                return ReduceResult<uint>.Reject();
             }
         }
 
-        protected override ConfigNode WriteCanonical(ConfigNode scenario, ScalarCanonical<uint> canonical)
+        protected override ConfigNode WritePayload(ConfigNode scenario, uint payload)
         {
-            if (scenario == null || canonical == null)
+            if (scenario == null)
             {
                 return scenario;
             }
 
-            scenario.UpdateValue("launchID", canonical.Value.ToString(CultureInfo.InvariantCulture));
+            scenario.UpdateValue("launchID", payload.ToString(CultureInfo.InvariantCulture));
             return scenario;
         }
 
-        protected override uint BuildSnapshotPayload(ScalarCanonical<uint> canonical)
-        {
-            return (canonical ?? new ScalarCanonical<uint>(1u)).Value;
-        }
-
-        protected override bool AreEquivalent(ScalarCanonical<uint> a, ScalarCanonical<uint> b)
-        {
-            if (ReferenceEquals(a, b))
-            {
-                return true;
-            }
-
-            if (a == null || b == null)
-            {
-                return false;
-            }
-
-            return a.Value == b.Value;
-        }
-
-        protected override bool ShouldWriteBackAfterLoad(ScalarCanonical<uint> loaded, ConfigNode scenario)
+        protected override bool ShouldWriteBackAfterLoad(uint loaded, ConfigNode scenario)
         {
             if (scenario == null)
             {
@@ -108,7 +84,7 @@ namespace Server.System.PersistentSync
             }
 
             var fileVal = ParseLaunchIdFromScenario(scenario);
-            return loaded.Value != fileVal;
+            return loaded != fileVal;
         }
 
         private static uint ParseLaunchIdFromScenario(ConfigNode scenario)

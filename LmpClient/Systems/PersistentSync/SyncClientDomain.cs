@@ -38,7 +38,7 @@ namespace LmpClient.Systems.PersistentSync
             return FlushPendingState();
         }
 
-        public PersistentSyncApplyOutcome FlushPendingState()
+        public virtual PersistentSyncApplyOutcome FlushPendingState()
         {
             if (!_hasPendingPayload)
             {
@@ -73,7 +73,7 @@ namespace LmpClient.Systems.PersistentSync
             return true;
         }
 
-        protected abstract void ApplyLiveState(TPayload payload);
+        protected virtual void ApplyLiveState(TPayload payload) { }
         protected virtual void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, TPayload payload) { }
         protected virtual void OnPayloadApplied(TPayload payload) { }
     }

@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Server.Client;
@@ -14,9 +22,9 @@ namespace Server.System.PersistentSync
     ///
     /// Inherits the ProjectionSyncDomain{TOwner} template; no domain in the registry implements
     /// IPersistentSyncServerDomain directly anymore (enforced by the regression gate
-    /// AllServerDomainsInheritTemplateUnlessInProjectionAllowlist).
+    /// AllServerDomainsInheritOneOfTheSanctionedTemplates).
     /// </summary>
-    public sealed class PartPurchasesPersistentSyncDomainStore : ProjectionSyncDomain<TechnologyPersistentSyncDomainStore, PartPurchaseSnapshotInfo[], PartPurchaseSnapshotInfo[]>
+    public sealed class PartPurchasesPersistentSyncDomainStore : ProjectionSyncDomain<TechnologyPersistentSyncDomainStore>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -35,24 +43,28 @@ namespace Server.System.PersistentSync
             : base(technology)
         {
         }
-
-        public override string DomainId => PersistentSyncDomainNames.PartPurchases;
         protected override string OwnerDomainId => PersistentSyncDomainNames.Technology;
+
+        public override bool AuthorizeIntent(ClientStructure client, byte[] payload)
+        {
+            return AuthorizeByPolicy(client);
+        }
 
         protected override PersistentSyncDomainApplyResult ApplyToOwner(
             TechnologyPersistentSyncDomainStore owner,
             ClientStructure client,
-            PartPurchaseSnapshotInfo[] intent,
+            byte[] payload,
             long? clientKnownRevision,
             string reason,
             bool isServerMutation)
         {
+            var intent = PersistentSyncPayloadSerializer.Deserialize<PartPurchaseSnapshotInfo[]>(payload ?? global::System.Array.Empty<byte>(), payload?.Length ?? 0);
             return owner.ApplyPartPurchasesIntent(intent, clientKnownRevision, reason, isServerMutation);
         }
 
-        protected override PartPurchaseSnapshotInfo[] BuildSnapshotPayload(TechnologyPersistentSyncDomainStore owner)
+        protected override byte[] RenderSnapshotPayload(TechnologyPersistentSyncDomainStore owner)
         {
-            return owner?.BuildPartPurchasesSnapshotPayload() ?? new PartPurchaseSnapshotInfo[0];
+            return PersistentSyncPayloadSerializer.Serialize(owner?.BuildPartPurchasesSnapshotPayload() ?? new PartPurchaseSnapshotInfo[0]);
         }
     }
 }

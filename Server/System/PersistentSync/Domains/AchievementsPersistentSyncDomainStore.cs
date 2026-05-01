@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
@@ -9,7 +17,8 @@ using System.Text;
 
 namespace Server.System.PersistentSync
 {
-    public sealed class AchievementsPersistentSyncDomainStore : ScenarioSyncDomainStore<AchievementsPersistentSyncDomainStore.Canonical, AchievementSnapshotInfo[], AchievementSnapshotInfo[]>
+    [PersistentSyncStockScenario("ProgressTracking")]
+    public sealed class AchievementsPersistentSyncDomainStore : SyncDomainStore<AchievementSnapshotInfo[]>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -18,17 +27,42 @@ namespace Server.System.PersistentSync
         }
 
         private const string ProgressNodeName = "Progress";
-
-        public override string DomainId => PersistentSyncDomainNames.Achievements;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-        protected override string ScenarioName => "ProgressTracking";
 
-        protected override Canonical CreateEmpty()
+        protected override AchievementSnapshotInfo[] CreateDefaultPayload()
+        {
+            return BuildSnapshotPayload(CreateEmptyCanonical());
+        }
+
+        protected override AchievementSnapshotInfo[] LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        {
+            return BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch));
+        }
+
+        protected override ReduceResult<AchievementSnapshotInfo[]> ReducePayload(ClientStructure client, AchievementSnapshotInfo[] current, AchievementSnapshotInfo[] incoming, string reason, bool isServerMutation)
+        {
+            var reduced = ReducePayloadState(ToCanonical(current), incoming, reason, isServerMutation);
+            return reduced == null || !reduced.Accepted
+                ? ReduceResult<AchievementSnapshotInfo[]>.Reject()
+                : ReduceResult<AchievementSnapshotInfo[]>.Accept(BuildSnapshotPayload(reduced.NextState), reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+        }
+
+        protected override ConfigNode WritePayload(ConfigNode scenario, AchievementSnapshotInfo[] payload)
+        {
+            return WriteCanonicalState(scenario, ToCanonical(payload));
+        }
+
+        protected override bool PayloadsAreEqual(AchievementSnapshotInfo[] left, AchievementSnapshotInfo[] right)
+        {
+            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+        }
+
+        private static Canonical CreateEmptyCanonical()
         {
             return new Canonical(new SortedDictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal));
         }
 
-        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        private static Canonical LoadCanonicalState(ConfigNode scenario, bool createdFromScratch)
         {
             var map = new SortedDictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal);
             if (scenario == null)
@@ -53,7 +87,7 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, AchievementSnapshotInfo[] intent, string reason, bool isServerMutation)
+        private static ReduceResult<Canonical> ReducePayloadState(Canonical current, AchievementSnapshotInfo[] intent, string reason, bool isServerMutation)
         {
             var next = new SortedDictionary<string, AchievementSnapshotInfo>(current.Achievements, StringComparer.Ordinal);
             foreach (var record in intent ?? Enumerable.Empty<AchievementSnapshotInfo>())
@@ -65,7 +99,7 @@ namespace Server.System.PersistentSync
             return ReduceResult<Canonical>.Accept(new Canonical(next));
         }
 
-        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
+        private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)
         {
             // Universe saves can accumulate multiple top-level nodes named "Progress". GetNode() requires a
             // unique key and throws MixedCollection GetSingle. Remove every Progress wrapper, then add one.
@@ -79,12 +113,12 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected override AchievementSnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
+        private static AchievementSnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
         {
             return canonical.Achievements.Values.Select(CloneInfo).ToArray();
         }
 
-        protected override bool AreEquivalent(Canonical a, Canonical b)
+        private static bool AreEquivalent(Canonical a, Canonical b)
         {
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
@@ -259,6 +293,21 @@ namespace Server.System.PersistentSync
             }
 
             return string.Empty;
+        }
+
+        private static Canonical ToCanonical(AchievementSnapshotInfo[] payload)
+        {
+            var map = new SortedDictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal);
+            foreach (var record in payload ?? new AchievementSnapshotInfo[0])
+            {
+                var normalized = NormalizeSnapshotInfo(record);
+                if (normalized != null)
+                {
+                    map[normalized.Id] = normalized;
+                }
+            }
+
+            return new Canonical(map);
         }
 
         /// <summary>Typed canonical state: achievements keyed by Id (ordinal, sorted for deterministic iteration).</summary>

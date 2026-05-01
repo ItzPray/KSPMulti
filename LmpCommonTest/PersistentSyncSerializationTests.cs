@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using Lidgren.Network;
 using LmpCommon.Enums;
 using LmpCommon.Message;
@@ -178,8 +186,8 @@ namespace LmpCommonTest
                 }
             };
 
-            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new ContractSnapshotPayload { Contracts = contractPayload.ToList() });
-            var roundTripContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(snapshotPayload, snapshotPayload.Length).Contracts;
+            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new ContractsPayload { Snapshot = new ContractSnapshotPayload { Contracts = contractPayload.ToList() } });
+            var roundTripContracts = PersistentSyncPayloadSerializer.Deserialize<ContractsPayload>(snapshotPayload, snapshotPayload.Length).Snapshot.Contracts;
 
             Assert.AreEqual(2, roundTripContracts.Count);
             Assert.AreEqual(contractPayload[0].ContractGuid, roundTripContracts[0].ContractGuid);
@@ -207,12 +215,8 @@ namespace LmpCommonTest
                 }
             };
 
-            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new ContractSnapshotPayload
-            {
-                Mode = ContractSnapshotPayloadMode.FullReplace,
-                Contracts = contractPayload.ToList()
-            });
-            var envelope = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(snapshotPayload, snapshotPayload.Length);
+            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new ContractsPayload { Snapshot = new ContractSnapshotPayload { Mode = ContractSnapshotPayloadMode.FullReplace, Contracts = contractPayload.ToList() } });
+            var envelope = PersistentSyncPayloadSerializer.Deserialize<ContractsPayload>(snapshotPayload, snapshotPayload.Length).Snapshot;
 
             Assert.AreEqual(ContractSnapshotPayloadMode.FullReplace, envelope.Mode);
             Assert.AreEqual(1, envelope.Contracts.Count);
@@ -270,7 +274,7 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
-        public void TypedPayloadSerializerMatchesLegacyWireLayouts()
+        public void TypedPayloadSerializerMatchesStableWireLayouts()
         {
             var contract = new ContractSnapshotInfo
             {
@@ -294,8 +298,10 @@ namespace LmpCommonTest
                 PersistentSyncPayloadSerializer.Serialize(
                     new[] { new UpgradeableFacilityLevelPayload { FacilityId = "A", Level = 1 }, new UpgradeableFacilityLevelPayload { FacilityId = "B", Level = 2 } }));
             CollectionAssert.AreEqual(
-                LegacyBlobArray("Tech", "basicRocketry", contract.Data, contract.Data.Length),
-                PersistentSyncPayloadSerializer.Serialize(new[] { new TechnologySnapshotInfo { TechId = "basicRocketry", Data = contract.Data } }));
+                LegacyBlobArray("Tech", "basicRocketry", contract.Data, contract.Data.Length)
+                    .Concat(LegacyPartPurchases(Array.Empty<PartPurchaseSnapshotInfo>()))
+                    .ToArray(),
+                PersistentSyncPayloadSerializer.Serialize(new TechnologyPayload { Technologies = new[] { new TechnologySnapshotInfo { TechId = "basicRocketry", Data = contract.Data } } }));
             CollectionAssert.AreEqual(
                 LegacyBlobArray("Name", "BailoutGrant", contract.Data, contract.Data.Length),
                 PersistentSyncPayloadSerializer.Serialize(new[] { new StrategySnapshotInfo { Name = "BailoutGrant", Data = contract.Data } }));
@@ -313,10 +319,10 @@ namespace LmpCommonTest
                 PersistentSyncPayloadSerializer.Serialize(new[] { new PartPurchaseSnapshotInfo { TechId = "engineering101", PartNames = new[] { "radialDecoupler", "stackSeparator" } } }));
             CollectionAssert.AreEqual(
                 LegacyContractSnapshot(ContractSnapshotPayloadMode.Delta, new[] { contract }),
-                PersistentSyncPayloadSerializer.Serialize(new ContractSnapshotPayload { Contracts = new[] { contract }.ToList() }));
+                PersistentSyncPayloadSerializer.Serialize(new ContractsPayload { Snapshot = new ContractSnapshotPayload { Contracts = new[] { contract }.ToList() } }));
             CollectionAssert.AreEqual(
                 LegacyContractSnapshot(ContractSnapshotPayloadMode.FullReplace, new[] { contract }),
-                PersistentSyncPayloadSerializer.Serialize(new ContractSnapshotPayload { Mode = ContractSnapshotPayloadMode.FullReplace, Contracts = new[] { contract }.ToList() }));
+                PersistentSyncPayloadSerializer.Serialize(new ContractsPayload { Snapshot = new ContractSnapshotPayload { Mode = ContractSnapshotPayloadMode.FullReplace, Contracts = new[] { contract }.ToList() } }));
             CollectionAssert.AreEqual(
                 LegacyContractIntent(new ContractIntentPayload
                 {
@@ -419,8 +425,8 @@ namespace LmpCommonTest
                 }
             };
 
-            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(technologyPayload);
-            var roundTripTechnologies = PersistentSyncPayloadSerializer.Deserialize<TechnologySnapshotInfo[]>(snapshotPayload, snapshotPayload.Length);
+            var snapshotPayload = PersistentSyncPayloadSerializer.Serialize(new TechnologyPayload { Technologies = technologyPayload });
+            var roundTripTechnologies = PersistentSyncPayloadSerializer.Deserialize<TechnologyPayload>(snapshotPayload, snapshotPayload.Length).Technologies;
 
             Assert.AreEqual(2, roundTripTechnologies.Length);
             Assert.AreEqual("basicRocketry", roundTripTechnologies[0].TechId);

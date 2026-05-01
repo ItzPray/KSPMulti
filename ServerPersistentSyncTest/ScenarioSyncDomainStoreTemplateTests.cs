@@ -15,7 +15,7 @@ using System.Reflection;
 namespace ServerPersistentSyncTest
 {
     /// <summary>
-    /// Template-level regression tests for ScenarioSyncDomainStore{TCanonical}. These tests use a
+    /// Template-level regression tests for SyncDomainStoreBase{TCanonical}. These tests use a
     /// minimal probe subclass rather than a real game domain so failures isolate to base-class behavior (rule 4
     /// of the Scenario Sync Domain Contract: revision bumps, equality short-circuit, scenario write lock,
     /// reject paths) instead of leaking through a specific domain's reducer.
@@ -25,7 +25,7 @@ namespace ServerPersistentSyncTest
     /// projection allowlist (PartPurchases over Technology).
     /// </summary>
     [TestClass]
-    public class ScenarioSyncDomainStoreTemplateTests
+    public class SyncDomainStoreBaseTemplateTests
     {
         private const string ProbeScenarioName = "TemplateProbe";
         private static readonly ClientMessageFactory ClientMessageFactory = new ClientMessageFactory();
@@ -146,7 +146,7 @@ namespace ServerPersistentSyncTest
             var store = new ProbeDomainStore();
             store.LoadFromPersistence(false);
 
-            var serverResult = store.ApplyServerMutation(EncodeValue(77), sizeof(int), "ServerSide");
+            var serverResult = store.ApplyServerMutation(EncodeValue(77), "ServerSide");
 
             Assert.IsTrue(serverResult.Accepted);
             Assert.IsTrue(serverResult.Changed);
@@ -156,7 +156,7 @@ namespace ServerPersistentSyncTest
 
         /// <summary>
         /// Regression gate: AGENTS.md requires every persistent-sync server domain to inherit one of the two
-        /// sanctioned templates: ScenarioSyncDomainStore{TCanonical} for scenario-owning domains
+        /// sanctioned templates: SyncDomainStoreBase{TCanonical} for scenario-owning domains
         /// or ProjectionSyncDomain{TOwner} for pure projections. No domain may implement
         /// IPersistentSyncServerDomain directly. If someone adds a new direct implementor this
         /// test fails so the reviewer has to migrate it onto one of the templates.
@@ -166,7 +166,7 @@ namespace ServerPersistentSyncTest
         {
             var sanctionedOpenGenericBases = new[]
             {
-                typeof(ScenarioSyncDomainStore<>),
+                typeof(SyncDomainStoreBase<>),
                 typeof(ProjectionSyncDomain<>)
             };
 
@@ -184,7 +184,7 @@ namespace ServerPersistentSyncTest
             {
                 Assert.Fail(
                     "The following types implement IPersistentSyncServerDomain directly without inheriting " +
-                    "ScenarioSyncDomainStore<TCanonical> (for scenario-owning domains) or " +
+                    "SyncDomainStoreBase<TCanonical> (for scenario-owning domains) or " +
                     "ProjectionSyncDomain<TOwner> (for pure projections). Migrate them onto one of these templates:\n  - "
                     + string.Join("\n  - ", violators));
             }
@@ -265,7 +265,8 @@ namespace ServerPersistentSyncTest
         /// Minimal probe subclass. Canonical state is a single int. Payload layout:
         /// [0..3] = new int value, [4] = reject flag, [5] = throw flag.
         /// </summary>
-        private sealed class ProbeDomainStore : ScenarioSyncDomainStore<ProbeDomainStore.Canonical>
+        [PersistentSyncStockScenario(ProbeScenarioName)]
+        private sealed class ProbeDomainStore : SyncDomainStoreBase<ProbeDomainStore.Canonical>
         {
             public int WriteCanonicalCallCount { get; private set; }
             public bool ReturnNewScenarioOnWrite { get; set; }
@@ -273,11 +274,9 @@ namespace ServerPersistentSyncTest
             public int CurrentValueForTests => CurrentForTests?.Value ?? -1;
             public long RevisionForTestsExposed => RevisionForTests;
 
-            public override string DomainId => PersistentSyncDomainNames.Funds;
             public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-            protected override string ScenarioName => ProbeScenarioName;
 
-            public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
+            public override bool AuthorizeIntent(ClientStructure client, byte[] payload) => AuthorizeByPolicy(client);
 
             protected override Canonical CreateEmpty() => new Canonical(0);
 
@@ -290,7 +289,7 @@ namespace ServerPersistentSyncTest
                     : new Canonical(0);
             }
 
-            protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+            protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, string reason, bool isServerMutation)
             {
                 if (payload == null || payload.Length < sizeof(int)) return ReduceResult<Canonical>.Reject();
                 var value = BitConverter.ToInt32(payload, 0);
@@ -343,40 +342,35 @@ namespace ServerPersistentSyncTest
         {
             public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
             {
-                registrar.Register(PersistentSyncDomain.Define("DuplicateA", 240))
-                    .OwnsStockScenario("Funding")
+                registrar.Register(new PersistentSyncDomainKey("DuplicateA", 240))
+                    .WithStockScenarioMetadata("Funding")
                     .UsesServerDomain<DuplicateFundsDomainA>();
             }
-
-            public override string DomainId => PersistentSyncDomainNames.Funds;
         }
 
         private sealed class DuplicateFundsDomainB : TestDomainBase
         {
             public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
             {
-                registrar.Register(PersistentSyncDomain.Define("DuplicateB", 240))
-                    .OwnsStockScenario("Funding")
+                registrar.Register(new PersistentSyncDomainKey("DuplicateB", 240))
+                    .WithStockScenarioMetadata("Funding")
                     .UsesServerDomain<DuplicateFundsDomainB>();
             }
-
-            public override string DomainId => PersistentSyncDomainNames.Funds;
         }
 
         private sealed class UnregisteredDomain : TestDomainBase
         {
-            public override string DomainId => (string)250;
         }
 
         private abstract class TestDomainBase : IPersistentSyncServerDomain
         {
-            public abstract string DomainId { get; }
+            public string DomainId => PersistentSyncDomainNaming.InferDomainName(GetType());
             public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
             public void LoadFromPersistence(bool createdFromScratch) { }
             public PersistentSyncDomainSnapshot GetCurrentSnapshot() => null;
             public PersistentSyncDomainApplyResult ApplyClientIntent(ClientStructure client, PersistentSyncIntentMsgData data) => null;
-            public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason) => null;
-            public bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => true;
+            public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, string reason) => null;
+            public bool AuthorizeIntent(ClientStructure client, byte[] payload) => true;
         }
     }
 }

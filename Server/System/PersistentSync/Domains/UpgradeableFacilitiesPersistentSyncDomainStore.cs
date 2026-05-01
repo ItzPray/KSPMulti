@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
@@ -10,7 +18,8 @@ using System.Linq;
 
 namespace Server.System.PersistentSync
 {
-    public sealed class UpgradeableFacilitiesPersistentSyncDomainStore : ScenarioSyncDomainStore<UpgradeableFacilitiesPersistentSyncDomainStore.Canonical, UpgradeableFacilityLevelPayload, UpgradeableFacilityLevelPayload[]>
+    [PersistentSyncStockScenario("ScenarioUpgradeableFacilities")]
+    public sealed class UpgradeableFacilitiesPersistentSyncDomainStore : SyncDomainStore<UpgradeableFacilityLevelPayload[]>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -33,12 +42,46 @@ namespace Server.System.PersistentSync
             "SpaceCenter/ResearchAndDevelopment",
             "SpaceCenter/Administration"
         };
-
-        public override string DomainId => PersistentSyncDomainNames.UpgradeableFacilities;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-        protected override string ScenarioName => "ScenarioUpgradeableFacilities";
 
-        protected override Canonical CreateEmpty()
+        protected override UpgradeableFacilityLevelPayload[] CreateDefaultPayload()
+        {
+            return BuildSnapshotPayload(CreateEmptyCanonical());
+        }
+
+        protected override UpgradeableFacilityLevelPayload[] LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        {
+            return BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch));
+        }
+
+        protected override ReduceResult<UpgradeableFacilityLevelPayload[]> ReducePayload(ClientStructure client, UpgradeableFacilityLevelPayload[] current, UpgradeableFacilityLevelPayload[] incoming, string reason, bool isServerMutation)
+        {
+            var state = ToCanonical(current);
+            foreach (var intent in incoming ?? new UpgradeableFacilityLevelPayload[0])
+            {
+                var reduced = ReducePayloadState(state, intent, reason, isServerMutation);
+                if (reduced == null || !reduced.Accepted)
+                {
+                    return ReduceResult<UpgradeableFacilityLevelPayload[]>.Reject();
+                }
+
+                state = reduced.NextState ?? state;
+            }
+
+            return ReduceResult<UpgradeableFacilityLevelPayload[]>.Accept(BuildSnapshotPayload(state));
+        }
+
+        protected override ConfigNode WritePayload(ConfigNode scenario, UpgradeableFacilityLevelPayload[] payload)
+        {
+            return WriteCanonicalState(scenario, ToCanonical(payload));
+        }
+
+        protected override bool PayloadsAreEqual(UpgradeableFacilityLevelPayload[] left, UpgradeableFacilityLevelPayload[] right)
+        {
+            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+        }
+
+        private static Canonical CreateEmptyCanonical()
         {
             var map = new SortedDictionary<string, int>(StringComparer.Ordinal);
             foreach (var facilityId in KnownFacilityIds)
@@ -48,7 +91,7 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        private static Canonical LoadCanonicalState(ConfigNode scenario, bool createdFromScratch)
         {
             var map = new SortedDictionary<string, int>(StringComparer.Ordinal);
             foreach (var facilityId in KnownFacilityIds)
@@ -80,7 +123,7 @@ namespace Server.System.PersistentSync
             return canonical;
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, UpgradeableFacilityLevelPayload intent, string reason, bool isServerMutation)
+        private static ReduceResult<Canonical> ReducePayloadState(Canonical current, UpgradeableFacilityLevelPayload intent, string reason, bool isServerMutation)
         {
             var facilityId = intent?.FacilityId;
             var level = intent?.Level ?? 0;
@@ -119,7 +162,7 @@ namespace Server.System.PersistentSync
             return ReduceResult<Canonical>.Accept(new Canonical(next));
         }
 
-        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
+        private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)
         {
             foreach (var facility in canonical.Levels)
             {
@@ -129,15 +172,15 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected override UpgradeableFacilityLevelPayload[] BuildSnapshotPayload(Canonical canonical)
+        private static UpgradeableFacilityLevelPayload[] BuildSnapshotPayload(Canonical canonical)
         {
-            LogFacilityLevelsSnapshot("GetCurrentSnapshot", canonical, RevisionForTests);
+            LogFacilityLevelsSnapshot("GetCurrentSnapshot", canonical, 0L);
             return canonical.Levels
                 .Select(kvp => new UpgradeableFacilityLevelPayload { FacilityId = kvp.Key, Level = kvp.Value })
                 .ToArray();
         }
 
-        protected override bool AreEquivalent(Canonical a, Canonical b)
+        private static bool AreEquivalent(Canonical a, Canonical b)
         {
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
@@ -218,6 +261,26 @@ namespace Server.System.PersistentSync
             }
 
             return false;
+        }
+
+        private static Canonical ToCanonical(UpgradeableFacilityLevelPayload[] payload)
+        {
+            var canonical = CreateEmptyCanonical();
+            var map = new SortedDictionary<string, int>(canonical.Levels, StringComparer.Ordinal);
+            foreach (var record in payload ?? new UpgradeableFacilityLevelPayload[0])
+            {
+                if (record == null || string.IsNullOrEmpty(record.FacilityId))
+                {
+                    continue;
+                }
+
+                if (TryResolveCanonicalFacilityId(record.FacilityId, out var facilityId))
+                {
+                    map[facilityId] = record.Level;
+                }
+            }
+
+            return new Canonical(map);
         }
 
         /// <summary>Typed canonical state: facility levels keyed by canonical facility id (ordinal, sorted).</summary>

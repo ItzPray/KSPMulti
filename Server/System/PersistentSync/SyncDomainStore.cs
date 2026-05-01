@@ -8,7 +8,7 @@ using System.Globalization;
 
 namespace Server.System.PersistentSync
 {
-    public abstract class SyncDomainStore<TPayload> : ScenarioSyncDomainStore<SyncDomainStore<TPayload>.PayloadBox>
+    public abstract class SyncDomainStore<TPayload> : SyncDomainStoreBase<SyncDomainStore<TPayload>.PayloadBox>
     {
         private readonly PersistentSyncStockScenarioAttribute _stockScenario;
         private readonly PersistentSyncOwnedScenarioAttribute _ownedScenario;
@@ -26,10 +26,15 @@ namespace Server.System.PersistentSync
 
         protected PersistentSyncDomainDefinition Definition => PersistentSyncDomainCatalog.GetByName(DomainName);
         protected string DomainName => PersistentSyncDomainNaming.InferDomainName(GetType());
-        protected sealed override string ScenarioName => _stockScenario?.ScenarioName ?? _ownedScenario?.ScenarioName;
         protected string ScenarioFieldName => _stockScenario?.ScalarField ?? _ownedScenario?.ScalarField;
 
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
+        public override bool AuthorizeIntent(ClientStructure client, byte[] payload)
+        {
+            payload = payload ?? Array.Empty<byte>();
+            return AuthorizePayload(client, PersistentSyncPayloadSerializer.Deserialize<TPayload>(payload, payload.Length));
+        }
+
+        protected virtual bool AuthorizePayload(ClientStructure client, TPayload payload) => AuthorizeByPolicy(client);
 
         protected virtual TPayload CreateDefaultPayload()
         {
@@ -73,6 +78,11 @@ namespace Server.System.PersistentSync
             return EqualityComparer<TPayload>.Default.Equals(left, right);
         }
 
+        protected virtual bool ShouldWriteBackAfterLoad(TPayload loaded, ConfigNode scenario)
+        {
+            return false;
+        }
+
         protected sealed override PayloadBox CreateEmpty()
         {
             return new PayloadBox(CreateDefaultPayload());
@@ -92,11 +102,11 @@ namespace Server.System.PersistentSync
             ClientStructure client,
             PayloadBox current,
             byte[] payload,
-            int numBytes,
             string reason,
             bool isServerMutation)
         {
-            var incoming = PersistentSyncPayloadSerializer.Deserialize<TPayload>(payload ?? Array.Empty<byte>(), numBytes);
+            payload = payload ?? Array.Empty<byte>();
+            var incoming = PersistentSyncPayloadSerializer.Deserialize<TPayload>(payload, payload.Length);
             var reduced = ReducePayload(client, current != null ? current.Payload : CreateDefaultPayload(), incoming, reason, isServerMutation);
             if (reduced == null || !reduced.Accepted)
             {
@@ -119,6 +129,11 @@ namespace Server.System.PersistentSync
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
             return PayloadsAreEqual(a.Payload, b.Payload);
+        }
+
+        protected sealed override bool ShouldWriteBackAfterLoad(PayloadBox loaded, ConfigNode scenario)
+        {
+            return ShouldWriteBackAfterLoad(loaded != null ? loaded.Payload : CreateDefaultPayload(), scenario);
         }
 
         private static bool TryParseScalar(string raw, out TPayload value)

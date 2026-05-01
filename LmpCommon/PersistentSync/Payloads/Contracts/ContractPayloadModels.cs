@@ -3,14 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace LmpCommon.PersistentSync
+namespace LmpCommon.PersistentSync.Payloads.Contracts
 {
-    public sealed class AchievementSnapshotInfo
-    {
-        public string Id = string.Empty;
-        public byte[] Data = new byte[0];
-    }
-
     public enum ContractIntentPayloadKind : byte
     {
         AcceptContract = 0,
@@ -60,7 +54,7 @@ namespace LmpCommon.PersistentSync
         public List<ContractSnapshotInfo> Contracts = new List<ContractSnapshotInfo>();
     }
 
-    public sealed class ContractMutationPayload
+    public sealed class ContractsPayload
     {
         public ContractIntentPayload Intent;
         public ContractSnapshotPayload Snapshot;
@@ -186,41 +180,5 @@ namespace LmpCommon.PersistentSync
 
             return changedContracts.ToArray();
         }
-    }
-
-    public sealed class ExperimentalPartSnapshotInfo
-    {
-        public string PartName = string.Empty;
-        public int Count;
-    }
-
-    public sealed class PartPurchaseSnapshotInfo
-    {
-        public string TechId = string.Empty;
-        public string[] PartNames = new string[0];
-    }
-
-    public sealed class UpgradeableFacilityLevelPayload
-    {
-        public string FacilityId = string.Empty;
-        public int Level;
-    }
-
-    public sealed class ScienceSubjectSnapshotInfo
-    {
-        public string Id = string.Empty;
-        public byte[] Data = new byte[0];
-    }
-
-    public sealed class StrategySnapshotInfo
-    {
-        public string Name = string.Empty;
-        public byte[] Data = new byte[0];
-    }
-
-    public sealed class TechnologySnapshotInfo
-    {
-        public string TechId = string.Empty;
-        public byte[] Data = new byte[0];
     }
 }

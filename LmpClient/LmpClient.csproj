@@ -323,7 +323,7 @@
     <Compile Include="Systems\ShareFunds\ShareFundsMessageHandler.cs" />
     <Compile Include="Systems\ShareFunds\ShareFundsMessageSender.cs" />
     <Compile Include="Systems\ShareFunds\ShareFundsSystem.cs" />
-    <Compile Include="Systems\PersistentSync\*.cs" />
+    <Compile Include="Systems\PersistentSync\**\*.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryMessageHandler.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryMessageSender.cs" />
     <Compile Include="Systems\CraftLibrary\CraftLibraryStructures.cs" />

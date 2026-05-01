@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -37,7 +37,7 @@ namespace LmpCommon.PersistentSync
                 typeof(PersistentSyncStockScenarioAttribute));
             if (stockScenario != null)
             {
-                builder.OwnsStockScenario(stockScenario.ScenarioName, stockScenario.ScalarField);
+                builder.WithStockScenarioMetadata(stockScenario.ScenarioName, stockScenario.ScalarField);
             }
 
             var ownedScenario = (PersistentSyncOwnedScenarioAttribute)Attribute.GetCustomAttribute(
@@ -45,11 +45,11 @@ namespace LmpCommon.PersistentSync
                 typeof(PersistentSyncOwnedScenarioAttribute));
             if (ownedScenario != null)
             {
-                builder.OwnsKspmpScenario(ownedScenario.ScenarioName, ownedScenario.ScalarField);
+                builder.WithOwnedScenarioMetadata(ownedScenario.ScenarioName, ownedScenario.ScalarField);
             }
             else if (stockScenario == null && TryGetKnownScenarioForDomain(key.Name, out var knownScenario))
             {
-                builder.OwnsStockScenario(knownScenario);
+                builder.WithStockScenarioMetadata(knownScenario);
             }
 
             return builder;
@@ -235,12 +235,12 @@ namespace LmpCommon.PersistentSync
             return this;
         }
 
-        public PersistentSyncDomainRegistrationBuilder OwnsStockScenario(string scenarioName)
+        public PersistentSyncDomainRegistrationBuilder WithStockScenarioMetadata(string scenarioName)
         {
-            return OwnsStockScenario(scenarioName, null);
+            return WithStockScenarioMetadata(scenarioName, null);
         }
 
-        public PersistentSyncDomainRegistrationBuilder OwnsStockScenario(string scenarioName, string scalarFieldName)
+        public PersistentSyncDomainRegistrationBuilder WithStockScenarioMetadata(string scenarioName, string scalarFieldName)
         {
             var metadata = PersistentSyncStockScenarioMetadata.Get(scenarioName);
             _scenarioName = scenarioName;
@@ -262,7 +262,7 @@ namespace LmpCommon.PersistentSync
             return this;
         }
 
-        public PersistentSyncDomainRegistrationBuilder OwnsKspmpScenario(string scenarioName, string scalarFieldName = null)
+        public PersistentSyncDomainRegistrationBuilder WithOwnedScenarioMetadata(string scenarioName, string scalarFieldName = null)
         {
             _scenarioName = scenarioName;
             _scalarFieldName = scalarFieldName;

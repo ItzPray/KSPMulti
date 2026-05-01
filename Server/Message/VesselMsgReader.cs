@@ -157,7 +157,6 @@ namespace Server.Message
             PersistentSyncRegistry.ApplyServerMutation(
                 PersistentSyncDomainNames.GameLaunchId,
                 payload,
-                payload.Length,
                 $"VesselProto:{vesselId}");
         }
 

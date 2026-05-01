@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
@@ -10,7 +18,8 @@ using System.Linq;
 
 namespace Server.System.PersistentSync
 {
-    public sealed class ExperimentalPartsPersistentSyncDomainStore : ScenarioSyncDomainStore<ExperimentalPartsPersistentSyncDomainStore.Canonical, ExperimentalPartSnapshotInfo[], ExperimentalPartSnapshotInfo[]>
+    [PersistentSyncStockScenario("ResearchAndDevelopment")]
+    public sealed class ExperimentalPartsPersistentSyncDomainStore : SyncDomainStore<ExperimentalPartSnapshotInfo[]>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -19,17 +28,42 @@ namespace Server.System.PersistentSync
         }
 
         private const string ExpPartsNodeName = "ExpParts";
-
-        public override string DomainId => PersistentSyncDomainNames.ExperimentalParts;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-        protected override string ScenarioName => "ResearchAndDevelopment";
 
-        protected override Canonical CreateEmpty()
+        protected override ExperimentalPartSnapshotInfo[] CreateDefaultPayload()
+        {
+            return BuildSnapshotPayload(CreateEmptyCanonical());
+        }
+
+        protected override ExperimentalPartSnapshotInfo[] LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        {
+            return BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch));
+        }
+
+        protected override ReduceResult<ExperimentalPartSnapshotInfo[]> ReducePayload(ClientStructure client, ExperimentalPartSnapshotInfo[] current, ExperimentalPartSnapshotInfo[] incoming, string reason, bool isServerMutation)
+        {
+            var reduced = ReducePayloadState(ToCanonical(current), incoming, reason, isServerMutation);
+            return reduced == null || !reduced.Accepted
+                ? ReduceResult<ExperimentalPartSnapshotInfo[]>.Reject()
+                : ReduceResult<ExperimentalPartSnapshotInfo[]>.Accept(BuildSnapshotPayload(reduced.NextState), reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+        }
+
+        protected override ConfigNode WritePayload(ConfigNode scenario, ExperimentalPartSnapshotInfo[] payload)
+        {
+            return WriteCanonicalState(scenario, ToCanonical(payload));
+        }
+
+        protected override bool PayloadsAreEqual(ExperimentalPartSnapshotInfo[] left, ExperimentalPartSnapshotInfo[] right)
+        {
+            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+        }
+
+        private static Canonical CreateEmptyCanonical()
         {
             return new Canonical(new SortedDictionary<string, int>(StringComparer.Ordinal));
         }
 
-        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        private static Canonical LoadCanonicalState(ConfigNode scenario, bool createdFromScratch)
         {
             var map = new SortedDictionary<string, int>(StringComparer.Ordinal);
             if (scenario == null)
@@ -78,7 +112,7 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, ExperimentalPartSnapshotInfo[] intent, string reason, bool isServerMutation)
+        private static ReduceResult<Canonical> ReducePayloadState(Canonical current, ExperimentalPartSnapshotInfo[] intent, string reason, bool isServerMutation)
         {
             var next = new SortedDictionary<string, int>(current.Counts, StringComparer.Ordinal);
             foreach (var record in intent ?? Enumerable.Empty<ExperimentalPartSnapshotInfo>())
@@ -96,7 +130,7 @@ namespace Server.System.PersistentSync
             return ReduceResult<Canonical>.Accept(new Canonical(next));
         }
 
-        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
+        private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)
         {
             RemoveAllExpPartsNodes(scenario);
 
@@ -133,14 +167,14 @@ namespace Server.System.PersistentSync
             }
         }
 
-        protected override ExperimentalPartSnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
+        private static ExperimentalPartSnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
         {
             return canonical.Counts
                 .Select(pair => new ExperimentalPartSnapshotInfo { PartName = pair.Key, Count = pair.Value })
                 .ToArray();
         }
 
-        protected override bool AreEquivalent(Canonical a, Canonical b)
+        private static bool AreEquivalent(Canonical a, Canonical b)
         {
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
@@ -154,6 +188,28 @@ namespace Server.System.PersistentSync
                 }
             }
             return true;
+        }
+
+        private static Canonical ToCanonical(ExperimentalPartSnapshotInfo[] payload)
+        {
+            var map = new SortedDictionary<string, int>(StringComparer.Ordinal);
+            foreach (var record in payload ?? new ExperimentalPartSnapshotInfo[0])
+            {
+                if (record == null || string.IsNullOrEmpty(record.PartName))
+                {
+                    continue;
+                }
+
+                if (record.Count <= 0)
+                {
+                    map.Remove(record.PartName);
+                    continue;
+                }
+
+                map[record.PartName] = record.Count;
+            }
+
+            return new Canonical(map);
         }
 
         /// <summary>Typed canonical state: experimental part counts keyed by part name (ordinal, sorted).</summary>

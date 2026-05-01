@@ -51,7 +51,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Locks\LockType.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LunaMath.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)LunaNetUtils.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PersistentSync\**\*.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Base\EndpointUtil.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Base\FactoryBase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Base\GuidUtil.cs" />

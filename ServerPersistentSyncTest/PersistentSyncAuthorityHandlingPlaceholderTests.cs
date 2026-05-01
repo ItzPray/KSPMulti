@@ -46,12 +46,12 @@ namespace ServerPersistentSyncTest
                 throw new InvalidOperationException("ApplyClientIntent must not run when authority rejects.");
             }
 
-            public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, int numBytes, string reason)
+            public PersistentSyncDomainApplyResult ApplyServerMutation(byte[] payload, string reason)
             {
                 return new PersistentSyncDomainApplyResult { Accepted = false };
             }
 
-            public bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes)
+            public bool AuthorizeIntent(ClientStructure client, byte[] payload)
             {
                 return PersistentSyncRegistry.ValidateClientMaySubmitIntent(client, this);
             }

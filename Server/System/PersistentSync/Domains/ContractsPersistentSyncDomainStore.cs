@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
@@ -17,7 +25,8 @@ namespace Server.System.PersistentSync
     /// Authoritative server-side contract store. Contracts keeps a custom binary codec for the legacy
     /// sentinel/envelope wire formats, but reducer code works with typed payload objects.
     /// </summary>
-    public sealed class ContractsPersistentSyncDomainStore : ScenarioSyncDomainStore<ContractsPersistentSyncDomainStore.Canonical, ContractMutationPayload, ContractSnapshotPayload>
+    [PersistentSyncStockScenario("ContractSystem")]
+    public sealed class ContractsPersistentSyncDomainStore : SyncDomainStore<ContractsPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
@@ -49,8 +58,6 @@ namespace Server.System.PersistentSync
         /// </summary>
         private const int MaxOfferedPerContractType = 3;
 
-        public override string DomainId => PersistentSyncDomainNames.Contracts;
-
         /// <summary>
         /// Floor policy advertised to clients and the registry's default path. Real gating happens in
         /// AuthorizeIntent because Contracts has mixed per-intent authority. Advertising
@@ -58,9 +65,8 @@ namespace Server.System.PersistentSync
         /// producer intents and full reconcile are rejected for non-lock-holders in AuthorizeIntent.
         /// </summary>
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
-        protected override string ScenarioName => "ContractSystem";
 
-        protected override bool AuthorizeIntent(ClientStructure client, ContractMutationPayload payload)
+        protected override bool AuthorizePayload(ClientStructure client, ContractsPayload payload)
         {
             if (payload?.Intent != null)
             {
@@ -89,12 +95,47 @@ namespace Server.System.PersistentSync
             return ClientOwnsProducerAuthority(client);
         }
 
-        protected override Canonical CreateEmpty()
+        protected override ContractsPayload CreateDefaultPayload()
+        {
+            return BuildPayload(CreateEmptyCanonical());
+        }
+
+        protected override ContractsPayload LoadPayload(ConfigNode scenario, bool createdFromScratch)
+        {
+            return BuildPayload(LoadCanonicalState(scenario, createdFromScratch));
+        }
+
+        protected override bool ShouldWriteBackAfterLoad(ContractsPayload loaded, ConfigNode scenario)
+        {
+            var requires = _loadRequiresWriteBack;
+            _loadRequiresWriteBack = false;
+            return requires;
+        }
+
+        protected override ReduceResult<ContractsPayload> ReducePayload(ClientStructure client, ContractsPayload current, ContractsPayload incoming, string reason, bool isServerMutation)
+        {
+            var reduced = ReducePayloadState(client, ToCanonical(current), incoming, reason, isServerMutation);
+            return reduced == null || !reduced.Accepted
+                ? ReduceResult<ContractsPayload>.Reject()
+                : ReduceResult<ContractsPayload>.Accept(BuildPayload(reduced.NextState), reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+        }
+
+        protected override ConfigNode WritePayload(ConfigNode scenario, ContractsPayload payload)
+        {
+            return WriteCanonicalState(scenario, ToCanonical(payload));
+        }
+
+        protected override bool PayloadsAreEqual(ContractsPayload left, ContractsPayload right)
+        {
+            return AreEquivalent(ToCanonical(left), ToCanonical(right));
+        }
+
+        private static Canonical CreateEmptyCanonical()
         {
             return new Canonical(new Dictionary<Guid, ContractSnapshotInfo>());
         }
 
-        protected override Canonical LoadCanonical(ConfigNode scenario, bool createdFromScratch)
+        private Canonical LoadCanonicalState(ConfigNode scenario, bool createdFromScratch)
         {
             var contractsByGuid = new Dictionary<Guid, ContractSnapshotInfo>();
 
@@ -134,18 +175,11 @@ namespace Server.System.PersistentSync
             return new Canonical(contractsByGuid);
         }
 
-        protected override bool ShouldWriteBackAfterLoad(Canonical loaded, ConfigNode scenario)
-        {
-            var requires = _loadRequiresWriteBack;
-            _loadRequiresWriteBack = false;
-            return requires;
-        }
-
         // Communicates from LoadCanonical back up to LoadFromPersistence / ShouldWriteBackAfterLoad. Safe because
-        // LoadFromPersistence holds the state lock for the duration of both calls (see ScenarioSyncDomainStore).
+        // LoadFromPersistence holds the state lock for the duration of both calls (see SyncDomainStoreBase).
         private bool _loadRequiresWriteBack;
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, ContractMutationPayload payload, string reason, bool isServerMutation)
+        private ReduceResult<Canonical> ReducePayloadState(ClientStructure client, Canonical current, ContractsPayload payload, string reason, bool isServerMutation)
         {
             // Authority was already enforced by AuthorizeIntent at the registry gate for client intents; server
             // mutations are trusted by construction. The reducer is pure state-transition logic here.
@@ -556,14 +590,14 @@ namespace Server.System.PersistentSync
             return true;
         }
 
-        protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)
+        private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)
         {
             // Build a fresh scenario ConfigNode via the LunaConfigNode graph API. Every node in the emitted
             // subtree is constructed with the name-only constructor (no backing text) and populated via
             // CreateValue/AddNode, so no text-backed node from the incoming scenario leaks through. This
             // sidesteps the LunaConfigNode pre-parse text cache that previously made RemoveNode/AddNode
             // edits on text-backed nodes invisible to ToString().
-            var scenarioName = string.IsNullOrEmpty(scenario?.Name) ? ScenarioName : scenario.Name;
+            var scenarioName = string.IsNullOrEmpty(scenario?.Name) ? "ContractSystem" : scenario.Name;
             var fresh = new ConfigNode(scenarioName, null);
 
             if (scenario != null)
@@ -631,21 +665,24 @@ namespace Server.System.PersistentSync
             return fresh;
         }
 
-        protected override ContractSnapshotPayload BuildSnapshotPayload(Canonical canonical)
+        private static ContractsPayload BuildPayload(Canonical canonical)
         {
             var orderedContracts = canonical.ContractsByGuid.Values
                 .OrderBy(c => c.Order)
                 .ThenBy(c => c.ContractGuid)
                 .Select(ContractSnapshotInfoComparer.Clone)
                 .ToList();
-            return new ContractSnapshotPayload
+            return new ContractsPayload
             {
-                Mode = ContractSnapshotPayloadMode.Delta,
-                Contracts = orderedContracts
+                Snapshot = new ContractSnapshotPayload
+                {
+                    Mode = ContractSnapshotPayloadMode.Delta,
+                    Contracts = orderedContracts
+                }
             };
         }
 
-        protected override bool AreEquivalent(Canonical a, Canonical b)
+        private static bool AreEquivalent(Canonical a, Canonical b)
         {
             if (ReferenceEquals(a, b)) return true;
             if (a == null || b == null) return false;
@@ -1195,6 +1232,22 @@ namespace Server.System.PersistentSync
         {
             if (string.IsNullOrWhiteSpace(title)) return string.Empty;
             return Regex.Replace(title.Trim(), @"\s+", " ");
+        }
+
+        private static Canonical ToCanonical(ContractsPayload payload)
+        {
+            var contracts = new Dictionary<Guid, ContractSnapshotInfo>();
+            foreach (var contract in payload?.Snapshot?.Contracts ?? Enumerable.Empty<ContractSnapshotInfo>())
+            {
+                if (contract == null || contract.ContractGuid == Guid.Empty)
+                {
+                    continue;
+                }
+
+                contracts[contract.ContractGuid] = ContractSnapshotInfoComparer.Clone(contract);
+            }
+
+            return new Canonical(contracts);
         }
 
         /// <summary>Typed canonical state: contracts keyed by GUID.</summary>

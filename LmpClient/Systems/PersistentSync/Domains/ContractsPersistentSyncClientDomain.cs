@@ -1,3 +1,11 @@
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
+using LmpCommon.PersistentSync.Payloads.Technology;
+using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
+using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
+using LmpCommon.PersistentSync.Payloads.Contracts;
+using LmpCommon.PersistentSync.Payloads.Achievements;
 using Contracts;
 using LmpClient.Extensions;
 using LmpClient.Harmony;
@@ -15,14 +23,12 @@ using UnityEngine;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    public class ContractsPersistentSyncClientDomain : TypedPersistentSyncClientDomain<ContractSnapshotPayload>
+    [PersistentSyncStockScenario("ContractSystem")]
+    public class ContractsPersistentSyncClientDomain : SyncClientDomain<ContractsPayload>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Contracts", 4);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ContractSystem")
+            registrar.RegisterCurrent()
                 .UsesClientDomain<ContractsPersistentSyncClientDomain>();
         }
 
@@ -52,8 +58,6 @@ namespace LmpClient.Systems.PersistentSync
 
         private ContractSnapshotInfo[] _pendingContracts;
 
-        public override string DomainId => Domain.LegacyId;
-
         /// <summary>
         /// True while a Contracts snapshot has been received from the server but has not yet successfully
         /// applied. The reconciler's retry loop calls <see cref="FlushPendingState"/> repeatedly until the
@@ -73,15 +77,13 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         public bool HasPendingSnapshot => _pendingContracts != null;
 
-        protected override PersistentSyncApplyOutcome ApplySnapshot(ContractSnapshotPayload payload, PersistentSyncBufferedSnapshot snapshot)
+        protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, ContractsPayload payload)
         {
-            _pendingContracts = (payload?.Contracts ?? new List<ContractSnapshotInfo>())
+            _pendingContracts = (payload?.Snapshot?.Contracts ?? new List<ContractSnapshotInfo>())
                 .OrderBy(contract => contract.Order)
                 .ToArray();
             LunaLog.Log(
                 $"[PersistentSync] Contracts snapshot received wireRows={_pendingContracts.Length} payloadBytes={snapshot.NumBytes}");
-
-            return FlushPendingState();
         }
 
         public override PersistentSyncApplyOutcome FlushPendingState()
