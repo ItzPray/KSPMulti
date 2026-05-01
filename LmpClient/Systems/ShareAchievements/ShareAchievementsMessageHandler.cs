@@ -1,4 +1,4 @@
-﻿using LmpClient.Base;
+using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
 using LmpClient.Systems.PersistentSync;
@@ -22,7 +22,7 @@ namespace LmpClient.Systems.ShareAchievements
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.AchievementsUpdate) return;
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Achievements))
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Achievements))
             {
                 LunaLog.LogWarning("[KSPMP] Ignoring legacy AchievementsUpdate because persistent sync owns achievements convergence.");
                 return;

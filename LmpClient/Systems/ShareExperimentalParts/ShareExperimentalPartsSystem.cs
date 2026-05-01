@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using LmpClient.Events;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
@@ -27,7 +27,7 @@ namespace LmpClient.Systems.ShareExperimentalParts
         {
             var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
             return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.ExperimentalParts,
+                PersistentSyncDomainNames.ExperimentalParts,
                 SettingsSystem.ServerSettings.GameMode,
                 in caps);
         }

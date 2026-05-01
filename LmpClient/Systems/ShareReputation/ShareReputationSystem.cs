@@ -1,4 +1,4 @@
-﻿using LmpClient.Events;
+using LmpClient.Events;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.SettingsSys;
@@ -26,7 +26,7 @@ namespace LmpClient.Systems.ShareReputation
         {
             var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
             return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Reputation,
+                PersistentSyncDomainNames.Reputation,
                 SettingsSystem.ServerSettings.GameMode,
                 in caps);
         }

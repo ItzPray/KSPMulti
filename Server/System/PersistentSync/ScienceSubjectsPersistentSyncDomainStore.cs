@@ -11,19 +11,16 @@ namespace Server.System.PersistentSync
 {
     public sealed class ScienceSubjectsPersistentSyncDomainStore : ScenarioSyncDomainStore<ScienceSubjectsPersistentSyncDomainStore.Canonical, ScienceSubjectSnapshotInfo[], ScienceSubjectSnapshotInfo[]>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ScienceSubjects", 8);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ResearchAndDevelopment")
+            registrar.RegisterCurrent()
                 .UsesServerDomain<ScienceSubjectsPersistentSyncDomainStore>();
         }
 
         private const string ScienceNodeName = "Science";
         private const string ScienceIdFieldName = "id";
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => PersistentSyncDomainNames.ScienceSubjects;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
 

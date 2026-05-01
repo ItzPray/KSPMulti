@@ -1,4 +1,4 @@
-﻿using LmpClient.Systems.PersistentSync;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.ShareTechnology;
 using LmpClient.Systems.SettingsSys;
@@ -25,7 +25,7 @@ namespace LmpClient.Systems.SharePurchaseParts
         {
             var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
             return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.PartPurchases,
+                PersistentSyncDomainNames.PartPurchases,
                 SettingsSystem.ServerSettings.GameMode,
                 in caps);
         }

@@ -7,7 +7,7 @@ namespace Server.System.PersistentSync
 {
     public interface IPersistentSyncServerDomain
     {
-        PersistentSyncDomainId DomainId { get; }
+        string DomainId { get; }
         PersistentAuthorityPolicy AuthorityPolicy { get; }
         void LoadFromPersistence(bool createdFromScratch);
         PersistentSyncDomainSnapshot GetCurrentSnapshot();

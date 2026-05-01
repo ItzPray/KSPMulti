@@ -24,7 +24,7 @@ namespace LmpClient.Systems.ShareStrategy
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.StrategyUpdate) return;
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Strategy))
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Strategy))
             {
                 LunaLog.LogWarning("[KSPMP] Ignoring legacy StrategyUpdate because persistent sync owns strategy convergence.");
                 return;

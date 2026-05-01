@@ -32,7 +32,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Contracts))
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
             {
                 LogPersistentSyncUnavailableSkip(nameof(SendContractCommand), reason);
                 return;
@@ -49,7 +49,7 @@ namespace LmpClient.Systems.ShareContracts
 
         public void SendRequestOfferGeneration(string reason)
         {
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Contracts))
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
             {
                 LogPersistentSyncUnavailableSkip(nameof(SendRequestOfferGeneration), reason);
                 return;
@@ -90,7 +90,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Contracts))
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
             {
                 LogPersistentSyncUnavailableSkip(nameof(SendProducerProposal), reason);
                 return;
@@ -112,7 +112,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Contracts))
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
             {
                 LogPersistentSyncUnavailableSkip(nameof(SendFullContractReconcile), reason);
                 return;

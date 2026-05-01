@@ -48,7 +48,7 @@ namespace LmpClient.Systems.PersistentSync
 
         private Dictionary<string, StrategySnapshotInfo> _pendingStrategies;
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => Domain.LegacyId;
 
         protected override PersistentSyncApplyOutcome ApplySnapshot(StrategySnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
@@ -98,7 +98,7 @@ namespace LmpClient.Systems.PersistentSync
 
         private AchievementSnapshotInfo[] _pendingAchievements;
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => Domain.LegacyId;
 
         protected override PersistentSyncApplyOutcome ApplySnapshot(AchievementSnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
@@ -170,7 +170,7 @@ namespace LmpClient.Systems.PersistentSync
 
         private ScienceSubjectSnapshotInfo[] _pendingSubjects;
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => Domain.LegacyId;
 
         protected override PersistentSyncApplyOutcome ApplySnapshot(ScienceSubjectSnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
@@ -238,7 +238,7 @@ namespace LmpClient.Systems.PersistentSync
 
         private ExperimentalPartSnapshotInfo[] _pendingParts;
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => Domain.LegacyId;
 
         protected override PersistentSyncApplyOutcome ApplySnapshot(ExperimentalPartSnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
@@ -331,7 +331,7 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private Dictionary<string, PartPurchaseSnapshotInfo> _authoritativePurchases;
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => Domain.LegacyId;
 
         protected override PersistentSyncApplyOutcome ApplySnapshot(PartPurchaseSnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
@@ -446,7 +446,7 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private Dictionary<string, TechnologySnapshotInfo> _authoritativeTechnologyById;
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => Domain.LegacyId;
 
         protected override PersistentSyncApplyOutcome ApplySnapshot(TechnologySnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {

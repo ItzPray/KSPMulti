@@ -46,7 +46,7 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(1200.5d, PersistentSyncPayloadSerializer.Deserialize<double>(store.GetCurrentSnapshot().Payload, sizeof(double)));
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(1800.25d, "Contract"));
-            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "Contract"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.Funds, payload, "Contract"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
@@ -70,10 +70,10 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(9.5f, PersistentSyncPayloadSerializer.Deserialize<float>(reputationStore.GetCurrentSnapshot().Payload, sizeof(float)));
 
             var sciencePayload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<float>(77.25f, "Science lab"));
-            var scienceResult = scienceStore.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Science, sciencePayload, "Science lab"));
+            var scienceResult = scienceStore.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.Science, sciencePayload, "Science lab"));
 
             var reputationPayload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<float>(12.75f, "Contract"));
-            var reputationResult = reputationStore.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Reputation, reputationPayload, "Contract"));
+            var reputationResult = reputationStore.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.Reputation, reputationPayload, "Contract"));
 
             Assert.AreEqual(77.25f, float.Parse(ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].GetValue("sci").Value, CultureInfo.InvariantCulture));
             Assert.AreEqual(12.75f, float.Parse(ScenarioStoreSystem.CurrentScenarios["Reputation"].GetValue("rep").Value, CultureInfo.InvariantCulture));
@@ -89,7 +89,7 @@ namespace ServerPersistentSyncTest
             store.LoadFromPersistence(false);
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(2500d, "No-op"));
-            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "No-op"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.Funds, payload, "No-op"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(result.Changed);
@@ -107,14 +107,14 @@ namespace ServerPersistentSyncTest
 
             var snapshots = PersistentSyncRegistry.GetSnapshots(new[]
             {
-                PersistentSyncDomainId.Funds,
-                PersistentSyncDomainId.Reputation
+                PersistentSyncDomainNames.Funds,
+                PersistentSyncDomainNames.Reputation
             }).ToArray();
 
             Assert.AreEqual(2, snapshots.Length);
-            Assert.AreEqual(PersistentSyncDomainId.Funds, snapshots[0].DomainId);
+            Assert.AreEqual(PersistentSyncDomainNames.Funds, snapshots[0].DomainId);
             Assert.AreEqual(333d, PersistentSyncPayloadSerializer.Deserialize<double>(snapshots[0].Payload, snapshots[0].NumBytes));
-            Assert.AreEqual(PersistentSyncDomainId.Reputation, snapshots[1].DomainId);
+            Assert.AreEqual(PersistentSyncDomainNames.Reputation, snapshots[1].DomainId);
             Assert.AreEqual(55f, PersistentSyncPayloadSerializer.Deserialize<float>(snapshots[1].Payload, snapshots[1].NumBytes));
         }
 
@@ -125,7 +125,7 @@ namespace ServerPersistentSyncTest
             PersistentSyncRegistry.Initialize(false);
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(700d, "Server Command"));
-            var result = PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainId.Funds, payload, payload.Length, "Server Command");
+            var result = PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.Funds, payload, payload.Length, "Server Command");
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
@@ -149,7 +149,7 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(0, initialSnapshot["SpaceCenter/TrackingStation"]);
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 2 });
-            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "Mission Control upgrade"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.UpgradeableFacilities, payload, "Mission Control upgrade"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
@@ -160,7 +160,7 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual("1", ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"].GetNode("SpaceCenter/MissionControl").Value.GetValue("lvl").Value);
 
             PersistentSyncRegistry.Initialize(false);
-            var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.UpgradeableFacilities }).Single();
+            var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.UpgradeableFacilities }).Single();
             var registryFacilities = DeserializeFacilityLevels(registrySnapshot.Payload, registrySnapshot.NumBytes);
             Assert.AreEqual(2, registryFacilities["SpaceCenter/MissionControl"]);
         }
@@ -206,7 +206,7 @@ namespace ServerPersistentSyncTest
             store.LoadFromPersistence(false);
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 1 });
-            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "No-op"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.UpgradeableFacilities, payload, "No-op"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(result.Changed);
@@ -230,7 +230,7 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(2, before["SpaceCenter/MissionControl"]);
 
             var downgradePayload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 0 });
-            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, downgradePayload, "Spurious KSC init"));
+            var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainNames.UpgradeableFacilities, downgradePayload, "Spurious KSC init"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(result.Changed);
@@ -295,8 +295,8 @@ namespace ServerPersistentSyncTest
             ScenarioStoreSystem.CurrentScenarios["Reputation"] = CreateScenario("rep", "1");
             ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
             PersistentSyncRegistry.Initialize(false);
-            PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainId.Contracts, store);
-            var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainNames.Contracts, store);
+            var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Contracts }).Single();
             var registryContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(registrySnapshot.Payload, registrySnapshot.NumBytes).Contracts;
             Assert.AreEqual(2, registryContracts.Count);
             var registryContract = registryContracts.Single(c => c.ContractGuid == contractA.ContractGuid);
@@ -415,7 +415,7 @@ CONTRACTS
                 Contracts = new[] { currentActive, currentFinished }.ToList()
             });
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
-            var result = store.ApplyClientIntent(CreateClient("ContractOwner"), CreateIntent(PersistentSyncDomainId.Contracts, fullReplacePayload, "ContractInventoryFull:Test"));
+            var result = store.ApplyClientIntent(CreateClient("ContractOwner"), CreateIntent(PersistentSyncDomainNames.Contracts, fullReplacePayload, "ContractInventoryFull:Test"));
 
             Assert.IsTrue(result.Accepted);
 
@@ -457,7 +457,7 @@ CONTRACTS
                 Contracts = new[] { retiredOffer }.ToList()
             });
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
-            var result = store.ApplyClientIntent(CreateClient("ContractOwner"), CreateIntent(PersistentSyncDomainId.Contracts, fullReplacePayload, "ContractInventoryFull:Test"));
+            var result = store.ApplyClientIntent(CreateClient("ContractOwner"), CreateIntent(PersistentSyncDomainNames.Contracts, fullReplacePayload, "ContractInventoryFull:Test"));
 
             Assert.IsTrue(result.Accepted);
             var snapshot = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(result.Snapshot.Payload, result.Snapshot.NumBytes).Contracts;
@@ -522,9 +522,9 @@ CONTRACTS
             ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"] = CreateUpgradeableFacilitiesScenario(("SpaceCenter/MissionControl", "0"));
             ScenarioStoreSystem.CurrentScenarios["ContractSystem"] = CreateContractSystemScenario();
             PersistentSyncRegistry.Initialize(false);
-            PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainId.Technology, store);
+            PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainNames.Technology, store);
 
-            var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Technology }).Single();
+            var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Technology }).Single();
             var registryTechnologies = PersistentSyncPayloadSerializer.Deserialize<TechnologySnapshotInfo[]>(registrySnapshot.Payload, registrySnapshot.NumBytes);
             Assert.AreEqual(3, registryTechnologies.Length);
             Assert.IsTrue(registryTechnologies.Any(technology => technology.TechId == "advRocketry"));
@@ -801,7 +801,7 @@ Tech
             PersistentSyncRegistry.Initialize(false);
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(700d, "Legit"));
-            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "Legit"));
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(null, CreateIntent(PersistentSyncDomainNames.Funds, payload, "Legit"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
@@ -820,10 +820,10 @@ Tech
             isolatedStore.LoadFromPersistence(false);
             var revisionBefore = isolatedStore.GetCurrentSnapshot().Revision;
             var decorator = new ServerDerivedFundsDecorator(isolatedStore);
-            PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainId.Funds, decorator);
+            PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainNames.Funds, decorator);
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(999d, "Denied"));
-            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "Denied"));
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(null, CreateIntent(PersistentSyncDomainNames.Funds, payload, "Denied"));
 
             Assert.IsFalse(result.Accepted);
             Assert.IsFalse(decorator.ClientApplyInvoked);
@@ -860,7 +860,7 @@ Tech
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, ownerClient.PlayerName), false, out _);
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.ParameterProgressObserved, ContractGuid = changedContract?.ContractGuid ?? Guid.Empty, Contract = changedContract });
-            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(ownerClient, CreateIntent(PersistentSyncDomainId.Contracts, payload, "Parameter progress"));
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(ownerClient, CreateIntent(PersistentSyncDomainNames.Contracts, payload, "Parameter progress"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
@@ -899,7 +899,7 @@ Tech
             });
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("OtherClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, payload, "Accept command"));
+                CreateIntent(PersistentSyncDomainNames.Contracts, payload, "Accept command"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
@@ -938,14 +938,14 @@ Tech
             PersistentSyncRegistry.Initialize(false);
 
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
-            var domainSnapshotBefore = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var domainSnapshotBefore = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Contracts }).Single();
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.ParameterProgressObserved, ContractGuid = changedContract?.ContractGuid ?? Guid.Empty, Contract = changedContract });
-            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(CreateClient("OtherClient"), CreateIntent(PersistentSyncDomainId.Contracts, payload, "Denied progress"));
+            var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(CreateClient("OtherClient"), CreateIntent(PersistentSyncDomainNames.Contracts, payload, "Denied progress"));
 
             Assert.IsFalse(result.Accepted);
 
-            var domainSnapshotAfter = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var domainSnapshotAfter = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Contracts }).Single();
             Assert.AreEqual(domainSnapshotBefore.Revision, domainSnapshotAfter.Revision);
 
             var contractsAfter = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(domainSnapshotAfter.Payload, domainSnapshotAfter.NumBytes).Contracts;
@@ -988,7 +988,7 @@ Tech
             var payload = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.ParameterProgressObserved, ContractGuid = changedContract?.ContractGuid ?? Guid.Empty, Contract = changedContract });
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("FlyingClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, payload, "Parameter progress from non-lock-holder"));
+                CreateIntent(PersistentSyncDomainNames.Contracts, payload, "Parameter progress from non-lock-holder"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
@@ -1039,7 +1039,7 @@ Tech
             });
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("LagObserver"),
-                CreateIntent(PersistentSyncDomainId.Contracts, payload, "Observer sends stale param"));
+                CreateIntent(PersistentSyncDomainNames.Contracts, payload, "Observer sends stale param"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(
@@ -1049,7 +1049,7 @@ Tech
                 result.ReplyToOriginClient,
                 "Sender must still receive the authoritative snapshot so local contract UI converges to Complete.");
 
-            var domainSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var domainSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Contracts }).Single();
             var contracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(domainSnapshot.Payload, domainSnapshot.NumBytes).Contracts;
             var row = contracts.Single(c => c.ContractGuid == existingContract.ContractGuid);
             var node = new ConfigNode(Encoding.UTF8.GetString(row.Data, 0, row.Data.Length));
@@ -1080,11 +1080,11 @@ Tech
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ProducerClient"), false, out _);
 
             var requestPayload = PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.RequestOfferGeneration().ToPayload());
-            var revisionBefore = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single().Revision;
+            var revisionBefore = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Contracts }).Single().Revision;
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("RequestorClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, requestPayload, "RequestOfferGeneration"));
-            var revisionAfter = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single().Revision;
+                CreateIntent(PersistentSyncDomainNames.Contracts, requestPayload, "RequestOfferGeneration"));
+            var revisionAfter = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Contracts }).Single().Revision;
 
             Assert.IsTrue(result.Accepted, "RequestOfferGeneration must be accepted as a producer-routing signal.");
             Assert.IsFalse(result.Changed, "RequestOfferGeneration must not mutate canonical state on the server.");
@@ -1117,7 +1117,7 @@ Tech
             var requestPayload = PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.RequestOfferGeneration().ToPayload());
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("RequestorClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, requestPayload, "RequestOfferGeneration"));
+                CreateIntent(PersistentSyncDomainNames.Contracts, requestPayload, "RequestOfferGeneration"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(result.Changed);
@@ -1151,7 +1151,7 @@ Tech
 
             var acceptResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("OtherClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Accept(offeredContract.ContractGuid).ToPayload()), "Accept"));
+                CreateIntent(PersistentSyncDomainNames.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Accept(offeredContract.ContractGuid).ToPayload()), "Accept"));
             Assert.IsTrue(acceptResult.Accepted);
             Assert.IsTrue(acceptResult.Changed);
 
@@ -1166,12 +1166,12 @@ Tech
                 "1,1,0,0,0");
             var progressResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 producer,
-                CreateIntent(PersistentSyncDomainId.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractProducerProposal.ParameterProgressObserved(progressedContract).ToPayload()), "ParamProgress"));
+                CreateIntent(PersistentSyncDomainNames.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractProducerProposal.ParameterProgressObserved(progressedContract).ToPayload()), "ParamProgress"));
             Assert.IsTrue(progressResult.Accepted);
             Assert.IsTrue(progressResult.Changed);
 
             // Reconnecting-client simulation: fetch snapshot directly. Both canonical transitions must be present.
-            var snapshotForReconnectingClient = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var snapshotForReconnectingClient = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Contracts }).Single();
             var canonicalContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(snapshotForReconnectingClient.Payload, snapshotForReconnectingClient.NumBytes).Contracts;
             var canonicalContract = canonicalContracts.Single(c => c.ContractGuid == offeredContract.ContractGuid);
 
@@ -1213,14 +1213,14 @@ Tech
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ProducerClient"), false, out _);
             var acceptResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("AnyClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Accept(offeredContract.ContractGuid).ToPayload()), "Accept"));
+                CreateIntent(PersistentSyncDomainNames.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Accept(offeredContract.ContractGuid).ToPayload()), "Accept"));
             var declineResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("AnyClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Decline(otherOffer.ContractGuid).ToPayload()), "Decline"));
+                CreateIntent(PersistentSyncDomainNames.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Decline(otherOffer.ContractGuid).ToPayload()), "Decline"));
             Assert.IsTrue(acceptResult.Accepted && acceptResult.Changed);
             Assert.IsTrue(declineResult.Accepted && declineResult.Changed);
 
-            var liveSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var liveSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Contracts }).Single();
             var liveContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(liveSnapshot.Payload, liveSnapshot.NumBytes).Contracts
                 .OrderBy(c => c.ContractGuid)
                 .ToList();
@@ -1229,7 +1229,7 @@ Tech
             PersistentSyncRegistry.Reset();
             PersistentSyncRegistry.Initialize(false);
 
-            var reloadedSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
+            var reloadedSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainNames.Contracts }).Single();
             var reloadedContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(reloadedSnapshot.Payload, reloadedSnapshot.NumBytes).Contracts
                 .OrderBy(c => c.ContractGuid)
                 .ToList();
@@ -1291,7 +1291,7 @@ Tech
 
             public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.ServerDerived;
 
-            public PersistentSyncDomainId DomainId => _inner.DomainId;
+            public string DomainId => _inner.DomainId;
 
             public void LoadFromPersistence(bool createdFromScratch)
             {
@@ -1555,7 +1555,7 @@ lmpOfferTitle = {title}
                 .ToDictionary(level => level.FacilityId, level => level.Level);
         }
 
-        private static PersistentSyncIntentMsgData CreateIntent(PersistentSyncDomainId domainId, byte[] payload, string reason)
+        private static PersistentSyncIntentMsgData CreateIntent(string domainId, byte[] payload, string reason)
         {
             var data = ClientMessageFactory.CreateNewMessageData<PersistentSyncIntentMsgData>();
             data.DomainId = domainId;

@@ -202,7 +202,7 @@ namespace ServerPersistentSyncTest
 
             CollectionAssert.AreEqual(expected, actual);
             Assert.IsTrue(
-                Array.IndexOf(actual, PersistentSyncDomainId.Technology) < Array.IndexOf(actual, PersistentSyncDomainId.PartPurchases),
+                Array.IndexOf(actual, PersistentSyncDomainNames.Technology) < Array.IndexOf(actual, PersistentSyncDomainNames.PartPurchases),
                 "Projection domains must register after their owner.");
         }
 
@@ -253,7 +253,7 @@ namespace ServerPersistentSyncTest
             payload[sizeof(int) + 1] = (byte)(throwInsideReducer ? 1 : 0);
 
             var data = ClientMessageFactory.CreateNewMessageData<PersistentSyncIntentMsgData>();
-            data.DomainId = PersistentSyncDomainId.Funds;
+            data.DomainId = PersistentSyncDomainNames.Funds;
             data.ClientKnownRevision = 0;
             data.Reason = "ProbeTest";
             data.Payload = payload;
@@ -273,7 +273,7 @@ namespace ServerPersistentSyncTest
             public int CurrentValueForTests => CurrentForTests?.Value ?? -1;
             public long RevisionForTestsExposed => RevisionForTests;
 
-            public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
+            public override string DomainId => PersistentSyncDomainNames.Funds;
             public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
             protected override string ScenarioName => ProbeScenarioName;
 
@@ -348,7 +348,7 @@ namespace ServerPersistentSyncTest
                     .UsesServerDomain<DuplicateFundsDomainA>();
             }
 
-            public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
+            public override string DomainId => PersistentSyncDomainNames.Funds;
         }
 
         private sealed class DuplicateFundsDomainB : TestDomainBase
@@ -360,17 +360,17 @@ namespace ServerPersistentSyncTest
                     .UsesServerDomain<DuplicateFundsDomainB>();
             }
 
-            public override PersistentSyncDomainId DomainId => PersistentSyncDomainId.Funds;
+            public override string DomainId => PersistentSyncDomainNames.Funds;
         }
 
         private sealed class UnregisteredDomain : TestDomainBase
         {
-            public override PersistentSyncDomainId DomainId => (PersistentSyncDomainId)250;
+            public override string DomainId => (string)250;
         }
 
         private abstract class TestDomainBase : IPersistentSyncServerDomain
         {
-            public abstract PersistentSyncDomainId DomainId { get; }
+            public abstract string DomainId { get; }
             public PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
             public void LoadFromPersistence(bool createdFromScratch) { }
             public PersistentSyncDomainSnapshot GetCurrentSnapshot() => null;

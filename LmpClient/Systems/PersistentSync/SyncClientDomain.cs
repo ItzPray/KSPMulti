@@ -11,9 +11,9 @@ namespace LmpClient.Systems.PersistentSync
 
         public PersistentSyncDomainDefinition Definition => PersistentSyncDomainCatalog.GetByName(DomainName);
         public string DomainName => PersistentSyncDomainNaming.InferDomainName(GetType());
-        public PersistentSyncDomainId DomainId => PersistentSyncDomainCatalog.TryGetByName(DomainName, out var definition)
+        public string DomainId => PersistentSyncDomainCatalog.TryGetByName(DomainName, out var definition)
             ? definition.DomainId
-            : (PersistentSyncDomainId)PersistentSyncDomainNaming.GetKnownWireId(DomainName);
+            : DomainName;
 
         protected virtual IReadOnlyList<IShareProgressEventSuppressor> PeersToSilence => new IShareProgressEventSuppressor[0];
 

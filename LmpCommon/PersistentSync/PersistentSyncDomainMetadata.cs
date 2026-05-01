@@ -2,6 +2,22 @@ using System;
 
 namespace LmpCommon.PersistentSync
 {
+    public static class PersistentSyncDomainNames
+    {
+        public const string Funds = "Funds";
+        public const string Science = "Science";
+        public const string Reputation = "Reputation";
+        public const string UpgradeableFacilities = "UpgradeableFacilities";
+        public const string Contracts = "Contracts";
+        public const string Technology = "Technology";
+        public const string Strategy = "Strategy";
+        public const string Achievements = "Achievements";
+        public const string ScienceSubjects = "ScienceSubjects";
+        public const string ExperimentalParts = "ExperimentalParts";
+        public const string PartPurchases = "PartPurchases";
+        public const string GameLaunchId = "GameLaunchId";
+    }
+
     [AttributeUsage(AttributeTargets.Class, Inherited = false)]
     public sealed class PersistentSyncDomainNameAttribute : Attribute
     {
@@ -86,6 +102,26 @@ namespace LmpCommon.PersistentSync
                 case "PartPurchases": return 10;
                 case "GameLaunchId": return 11;
                 default: return 0;
+            }
+        }
+
+        public static bool TryGetKnownName(ushort wireId, out string domainName)
+        {
+            switch (wireId)
+            {
+                case 0: domainName = PersistentSyncDomainNames.Funds; return true;
+                case 1: domainName = PersistentSyncDomainNames.Science; return true;
+                case 2: domainName = PersistentSyncDomainNames.Reputation; return true;
+                case 3: domainName = PersistentSyncDomainNames.UpgradeableFacilities; return true;
+                case 4: domainName = PersistentSyncDomainNames.Contracts; return true;
+                case 5: domainName = PersistentSyncDomainNames.Technology; return true;
+                case 6: domainName = PersistentSyncDomainNames.Strategy; return true;
+                case 7: domainName = PersistentSyncDomainNames.Achievements; return true;
+                case 8: domainName = PersistentSyncDomainNames.ScienceSubjects; return true;
+                case 9: domainName = PersistentSyncDomainNames.ExperimentalParts; return true;
+                case 10: domainName = PersistentSyncDomainNames.PartPurchases; return true;
+                case 11: domainName = PersistentSyncDomainNames.GameLaunchId; return true;
+                default: domainName = null; return false;
             }
         }
     }

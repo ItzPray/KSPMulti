@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,10 +12,10 @@ namespace LmpCommon.PersistentSync
     public static class PersistentSyncDomainCatalog
     {
         // One catalog row remains the source of truth for registration, startup applicability, and legacy scenario bypasses.
-        // Keep wire ids explicit on each definition; registrar order must not change PersistentSyncDomainId values.
+        // Keep wire ids explicit on each definition; registrar order must not change string values.
         private static PersistentSyncDomainDefinition[] _definitions = new PersistentSyncDomainDefinition[0];
-        private static Dictionary<PersistentSyncDomainId, PersistentSyncDomainDefinition> _byId =
-            new Dictionary<PersistentSyncDomainId, PersistentSyncDomainDefinition>();
+        private static Dictionary<string, PersistentSyncDomainDefinition> _byId =
+            new Dictionary<string, PersistentSyncDomainDefinition>();
         private static Dictionary<string, PersistentSyncDomainDefinition> _byName =
             new Dictionary<string, PersistentSyncDomainDefinition>(StringComparer.Ordinal);
         private static Dictionary<ushort, PersistentSyncDomainDefinition> _byWireId =
@@ -32,7 +32,7 @@ namespace LmpCommon.PersistentSync
             _byWireId = ordered.ToDictionary(d => d.WireId);
         }
 
-        public static PersistentSyncDomainDefinition Get(PersistentSyncDomainId domainId)
+        public static PersistentSyncDomainDefinition Get(string domainId)
         {
             if (!_byId.TryGetValue(domainId, out var definition))
             {
@@ -72,12 +72,12 @@ namespace LmpCommon.PersistentSync
             return _byWireId.TryGetValue(wireId, out definition);
         }
 
-        public static bool TryGet(PersistentSyncDomainId domainId, out PersistentSyncDomainDefinition definition)
+        public static bool TryGet(string domainId, out PersistentSyncDomainDefinition definition)
         {
             return _byId.TryGetValue(domainId, out definition);
         }
 
-        public static int GetOrder(PersistentSyncDomainId domainId)
+        public static int GetOrder(string domainId)
         {
             var definition = Get(domainId);
             for (var i = 0; i < _definitions.Length; i++)
@@ -92,7 +92,7 @@ namespace LmpCommon.PersistentSync
         }
 
         public static bool IsDomainApplicableForInitialSync(
-            PersistentSyncDomainId domainId,
+            string domainId,
             GameMode serverGameMode,
             in PersistentSyncSessionCapabilities caps)
         {
@@ -109,7 +109,7 @@ namespace LmpCommon.PersistentSync
         }
 
         public static bool IsDomainApplicableForShareProducer(
-            PersistentSyncDomainId domainId,
+            string domainId,
             GameMode serverGameMode,
             in PersistentSyncSessionCapabilities caps)
         {
@@ -117,7 +117,7 @@ namespace LmpCommon.PersistentSync
                    && HasCapabilities(caps, Get(domainId).ProducerRequiredCapabilities);
         }
 
-        public static IEnumerable<PersistentSyncDomainId> GetRequiredDomainsForInitialSync(
+        public static IEnumerable<string> GetRequiredDomainsForInitialSync(
             GameMode serverGameMode,
             PersistentSyncSessionCapabilities caps)
         {

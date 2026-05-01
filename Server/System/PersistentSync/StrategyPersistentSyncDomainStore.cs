@@ -11,12 +11,9 @@ namespace Server.System.PersistentSync
 {
     public sealed class StrategyPersistentSyncDomainStore : ScenarioSyncDomainStore<StrategyPersistentSyncDomainStore.Canonical, StrategySnapshotInfo[], StrategySnapshotInfo[]>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Strategy", 6);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("StrategySystem")
+            registrar.RegisterCurrent()
                 .UsesServerDomain<StrategyPersistentSyncDomainStore>();
         }
 
@@ -24,7 +21,7 @@ namespace Server.System.PersistentSync
         private const string StrategyNodeName = "STRATEGY";
         private const string StrategyNameFieldName = "name";
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => PersistentSyncDomainNames.Strategy;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "StrategySystem";
 

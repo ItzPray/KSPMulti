@@ -24,17 +24,17 @@ namespace LmpCommonTest
 
             var expected = new[]
             {
-                PersistentSyncDomainId.Funds,
-                PersistentSyncDomainId.Science,
-                PersistentSyncDomainId.Reputation,
-                PersistentSyncDomainId.Strategy,
-                PersistentSyncDomainId.Achievements,
-                PersistentSyncDomainId.ScienceSubjects,
-                PersistentSyncDomainId.Technology,
-                PersistentSyncDomainId.ExperimentalParts,
-                PersistentSyncDomainId.PartPurchases,
-                PersistentSyncDomainId.UpgradeableFacilities,
-                PersistentSyncDomainId.Contracts
+                PersistentSyncDomainNames.Funds,
+                PersistentSyncDomainNames.Science,
+                PersistentSyncDomainNames.Reputation,
+                PersistentSyncDomainNames.Strategy,
+                PersistentSyncDomainNames.Achievements,
+                PersistentSyncDomainNames.ScienceSubjects,
+                PersistentSyncDomainNames.Technology,
+                PersistentSyncDomainNames.ExperimentalParts,
+                PersistentSyncDomainNames.PartPurchases,
+                PersistentSyncDomainNames.UpgradeableFacilities,
+                PersistentSyncDomainNames.Contracts
             };
 
             CollectionAssert.AreEquivalent(expected, domains);
@@ -51,12 +51,12 @@ namespace LmpCommonTest
             CollectionAssert.AreEquivalent(
                 new[]
                 {
-                    PersistentSyncDomainId.Science,
-                    PersistentSyncDomainId.Achievements,
-                    PersistentSyncDomainId.ScienceSubjects,
-                    PersistentSyncDomainId.Technology,
-                    PersistentSyncDomainId.ExperimentalParts,
-                    PersistentSyncDomainId.PartPurchases
+                    PersistentSyncDomainNames.Science,
+                    PersistentSyncDomainNames.Achievements,
+                    PersistentSyncDomainNames.ScienceSubjects,
+                    PersistentSyncDomainNames.Technology,
+                    PersistentSyncDomainNames.ExperimentalParts,
+                    PersistentSyncDomainNames.PartPurchases
                 },
                 domains);
         }
@@ -69,7 +69,7 @@ namespace LmpCommonTest
                 .GetRequiredDomainsForInitialSync(GameMode.Sandbox, caps)
                 .ToArray();
 
-            CollectionAssert.AreEqual(new[] { PersistentSyncDomainId.GameLaunchId }, domains);
+            CollectionAssert.AreEqual(new[] { PersistentSyncDomainNames.GameLaunchId }, domains);
         }
 
         [TestMethod]
@@ -91,9 +91,9 @@ namespace LmpCommonTest
                 .GetRequiredDomainsForInitialSync(GameMode.Career, caps)
                 .ToArray();
 
-            Assert.IsFalse(domains.Contains(PersistentSyncDomainId.Science));
-            Assert.IsFalse(domains.Contains(PersistentSyncDomainId.ScienceSubjects));
-            Assert.IsTrue(domains.Contains(PersistentSyncDomainId.Funds));
+            Assert.IsFalse(domains.Contains(PersistentSyncDomainNames.Science));
+            Assert.IsFalse(domains.Contains(PersistentSyncDomainNames.ScienceSubjects));
+            Assert.IsTrue(domains.Contains(PersistentSyncDomainNames.Funds));
         }
 
         [TestMethod]
@@ -101,15 +101,15 @@ namespace LmpCommonTest
         {
             var caps = PersistentSyncSessionCapabilities.OptimisticForServerGameMode(GameMode.Career);
             Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Funds, GameMode.Career, in caps));
+                PersistentSyncDomainNames.Funds, GameMode.Career, in caps));
             Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Reputation, GameMode.Career, in caps));
+                PersistentSyncDomainNames.Reputation, GameMode.Career, in caps));
             Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Strategy, GameMode.Career, in caps));
+                PersistentSyncDomainNames.Strategy, GameMode.Career, in caps));
             Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.UpgradeableFacilities, GameMode.Career, in caps));
+                PersistentSyncDomainNames.UpgradeableFacilities, GameMode.Career, in caps));
             Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Contracts, GameMode.Career, in caps));
+                PersistentSyncDomainNames.Contracts, GameMode.Career, in caps));
         }
 
         [TestMethod]
@@ -117,9 +117,9 @@ namespace LmpCommonTest
         {
             var caps = PersistentSyncSessionCapabilities.OptimisticForServerGameMode(GameMode.Science);
             Assert.IsFalse(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Funds, GameMode.Science, in caps));
+                PersistentSyncDomainNames.Funds, GameMode.Science, in caps));
             Assert.IsFalse(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Strategy, GameMode.Science, in caps));
+                PersistentSyncDomainNames.Strategy, GameMode.Science, in caps));
         }
 
         [TestMethod]
@@ -138,12 +138,12 @@ namespace LmpCommonTest
             };
 
             Assert.IsTrue(PersistentSyncDomainApplicability.IsDomainApplicableForInitialSync(
-                PersistentSyncDomainId.PartPurchases,
+                PersistentSyncDomainNames.PartPurchases,
                 GameMode.Career,
                 in caps));
 
             Assert.IsFalse(PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.PartPurchases,
+                PersistentSyncDomainNames.PartPurchases,
                 GameMode.Career,
                 in caps));
         }

@@ -1,4 +1,4 @@
-﻿using KSP.UI.Screens;
+using KSP.UI.Screens;
 using LmpClient;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
@@ -145,7 +145,7 @@ namespace LmpClient.Systems.ShareTechnology
         {
             var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
             return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Technology,
+                PersistentSyncDomainNames.Technology,
                 SettingsSystem.ServerSettings.GameMode,
                 in caps);
         }
@@ -183,7 +183,7 @@ namespace LmpClient.Systems.ShareTechnology
         }
 
         /// <summary>
-        /// PersistentSync often applies <see cref="PersistentSyncDomainId.Technology"/> and <see cref="PersistentSyncDomainId.PartPurchases"/>
+        /// PersistentSync often applies <see cref="PersistentSyncDomainNames.Technology"/> and <see cref="PersistentSyncDomainNames.PartPurchases"/>
         /// in the same <see cref="PersistentSync.PersistentSyncReconciler.FlushPendingState"/> pass. Each domain used to call
         /// into <see cref="RDController"/> immediately while the R&amp;D complex UI is still being built, which doubled
         /// <see cref="RDController.UpdatePanel"/> traffic and could NRE for the entire retry window. Merge into one deferred refresh.

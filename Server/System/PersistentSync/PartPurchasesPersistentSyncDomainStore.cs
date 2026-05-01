@@ -18,14 +18,11 @@ namespace Server.System.PersistentSync
     /// </summary>
     public sealed class PartPurchasesPersistentSyncDomainStore : ProjectionSyncDomain<TechnologyPersistentSyncDomainStore, PartPurchaseSnapshotInfo[], PartPurchaseSnapshotInfo[]>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("PartPurchases", 10);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ResearchAndDevelopment")
+            registrar.RegisterCurrent()
                 .ProducerRequiresPartPurchaseMechanism()
-                .ProjectsFrom(TechnologyPersistentSyncDomainStore.Domain)
+                .ProjectsFrom(PersistentSyncDomainNames.Technology)
                 .UsesServerDomain<PartPurchasesPersistentSyncDomainStore>();
         }
 
@@ -39,8 +36,8 @@ namespace Server.System.PersistentSync
         {
         }
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
-        protected override PersistentSyncDomainId OwnerDomainId => PersistentSyncDomainId.Technology;
+        public override string DomainId => PersistentSyncDomainNames.PartPurchases;
+        protected override string OwnerDomainId => PersistentSyncDomainNames.Technology;
 
         protected override PersistentSyncDomainApplyResult ApplyToOwner(
             TechnologyPersistentSyncDomainStore owner,

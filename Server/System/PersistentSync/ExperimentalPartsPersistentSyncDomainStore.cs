@@ -12,18 +12,15 @@ namespace Server.System.PersistentSync
 {
     public sealed class ExperimentalPartsPersistentSyncDomainStore : ScenarioSyncDomainStore<ExperimentalPartsPersistentSyncDomainStore.Canonical, ExperimentalPartSnapshotInfo[], ExperimentalPartSnapshotInfo[]>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ExperimentalParts", 9);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ResearchAndDevelopment")
+            registrar.RegisterCurrent()
                 .UsesServerDomain<ExperimentalPartsPersistentSyncDomainStore>();
         }
 
         private const string ExpPartsNodeName = "ExpParts";
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => PersistentSyncDomainNames.ExperimentalParts;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
 

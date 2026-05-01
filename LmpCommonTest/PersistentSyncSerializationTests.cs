@@ -28,9 +28,9 @@ namespace LmpCommonTest
             msgData.DomainCount = 3;
             msgData.Domains = new[]
             {
-                PersistentSyncDomainId.Funds,
-                PersistentSyncDomainId.Science,
-                PersistentSyncDomainId.Reputation
+                PersistentSyncDomainNames.Funds,
+                PersistentSyncDomainNames.Science,
+                PersistentSyncDomainNames.Reputation
             };
 
             var deserialized = (PersistentSyncCliMsg)RoundTripClientMessage(ClientFactory.CreateNew<PersistentSyncCliMsg>(msgData));
@@ -45,7 +45,7 @@ namespace LmpCommonTest
         {
             var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(321.45d, "Career reward"));
             var msgData = ClientFactory.CreateNewMessageData<PersistentSyncIntentMsgData>();
-            msgData.DomainId = PersistentSyncDomainId.Funds;
+            msgData.DomainId = PersistentSyncDomainNames.Funds;
             msgData.ClientKnownRevision = 42;
             msgData.Payload = payload;
             msgData.NumBytes = payload.Length;
@@ -54,7 +54,7 @@ namespace LmpCommonTest
             var deserialized = (PersistentSyncCliMsg)RoundTripClientMessage(ClientFactory.CreateNew<PersistentSyncCliMsg>(msgData));
             var roundTripData = (PersistentSyncIntentMsgData)deserialized.Data;
 
-            Assert.AreEqual(PersistentSyncDomainId.Funds, roundTripData.DomainId);
+            Assert.AreEqual(PersistentSyncDomainNames.Funds, roundTripData.DomainId);
             Assert.AreEqual(42L, roundTripData.ClientKnownRevision);
             Assert.AreEqual(payload.Length, roundTripData.NumBytes);
             Assert.AreEqual("Career reward", roundTripData.Reason);
@@ -69,7 +69,7 @@ namespace LmpCommonTest
         {
             var payload = PersistentSyncPayloadSerializer.Serialize(12.5f);
             var msgData = ServerFactory.CreateNewMessageData<PersistentSyncSnapshotMsgData>();
-            msgData.DomainId = PersistentSyncDomainId.Reputation;
+            msgData.DomainId = PersistentSyncDomainNames.Reputation;
             msgData.Revision = 7;
             msgData.AuthorityPolicy = PersistentAuthorityPolicy.AnyClientIntent;
             msgData.Payload = payload;
@@ -78,7 +78,7 @@ namespace LmpCommonTest
             var deserialized = (PersistentSyncSrvMsg)RoundTripServerMessage(ServerFactory.CreateNew<PersistentSyncSrvMsg>(msgData));
             var roundTripData = (PersistentSyncSnapshotMsgData)deserialized.Data;
 
-            Assert.AreEqual(PersistentSyncDomainId.Reputation, roundTripData.DomainId);
+            Assert.AreEqual(PersistentSyncDomainNames.Reputation, roundTripData.DomainId);
             Assert.AreEqual(7L, roundTripData.Revision);
             Assert.AreEqual(PersistentAuthorityPolicy.AnyClientIntent, roundTripData.AuthorityPolicy);
             Assert.AreEqual(12.5f, PersistentSyncPayloadSerializer.Deserialize<float>(roundTripData.Payload, roundTripData.NumBytes));

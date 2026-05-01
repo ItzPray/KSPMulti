@@ -15,16 +15,13 @@ namespace Server.System.PersistentSync
     /// </summary>
     public sealed class GameLaunchIdPersistentSyncDomainStore : ScenarioSyncDomainStore<ScalarCanonical<uint>, PersistentSyncValueWithReason<uint>, uint>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("GameLaunchId", 11);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("LmpGameLaunchId")
+            registrar.RegisterCurrent()
                 .UsesServerDomain<GameLaunchIdPersistentSyncDomainStore>();
         }
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => PersistentSyncDomainNames.GameLaunchId;
 
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 

@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using LmpClient.Events;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareFunds;
@@ -31,7 +31,7 @@ namespace LmpClient.Systems.ShareAchievements
         {
             var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
             return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Achievements,
+                PersistentSyncDomainNames.Achievements,
                 SettingsSystem.ServerSettings.GameMode,
                 in caps);
         }

@@ -3,7 +3,7 @@ using LmpCommon.PersistentSync;
 namespace LmpCommonTest
 {
     /// <summary>
-    /// Test-only catalog configuration mirroring production <see cref="PersistentSyncDomainId"/> ordering for unit tests that drive <see cref="PersistentSyncDomainCatalog"/>.
+    /// Test-only catalog configuration mirroring production <see cref="string"/> ordering for unit tests that drive <see cref="PersistentSyncDomainCatalog"/>.
     /// </summary>
     internal static class PersistentSyncTestDomainCatalog
     {

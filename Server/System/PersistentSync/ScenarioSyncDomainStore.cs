@@ -33,7 +33,7 @@ namespace Server.System.PersistentSync
         private TCanonical _current;
         private long _revision;
 
-        public abstract PersistentSyncDomainId DomainId { get; }
+        public abstract string DomainId { get; }
         public abstract PersistentAuthorityPolicy AuthorityPolicy { get; }
 
         /// <summary>

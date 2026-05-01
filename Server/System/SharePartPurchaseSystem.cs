@@ -1,4 +1,4 @@
-﻿using LmpCommon.Message.Data.ShareProgress;
+using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Server;
 using LmpCommon.PersistentSync;
 using Server.Client;
@@ -25,7 +25,7 @@ namespace Server.System
                         PartNames = new[] { data.PartName }
                     }
                 });
-                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainId.PartPurchases, payload, payload.Length, $"LegacyPartPurchase:{data.TechId}:{data.PartName}");
+                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.PartPurchases, payload, payload.Length, $"LegacyPartPurchase:{data.TechId}:{data.PartName}");
                 return;
             }
 

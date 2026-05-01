@@ -11,18 +11,15 @@ namespace Server.System.PersistentSync
 {
     public sealed class AchievementsPersistentSyncDomainStore : ScenarioSyncDomainStore<AchievementsPersistentSyncDomainStore.Canonical, AchievementSnapshotInfo[], AchievementSnapshotInfo[]>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Achievements", 7);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ProgressTracking")
+            registrar.RegisterCurrent()
                 .UsesServerDomain<AchievementsPersistentSyncDomainStore>();
         }
 
         private const string ProgressNodeName = "Progress";
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => PersistentSyncDomainNames.Achievements;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ProgressTracking";
 

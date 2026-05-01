@@ -1,4 +1,4 @@
-﻿using LmpClient.Base;
+using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Network;
 using LmpClient.Systems.PersistentSync;
@@ -19,7 +19,7 @@ namespace LmpClient.Systems.SharePurchaseParts
 
         public void SendPartPurchasedMessage(string techId, string partName)
         {
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.PartPurchases))
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.PartPurchases))
             {
                 var techState = ResearchAndDevelopment.Instance?.GetTechState(techId);
                 if (techState == null)

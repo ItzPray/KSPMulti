@@ -1,4 +1,4 @@
-﻿using LmpClient.Systems.PersistentSync;
+using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
@@ -23,7 +23,7 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
         {
             var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
             return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.UpgradeableFacilities,
+                PersistentSyncDomainNames.UpgradeableFacilities,
                 SettingsSystem.ServerSettings.GameMode,
                 in caps);
         }

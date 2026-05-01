@@ -4,7 +4,7 @@ namespace LmpCommon.PersistentSync
 {
     public class PersistentSyncBufferedSnapshot
     {
-        public PersistentSyncDomainId DomainId;
+        public string DomainId;
         public long Revision;
         public PersistentAuthorityPolicy AuthorityPolicy;
         public int NumBytes;

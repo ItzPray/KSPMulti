@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using KSP.UI.Screens;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
@@ -22,7 +22,7 @@ namespace LmpClient.Systems.ShareExperimentalParts
         {
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.ExperimentalPart) return;
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.ExperimentalParts))
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.ExperimentalParts))
             {
                 LunaLog.LogWarning("[KSPMP] Ignoring legacy ExperimentalPart because persistent sync owns experimental-parts convergence.");
                 return;

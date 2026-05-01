@@ -10,7 +10,7 @@ namespace LmpClient.Systems.ShareFunds
     {
         public void SendMessage(IMessageData msg)
         {
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Funds))
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Funds))
             {
                 return;
             }
@@ -20,7 +20,7 @@ namespace LmpClient.Systems.ShareFunds
 
         public void SendFundsMessage(double funds, string reason)
         {
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Funds))
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Funds))
             {
                 return;
             }

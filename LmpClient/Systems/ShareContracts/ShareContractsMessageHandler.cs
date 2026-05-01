@@ -1,4 +1,4 @@
-﻿using Contracts;
+using Contracts;
 using LmpClient;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
@@ -27,7 +27,7 @@ namespace LmpClient.Systems.ShareContracts
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.ContractsUpdate) return;
 
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Contracts))
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
             {
                 LunaLog.LogWarning("[PersistentSync] bypass guard: ShareProgress contract update received after contracts migrated to PersistentSync snapshots. Message ignored.");
                 return;

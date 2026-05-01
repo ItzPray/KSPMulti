@@ -15,7 +15,7 @@ namespace Server.System.PersistentSync
 {
     public static class PersistentSyncRegistry
     {
-        private static readonly Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain> Domains = new Dictionary<PersistentSyncDomainId, IPersistentSyncServerDomain>();
+        private static readonly Dictionary<string, IPersistentSyncServerDomain> Domains = new Dictionary<string, IPersistentSyncServerDomain>();
         private static bool _initialized;
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace Server.System.PersistentSync
         /// Unit-test / harness hook: replaces the domain instance registered for <paramref name="domainId"/>.
         /// Call only after Initialize.
         /// </summary>
-        public static void ReplaceRegisteredDomainForTests(PersistentSyncDomainId domainId, IPersistentSyncServerDomain domain)
+        public static void ReplaceRegisteredDomainForTests(string domainId, IPersistentSyncServerDomain domain)
         {
             Domains[domainId] = domain;
         }
@@ -65,7 +65,7 @@ namespace Server.System.PersistentSync
         /// projection domains (e.g. PartPurchases → Technology) to resolve their backing store without
         /// introducing a constructor-time dependency that conflicts with the registry's no-arg construction.
         /// </summary>
-        public static IPersistentSyncServerDomain GetRegisteredDomain(PersistentSyncDomainId domainId)
+        public static IPersistentSyncServerDomain GetRegisteredDomain(string domainId)
         {
             return Domains.TryGetValue(domainId, out var domain) ? domain : null;
         }
@@ -156,7 +156,7 @@ namespace Server.System.PersistentSync
             };
         }
 
-        private static void LogAuthorityIntentRejected(string clientName, PersistentSyncDomainId domainId, PersistentAuthorityPolicy? policy, string rejectionReasonCategory)
+        private static void LogAuthorityIntentRejected(string clientName, string domainId, PersistentAuthorityPolicy? policy, string rejectionReasonCategory)
         {
             var policyText = policy.HasValue ? policy.Value.ToString() : "n/a";
             LunaLog.Debug($"[PersistentSync] authority rejected intent client={clientName} domain={domainId} policy={policyText} category={rejectionReasonCategory}");
@@ -169,7 +169,7 @@ namespace Server.System.PersistentSync
                 case PersistentAuthorityPolicy.ServerDerived:
                     return "ServerDerived";
                 case PersistentAuthorityPolicy.LockOwnerIntent:
-                    return domain.DomainId == PersistentSyncDomainId.Contracts ? "ContractLockOwnerReject" : "LockOwnerIntentStubReject";
+                    return domain.DomainId == PersistentSyncDomainNames.Contracts ? "ContractLockOwnerReject" : "LockOwnerIntentStubReject";
                 case PersistentAuthorityPolicy.DesignatedProducer:
                     return "DesignatedProducerStubReject";
                 default:
@@ -186,7 +186,7 @@ namespace Server.System.PersistentSync
 
             switch (domain.DomainId)
             {
-                case PersistentSyncDomainId.Contracts:
+                case PersistentSyncDomainNames.Contracts:
                     return LockSystem.LockQuery.ContractLockBelongsToPlayer(client.PlayerName);
                 default:
                     return false;
@@ -216,7 +216,7 @@ namespace Server.System.PersistentSync
                     if (!Domains.ContainsKey(domainId))
                     {
                         // GameLaunchId is an optional post-handshake pull on newer clients; older servers omit the domain.
-                        if (domainId == PersistentSyncDomainId.GameLaunchId)
+                        if (domainId == PersistentSyncDomainNames.GameLaunchId)
                         {
                             LunaLog.Debug($"[PersistentSync] snapshot requested for optional domain {domainId} (not registered) client={clientName}");
                         }
@@ -230,7 +230,7 @@ namespace Server.System.PersistentSync
 
             foreach (var snapshot in snapshots)
             {
-                if (snapshot.DomainId == PersistentSyncDomainId.Contracts)
+                if (snapshot.DomainId == PersistentSyncDomainNames.Contracts)
                 {
                     try
                     {
@@ -276,7 +276,7 @@ namespace Server.System.PersistentSync
                 MessageQueuer.SendToClient<PersistentSyncSrvMsg>(client, CreateSnapshotMessage(result.Snapshot));
             }
 
-            if (result.ReplyToProducerClient && data.DomainId == PersistentSyncDomainId.Contracts)
+            if (result.ReplyToProducerClient && data.DomainId == PersistentSyncDomainNames.Contracts)
             {
                 var producerName = LockSystem.LockQuery.ContractLockOwner();
                 if (!string.IsNullOrEmpty(producerName) && !string.Equals(producerName, client?.PlayerName, StringComparison.Ordinal))
@@ -309,7 +309,7 @@ namespace Server.System.PersistentSync
             return null;
         }
 
-        public static PersistentSyncDomainApplyResult ApplyServerMutation(PersistentSyncDomainId domainId, byte[] payload, int numBytes, string reason)
+        public static PersistentSyncDomainApplyResult ApplyServerMutation(string domainId, byte[] payload, int numBytes, string reason)
         {
             if (!_initialized)
             {
@@ -350,7 +350,7 @@ namespace Server.System.PersistentSync
             return result;
         }
 
-        public static IReadOnlyCollection<PersistentSyncDomainSnapshot> GetSnapshots(IEnumerable<PersistentSyncDomainId> domainIds)
+        public static IReadOnlyCollection<PersistentSyncDomainSnapshot> GetSnapshots(IEnumerable<string> domainIds)
         {
             if (!_initialized)
             {
@@ -358,7 +358,7 @@ namespace Server.System.PersistentSync
             }
 
             var snapshots = new List<PersistentSyncDomainSnapshot>();
-            foreach (var domainId in domainIds ?? Enumerable.Empty<PersistentSyncDomainId>())
+            foreach (var domainId in domainIds ?? Enumerable.Empty<string>())
             {
                 if (Domains.TryGetValue(domainId, out var domain))
                 {
@@ -366,7 +366,7 @@ namespace Server.System.PersistentSync
                 }
                 else if (_initialized)
                 {
-                    if (domainId == PersistentSyncDomainId.GameLaunchId)
+                    if (domainId == PersistentSyncDomainNames.GameLaunchId)
                     {
                         LunaLog.Debug($"[PersistentSync] GetSnapshots skipped optional domain={domainId}");
                     }

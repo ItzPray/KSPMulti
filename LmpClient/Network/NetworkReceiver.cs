@@ -1,4 +1,4 @@
-﻿using Lidgren.Network;
+using Lidgren.Network;
 using LmpClient;
 using LmpClient.Systems.Admin;
 using LmpClient.Systems.Chat;
@@ -266,7 +266,7 @@ namespace LmpClient.Network
                             ShareStrategySystem.Singleton.EnqueueMessage(msg);
                             break;
                         case ShareProgressMessageType.FacilityUpgrade:
-                            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.UpgradeableFacilities))
+                            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.UpgradeableFacilities))
                             {
                                 LunaLog.LogError("[PersistentSync] bypass guard: ShareProgress facility path received; facilities now use PersistentSync snapshots. Message not queued.");
                             }

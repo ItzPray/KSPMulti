@@ -16,14 +16,14 @@ namespace ServerPersistentSyncTest
     {
         private sealed class PolicyProbeDomain : IPersistentSyncServerDomain
         {
-            public PolicyProbeDomain(PersistentAuthorityPolicy policy, PersistentSyncDomainId domainId = PersistentSyncDomainId.Funds)
+            public PolicyProbeDomain(PersistentAuthorityPolicy policy, string domainId = PersistentSyncDomainNames.Funds)
             {
                 AuthorityPolicy = policy;
                 DomainId = domainId;
             }
 
             public PersistentAuthorityPolicy AuthorityPolicy { get; }
-            public PersistentSyncDomainId DomainId { get; }
+            public string DomainId { get; }
 
             public void LoadFromPersistence(bool createdFromScratch)
             {
@@ -85,7 +85,7 @@ namespace ServerPersistentSyncTest
         [TestMethod]
         public void LockOwnerIntent_ContractsAllowsCurrentContractLockOwner()
         {
-            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.LockOwnerIntent, PersistentSyncDomainId.Contracts);
+            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.LockOwnerIntent, PersistentSyncDomainNames.Contracts);
             var ownerClient = CreateClient("Owner");
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, ownerClient.PlayerName), false, out _);
 
@@ -95,7 +95,7 @@ namespace ServerPersistentSyncTest
         [TestMethod]
         public void LockOwnerIntent_ContractsRejectsNonOwner()
         {
-            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.LockOwnerIntent, PersistentSyncDomainId.Contracts);
+            var domain = new PolicyProbeDomain(PersistentAuthorityPolicy.LockOwnerIntent, PersistentSyncDomainNames.Contracts);
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "Owner"), false, out _);
 
             Assert.IsFalse(PersistentSyncRegistry.ValidateClientMaySubmitIntent(CreateClient("Other"), domain));

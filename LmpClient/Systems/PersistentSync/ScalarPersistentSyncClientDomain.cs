@@ -8,7 +8,7 @@ namespace LmpClient.Systems.PersistentSync
         private bool _hasPendingValue;
         private T _pendingValue;
 
-        public abstract PersistentSyncDomainId DomainId { get; }
+        public abstract string DomainId { get; }
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {

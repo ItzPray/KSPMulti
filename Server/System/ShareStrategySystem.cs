@@ -25,7 +25,7 @@ namespace Server.System
                         Data = data.Strategy.Data
                     }
                 });
-                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainId.Strategy, payload, payload.Length, $"LegacyStrategy:{data.Strategy.Name}");
+                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.Strategy, payload, payload.Length, $"LegacyStrategy:{data.Strategy.Name}");
                 return;
             }
 

@@ -39,7 +39,7 @@ namespace LmpClient.Systems.ShareAchievements
                 var configNode = ConvertAchievementToConfigNode(foundNode);
                 if (configNode == null) return;
 
-                if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Achievements))
+                if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Achievements))
                 {
                     PersistentSyncSystem.Singleton.MessageSender.SendAchievementsIntent(new[]
                     {

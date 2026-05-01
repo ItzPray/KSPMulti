@@ -14,7 +14,7 @@ namespace Server.System.PersistentSync
     ///
     /// Use this when:
     /// <list type="bullet">
-    /// <item><description>The wire contract requires a separate <see cref="PersistentSyncDomainId"/> (different
+    /// <item><description>The wire contract requires a separate <see cref="string"/> (different
     /// binary snapshot or intent payload format).</description></item>
     /// <item><description>Canonical state for the projection is derived from the owner's canonical state; the
     /// projection never writes to any scenario on its own.</description></item>
@@ -47,7 +47,7 @@ namespace Server.System.PersistentSync
             _injectedOwner = owner;
         }
 
-        public abstract PersistentSyncDomainId DomainId { get; }
+        public abstract string DomainId { get; }
 
         /// <summary>
         /// Projection domains advertise a floor authority; their per-intent gate runs through the owner
@@ -59,7 +59,7 @@ namespace Server.System.PersistentSync
         /// <summary>
         /// The registry id of the owner domain this projection delegates to.
         /// </summary>
-        protected abstract PersistentSyncDomainId OwnerDomainId { get; }
+        protected abstract string OwnerDomainId { get; }
 
         public void LoadFromPersistence(bool createdFromScratch)
         {

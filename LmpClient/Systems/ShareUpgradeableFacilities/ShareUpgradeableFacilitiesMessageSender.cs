@@ -1,4 +1,4 @@
-﻿using LmpClient.Base;
+using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Network;
 using LmpClient.Systems.PersistentSync;
@@ -18,7 +18,7 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
 
         public void SendFacilityUpgradeMessage(string facilityId, int level, float normLevel)
         {
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.UpgradeableFacilities))
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.UpgradeableFacilities))
             {
                 return;
             }

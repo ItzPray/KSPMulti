@@ -12,12 +12,9 @@ namespace Server.System.PersistentSync
 {
     public sealed class UpgradeableFacilitiesPersistentSyncDomainStore : ScenarioSyncDomainStore<UpgradeableFacilitiesPersistentSyncDomainStore.Canonical, UpgradeableFacilityLevelPayload, UpgradeableFacilityLevelPayload[]>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("UpgradeableFacilities", 3);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ScenarioUpgradeableFacilities")
+            registrar.RegisterCurrent()
                 .UsesServerDomain<UpgradeableFacilitiesPersistentSyncDomainStore>();
         }
 
@@ -37,7 +34,7 @@ namespace Server.System.PersistentSync
             "SpaceCenter/Administration"
         };
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => PersistentSyncDomainNames.UpgradeableFacilities;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ScenarioUpgradeableFacilities";
 

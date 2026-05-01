@@ -18,8 +18,8 @@ namespace LmpCommonTest
         public void CatalogContainsEveryDomainIdExactlyOnce()
         {
             var catalogIds = PersistentSyncDomainCatalog.AllOrdered.Select(d => d.DomainId).ToArray();
-            var enumIds = Enum.GetValues(typeof(PersistentSyncDomainId))
-                .Cast<PersistentSyncDomainId>()
+            var enumIds = Enum.GetValues(typeof(string))
+                .Cast<string>()
                 .OrderBy(id => (byte)id)
                 .ToArray();
 
@@ -33,7 +33,7 @@ namespace LmpCommonTest
             var actual = PersistentSyncDomainCatalog.AllOrdered.Select(d => d.DomainId).ToArray();
 
             Assert.IsTrue(
-                Array.IndexOf(actual, PersistentSyncDomainId.Technology) < Array.IndexOf(actual, PersistentSyncDomainId.PartPurchases),
+                Array.IndexOf(actual, PersistentSyncDomainNames.Technology) < Array.IndexOf(actual, PersistentSyncDomainNames.PartPurchases),
                 "PartPurchases must sort after its Technology owner.");
         }
 

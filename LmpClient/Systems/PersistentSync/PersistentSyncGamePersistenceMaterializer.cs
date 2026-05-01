@@ -16,7 +16,7 @@ namespace LmpClient.Systems.PersistentSync
         /// Materializes each distinct <see cref="PersistentSyncMaterializationSlot"/> at most once for the
         /// given dirty domains (typically one reconciler <c>FlushPendingState</c> pass).
         /// </summary>
-        public static void Materialize(IEnumerable<PersistentSyncDomainId> dirtyDomains, string reason)
+        public static void Materialize(IEnumerable<string> dirtyDomains, string reason)
         {
             if (dirtyDomains == null)
             {

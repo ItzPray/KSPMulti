@@ -1,4 +1,4 @@
-﻿using LmpCommon.Message.Data.ShareProgress;
+using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Server;
 using LmpCommon.PersistentSync;
 using Server.Client;
@@ -25,7 +25,7 @@ namespace Server.System
                         Count = data.Count
                     }
                 });
-                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainId.ExperimentalParts, payload, payload.Length, $"LegacyExperimentalPart:{data.PartName}");
+                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.ExperimentalParts, payload, payload.Length, $"LegacyExperimentalPart:{data.PartName}");
                 return;
             }
 

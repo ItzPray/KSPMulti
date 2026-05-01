@@ -19,12 +19,9 @@ namespace Server.System.PersistentSync
     /// </summary>
     public sealed class ContractsPersistentSyncDomainStore : ScenarioSyncDomainStore<ContractsPersistentSyncDomainStore.Canonical, ContractMutationPayload, ContractSnapshotPayload>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Contracts", 4);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ContractSystem")
+            registrar.RegisterCurrent()
                 .UsesServerDomain<ContractsPersistentSyncDomainStore>();
         }
 
@@ -52,7 +49,7 @@ namespace Server.System.PersistentSync
         /// </summary>
         private const int MaxOfferedPerContractType = 3;
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => PersistentSyncDomainNames.Contracts;
 
         /// <summary>
         /// Floor policy advertised to clients and the registry's default path. Real gating happens in

@@ -20,12 +20,9 @@ namespace Server.System.PersistentSync
     /// </summary>
     public sealed class TechnologyPersistentSyncDomainStore : ScenarioSyncDomainStore<TechnologyPersistentSyncDomainStore.Canonical, TechnologySnapshotInfo[], TechnologySnapshotInfo[]>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Technology", 5);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ResearchAndDevelopment")
+            registrar.RegisterCurrent()
                 .UsesServerDomain<TechnologyPersistentSyncDomainStore>();
         }
 
@@ -35,7 +32,7 @@ namespace Server.System.PersistentSync
         private const string TechCostFieldName = "cost";
         private const string TechPartFieldName = "part";
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => PersistentSyncDomainNames.Technology;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
 

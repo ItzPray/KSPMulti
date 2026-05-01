@@ -4,7 +4,7 @@ namespace LmpClient.Systems.PersistentSync
 {
     public interface IPersistentSyncClientDomain
     {
-        PersistentSyncDomainId DomainId { get; }
+        string DomainId { get; }
         PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot);
 
         /// <summary>

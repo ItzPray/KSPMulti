@@ -1,4 +1,4 @@
-﻿using LmpClient;
+using LmpClient;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Systems.PersistentSync;
@@ -23,7 +23,7 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.FacilityUpgrade) return;
 
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.UpgradeableFacilities))
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.UpgradeableFacilities))
             {
                 LunaLog.LogWarning("[PersistentSync] bypass guard: ShareProgress facility update received on client after facilities migrated to PersistentSync. Message ignored.");
                 return;

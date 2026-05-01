@@ -21,7 +21,7 @@ namespace LmpClient.Systems.ShareContracts
     /// </para>
     /// <para>
     /// <b>Mitigations:</b> Authoritative <see cref="Game.launchID"/> is synced via PersistentSync
-    /// <see cref="LmpCommon.PersistentSync.PersistentSyncDomainId.GameLaunchId"/> (server <c>LmpGameLaunchId</c> scenario),
+    /// <see cref="LmpCommon.PersistentSync.PersistentSyncDomainNames.GameLaunchId"/> (server <c>LmpGameLaunchId</c> scenario),
     /// requested once after the mandatory persistent-sync handshake so older servers stay join-compatible.
     /// (1) <see cref="ClampRequireNewLaunchIdsToLocalGame"/> and (2)
     /// <see cref="AdvanceGameLaunchIdIfBelowMaxProtoPartLaunchIdAcrossVessels"/> remain as safety nets for edge races

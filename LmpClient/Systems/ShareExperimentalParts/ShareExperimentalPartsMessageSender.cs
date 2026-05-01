@@ -1,4 +1,4 @@
-﻿using LmpClient.Base;
+using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Network;
 using LmpClient.Systems.PersistentSync;
@@ -18,7 +18,7 @@ namespace LmpClient.Systems.ShareExperimentalParts
 
         public void SendExperimentalPartMessage(string partName, int count)
         {
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.ExperimentalParts))
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.ExperimentalParts))
             {
                 PersistentSyncSystem.Singleton.MessageSender.SendExperimentalPartsIntent(new[]
                 {

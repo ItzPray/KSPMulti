@@ -22,14 +22,14 @@ namespace LmpClient.Systems.PersistentSync
         protected override ClientState EnableStage => ClientState.ScenariosSynced;
 
         /// <summary>
-        /// Per join session: <see cref="PersistentSyncDomainId.GameLaunchId"/> is requested only after the mandatory
+        /// Per join session: <see cref="PersistentSyncDomainNames.GameLaunchId"/> is requested only after the mandatory
         /// persistent-sync handshake completes so older servers (no domain 11) do not block the join batch.
         /// </summary>
         private bool _optionalGameLaunchIdPullSent;
 
         public PersistentSyncReconciler Reconciler { get; } = new PersistentSyncReconciler();
 
-        public Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain> Domains { get; } =
+        public Dictionary<string, IPersistentSyncClientDomain> Domains { get; } =
             CreateRegisteredDomains(typeof(PersistentSyncSystem).Assembly);
 
         protected override void OnEnabled()
@@ -52,7 +52,7 @@ namespace LmpClient.Systems.PersistentSync
         /// Scenario Sync Domain Contract rule: per-domain predicates (<c>IsPersistentSyncLiveForContracts</c>, inline
         /// <c>PersistentSyncSystem.Singleton.Enabled</c> checks, missing checks) are forbidden. Use this instead.
         /// </summary>
-        public static bool IsLiveForDomain(PersistentSyncDomainId domainId)
+        public static bool IsLiveForDomain(string domainId)
         {
             var singleton = Singleton;
             return singleton != null
@@ -66,7 +66,7 @@ namespace LmpClient.Systems.PersistentSync
             base.OnDisabled();
             GameEvents.onLevelWasLoadedGUIReady.Remove(OnSceneReady);
             GameEvents.onGUIRnDComplexSpawn.Remove(OnRnDComplexSpawn);
-            Reconciler.Reset(new PersistentSyncDomainId[0]);
+            Reconciler.Reset(new string[0]);
             _optionalGameLaunchIdPullSent = false;
         }
 
@@ -93,7 +93,7 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         /// <summary>
-        /// Pulls <see cref="PersistentSyncDomainId.GameLaunchId"/> in a second request after mandatory domains so
+        /// Pulls <see cref="PersistentSyncDomainNames.GameLaunchId"/> in a second request after mandatory domains so
         /// servers without that domain still complete the initial snapshot round-trip.
         /// </summary>
         internal void RequestOptionalGameLaunchIdSnapshotAfterMandatorySync()
@@ -103,14 +103,14 @@ namespace LmpClient.Systems.PersistentSync
                 return;
             }
 
-            if (!IsLiveForDomain(PersistentSyncDomainId.GameLaunchId))
+            if (!IsLiveForDomain(PersistentSyncDomainNames.GameLaunchId))
             {
                 return;
             }
 
             _optionalGameLaunchIdPullSent = true;
             LunaLog.Log("[PersistentSync] optional post-handshake snapshot request domain=GameLaunchId");
-            MessageSender.SendRequest(PersistentSyncDomainId.GameLaunchId);
+            MessageSender.SendRequest(PersistentSyncDomainNames.GameLaunchId);
         }
 
         /// <summary>
@@ -149,7 +149,7 @@ namespace LmpClient.Systems.PersistentSync
             return !required.Any() || Reconciler.State.AreAllJoinHandshakesComplete();
         }
 
-        public long GetKnownRevision(PersistentSyncDomainId domainId)
+        public long GetKnownRevision(string domainId)
         {
             return Reconciler.GetKnownRevision(domainId);
         }
@@ -215,7 +215,7 @@ namespace LmpClient.Systems.PersistentSync
 
             // ScenarioUpgradeableFacilities can initialize KSC defaults after our first PersistentSync flush;
             // re-apply the last server snapshot once GUI is ready so upgraded levels stick.
-            if (Domains[PersistentSyncDomainId.UpgradeableFacilities] is UpgradeableFacilitiesPersistentSyncClientDomain facilitiesDomain &&
+            if (Domains[PersistentSyncDomainNames.UpgradeableFacilities] is UpgradeableFacilitiesPersistentSyncClientDomain facilitiesDomain &&
                 facilitiesDomain.TryStageReassertFromLastServerSnapshot())
             {
                 LunaLog.Log("[PersistentSync] KSC GUI ready re-staging facility snapshot for reconciler flush");
@@ -227,10 +227,10 @@ namespace LmpClient.Systems.PersistentSync
             ReassertTechnologyAndPurchases("KSCGuiReady");
 
             // If we still never live-marked applied, ask the server to re-send (ClearDeferred in RequestResync).
-            if (Reconciler.State.IsInitialJoinHandshakeComplete(PersistentSyncDomainId.UpgradeableFacilities) &&
-                !Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.UpgradeableFacilities))
+            if (Reconciler.State.IsInitialJoinHandshakeComplete(PersistentSyncDomainNames.UpgradeableFacilities) &&
+                !Reconciler.State.HasInitialSnapshot(PersistentSyncDomainNames.UpgradeableFacilities))
             {
-                Reconciler.RequestResync(PersistentSyncDomainId.UpgradeableFacilities, "KscGuiReadyFacilityReapply");
+                Reconciler.RequestResync(PersistentSyncDomainNames.UpgradeableFacilities, "KscGuiReadyFacilityReapply");
             }
         }
 
@@ -272,7 +272,7 @@ namespace LmpClient.Systems.PersistentSync
         {
             var flushNeeded = false;
 
-            if (Domains.TryGetValue(PersistentSyncDomainId.Technology, out var techDomainObj) &&
+            if (Domains.TryGetValue(PersistentSyncDomainNames.Technology, out var techDomainObj) &&
                 techDomainObj is TechnologyPersistentSyncClientDomain techDomain &&
                 techDomain.TryStageReassertFromLastServerSnapshot())
             {
@@ -280,7 +280,7 @@ namespace LmpClient.Systems.PersistentSync
                 flushNeeded = true;
             }
 
-            if (Domains.TryGetValue(PersistentSyncDomainId.PartPurchases, out var partsDomainObj) &&
+            if (Domains.TryGetValue(PersistentSyncDomainNames.PartPurchases, out var partsDomainObj) &&
                 partsDomainObj is PartPurchasesPersistentSyncClientDomain partsDomain &&
                 partsDomain.TryStageReassertFromLastServerSnapshot())
             {
@@ -294,12 +294,12 @@ namespace LmpClient.Systems.PersistentSync
             }
         }
 
-        public static Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain> CreateRegisteredDomainsForTests(Assembly assembly)
+        public static Dictionary<string, IPersistentSyncClientDomain> CreateRegisteredDomainsForTests(Assembly assembly)
         {
             return CreateRegisteredDomains(assembly);
         }
 
-        private static Dictionary<PersistentSyncDomainId, IPersistentSyncClientDomain> CreateRegisteredDomains(Assembly assembly)
+        private static Dictionary<string, IPersistentSyncClientDomain> CreateRegisteredDomains(Assembly assembly)
         {
             var registrar = new PersistentSyncClientDomainRegistrar();
             var domainTypes = assembly

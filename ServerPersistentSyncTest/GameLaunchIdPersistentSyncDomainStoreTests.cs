@@ -31,7 +31,7 @@ namespace ServerPersistentSyncTest
 
             var lowPayload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<uint>(5u, "stale"));
             var lowResult = store.ApplyClientIntent(null, CreateIntent(
-                PersistentSyncDomainId.GameLaunchId,
+                PersistentSyncDomainNames.GameLaunchId,
                 lowPayload,
                 "stale"));
 
@@ -41,7 +41,7 @@ namespace ServerPersistentSyncTest
 
             var highPayload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<uint>(150u, "bump"));
             var highResult = store.ApplyClientIntent(null, CreateIntent(
-                PersistentSyncDomainId.GameLaunchId,
+                PersistentSyncDomainNames.GameLaunchId,
                 highPayload,
                 "bump"));
 
@@ -50,7 +50,7 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(150u, PersistentSyncPayloadSerializer.Deserialize<uint>(highResult.Snapshot.Payload, highResult.Snapshot.NumBytes));
         }
 
-        private static PersistentSyncIntentMsgData CreateIntent(PersistentSyncDomainId domainId, byte[] payload, string reason)
+        private static PersistentSyncIntentMsgData CreateIntent(string domainId, byte[] payload, string reason)
         {
             var data = ClientMessageFactory.CreateNewMessageData<PersistentSyncIntentMsgData>();
             data.DomainId = domainId;

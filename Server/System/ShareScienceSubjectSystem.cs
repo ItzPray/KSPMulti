@@ -25,7 +25,7 @@ namespace Server.System
                         Data = data.ScienceSubject.Data
                     }
                 });
-                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainId.ScienceSubjects, payload, payload.Length, $"LegacyScienceSubject:{data.ScienceSubject.Id}");
+                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.ScienceSubjects, payload, payload.Length, $"LegacyScienceSubject:{data.ScienceSubject.Id}");
                 return;
             }
 

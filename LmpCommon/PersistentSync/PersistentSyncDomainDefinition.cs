@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using System;
 using System.Collections.Generic;
 
@@ -31,7 +31,7 @@ namespace LmpCommon.PersistentSync
             PersistentSyncCapabilityFlags producerRequiredCapabilities,
             PersistentSyncMaterializationSlot materializationSlot,
             Type domainType,
-            IEnumerable<PersistentSyncDomainKey> afterDomains,
+            IEnumerable<string> afterDomains,
             IEnumerable<string> serverScenarioBypasses,
             ushort wireId = 0,
             string scenarioName = null,
@@ -43,7 +43,7 @@ namespace LmpCommon.PersistentSync
             ProducerRequiredCapabilities = producerRequiredCapabilities;
             MaterializationSlot = materializationSlot;
             DomainType = domainType;
-            AfterDomains = new List<PersistentSyncDomainKey>(afterDomains ?? new PersistentSyncDomainKey[0]).ToArray();
+            AfterDomains = new List<string>(afterDomains ?? new string[0]).ToArray();
             ServerScenarioBypasses = new List<string>(serverScenarioBypasses ?? new string[0]).ToArray();
             WireId = wireId;
             ScenarioName = scenarioName;
@@ -53,13 +53,13 @@ namespace LmpCommon.PersistentSync
         public PersistentSyncDomainKey Key { get; }
         public string Name => Key.Name;
         public ushort WireId { get; }
-        public PersistentSyncDomainId DomainId => Key.LegacyId;
+        public string DomainId => Key.Name;
         public GameMode InitialSyncGameModes { get; }
         public PersistentSyncCapabilityFlags RequiredCapabilities { get; }
         public PersistentSyncCapabilityFlags ProducerRequiredCapabilities { get; }
         public PersistentSyncMaterializationSlot MaterializationSlot { get; }
         public Type DomainType { get; }
-        public PersistentSyncDomainKey[] AfterDomains { get; }
+        public string[] AfterDomains { get; }
         public string[] ServerScenarioBypasses { get; }
         public string ScenarioName { get; }
         public string ScalarFieldName { get; }

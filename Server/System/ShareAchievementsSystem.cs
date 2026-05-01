@@ -25,7 +25,7 @@ namespace Server.System
                         Data = data.Data
                     }
                 });
-                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainId.Achievements, payload, payload.Length, $"LegacyAchievements:{data.Id}");
+                PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.Achievements, payload, payload.Length, $"LegacyAchievements:{data.Id}");
                 return;
             }
 

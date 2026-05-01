@@ -1,4 +1,4 @@
-﻿using ByteSizeLib;
+using ByteSizeLib;
 using LmpCommon.Message.Data.Vessel;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Server;
@@ -155,7 +155,7 @@ namespace Server.Message
 
             var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<uint>(maxLid, "VesselProto"));
             PersistentSyncRegistry.ApplyServerMutation(
-                PersistentSyncDomainId.GameLaunchId,
+                PersistentSyncDomainNames.GameLaunchId,
                 payload,
                 payload.Length,
                 $"VesselProto:{vesselId}");

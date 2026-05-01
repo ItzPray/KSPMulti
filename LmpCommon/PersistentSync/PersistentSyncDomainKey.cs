@@ -1,10 +1,8 @@
-﻿using System;
+using System;
 
 namespace LmpCommon.PersistentSync
 {
-    /// <summary>
-    /// Stable identity for a persistent sync domain: human-readable <see cref="Name"/> plus legacy <see cref="WireId"/> backing <see cref="PersistentSyncDomainId"/>.
-    /// </summary>
+    /// <summary>Stable identity for a persistent sync domain: human-readable name plus session wire id.</summary>
     public struct PersistentSyncDomainKey : IEquatable<PersistentSyncDomainKey>
     {
         public PersistentSyncDomainKey(string name, ushort wireId)
@@ -20,8 +18,6 @@ namespace LmpCommon.PersistentSync
 
         public string Name { get; }
         public ushort WireId { get; }
-        public PersistentSyncDomainId LegacyId => (PersistentSyncDomainId)WireId;
-
         public bool Equals(PersistentSyncDomainKey other)
         {
             return WireId == other.WireId && string.Equals(Name, other.Name, StringComparison.Ordinal);
@@ -47,13 +43,6 @@ namespace LmpCommon.PersistentSync
     }
 
     /// <summary>
-    /// Fluent helper for declaring <see cref="PersistentSyncDomainKey"/> literals used by registrar DSL and tests.
+    /// Fluent helper for legacy tests only. Normal domains use inferred names via RegisterCurrent.
     /// </summary>
-    public static class PersistentSyncDomain
-    {
-        public static PersistentSyncDomainKey Define(string name, ushort wireId)
-        {
-            return new PersistentSyncDomainKey(name, wireId);
-        }
-    }
 }

@@ -28,7 +28,7 @@ namespace Server.Command.Command
         {
             var reason = "Server Command";
             var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<float>(science, reason));
-            PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainId.Science, payload, payload.Length, reason);
+            PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainNames.Science, payload, payload.Length, reason);
             LunaLog.Debug($"Science set to {science} via persistent sync");
         }
 

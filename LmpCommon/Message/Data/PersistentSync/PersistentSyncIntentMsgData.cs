@@ -11,14 +11,14 @@ namespace LmpCommon.Message.Data.PersistentSync
         public override Message.Types.PersistentSyncMessageType PersistentSyncMessageType => Message.Types.PersistentSyncMessageType.Intent;
 
         public ushort DomainWireId;
-        public PersistentSyncDomainId DomainId
+        public string DomainId
         {
             get => PersistentSyncDomainCatalog.TryGetByWireId(DomainWireId, out var definition)
                 ? definition.DomainId
-                : (PersistentSyncDomainId)DomainWireId;
+                : (PersistentSyncDomainNaming.TryGetKnownName(DomainWireId, out var knownName) ? knownName : string.Empty);
             set => DomainWireId = PersistentSyncDomainCatalog.TryGet(value, out var definition)
                 ? definition.WireId
-                : (ushort)value;
+                : PersistentSyncDomainNaming.GetKnownWireId(value);
         }
         public long ClientKnownRevision;
         public byte[] Payload = new byte[0];

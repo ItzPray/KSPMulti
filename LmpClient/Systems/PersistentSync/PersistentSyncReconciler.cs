@@ -12,17 +12,17 @@ namespace LmpClient.Systems.PersistentSync
 {
     public class PersistentSyncReconciler : SubSystem<PersistentSyncSystem>
     {
-        private readonly Dictionary<PersistentSyncDomainId, DateTime> _lastResyncRequest = new Dictionary<PersistentSyncDomainId, DateTime>();
+        private readonly Dictionary<string, DateTime> _lastResyncRequest = new Dictionary<string, DateTime>();
 
         public PersistentSyncReconcilerState State { get; } = new PersistentSyncReconcilerState();
 
-        public void Reset(IEnumerable<PersistentSyncDomainId> requiredDomains)
+        public void Reset(IEnumerable<string> requiredDomains)
         {
             State.Reset(requiredDomains);
             _lastResyncRequest.Clear();
         }
 
-        public long GetKnownRevision(PersistentSyncDomainId domainId)
+        public long GetKnownRevision(string domainId)
         {
             return State.GetLastAppliedRevision(domainId);
         }
@@ -102,7 +102,7 @@ namespace LmpClient.Systems.PersistentSync
 
         public void FlushPendingState()
         {
-            var appliedDomainIds = new List<PersistentSyncDomainId>();
+            var appliedDomainIds = new List<string>();
             foreach (var entry in System.Domains)
             {
                 var domainId = entry.Key;
@@ -135,7 +135,7 @@ namespace LmpClient.Systems.PersistentSync
             }
         }
 
-        public void RequestResync(PersistentSyncDomainId domainId, string reasonCategory)
+        public void RequestResync(string domainId, string reasonCategory)
         {
             if (_lastResyncRequest.TryGetValue(domainId, out var lastRequest) &&
                 (DateTime.UtcNow - lastRequest).TotalMilliseconds < 1000)
@@ -167,7 +167,7 @@ namespace LmpClient.Systems.PersistentSync
             System.RequestOptionalGameLaunchIdSnapshotAfterMandatorySync();
         }
 
-        private void LogAfterMarkApplied(PersistentSyncDomainId domainId, long revision)
+        private void LogAfterMarkApplied(string domainId, long revision)
         {
             PsLog($"MarkApplied domain={domainId} revision={revision} domainInitialSnapshotSatisfied={State.HasInitialSnapshot(domainId)}");
         }

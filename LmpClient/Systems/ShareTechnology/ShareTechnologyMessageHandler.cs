@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Linq;
 using KSP.UI.Screens;
 using LmpClient;
@@ -21,7 +21,7 @@ namespace LmpClient.Systems.ShareTechnology
             if (!(msg.Data is ShareProgressBaseMsgData msgData)) return;
             if (msgData.ShareProgressMessageType != ShareProgressMessageType.TechnologyUpdate) return;
 
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Technology))
+            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Technology))
             {
                 LunaLog.LogWarning("[PersistentSync] bypass guard: ShareProgress technology update received after R&D migrated to PersistentSync snapshots. Message ignored.");
                 return;

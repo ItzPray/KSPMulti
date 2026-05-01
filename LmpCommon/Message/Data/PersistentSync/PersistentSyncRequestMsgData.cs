@@ -11,29 +11,29 @@ namespace LmpCommon.Message.Data.PersistentSync
 
         public int DomainCount;
         public ushort[] DomainWireIds = new ushort[0];
-        public PersistentSyncDomainId[] Domains
+        public string[] Domains
         {
             get
             {
-                var result = new PersistentSyncDomainId[DomainWireIds.Length];
+                var result = new string[DomainWireIds.Length];
                 for (var i = 0; i < DomainWireIds.Length; i++)
                 {
                     result[i] = PersistentSyncDomainCatalog.TryGetByWireId(DomainWireIds[i], out var definition)
                         ? definition.DomainId
-                        : (PersistentSyncDomainId)DomainWireIds[i];
+                        : (PersistentSyncDomainNaming.TryGetKnownName(DomainWireIds[i], out var knownName) ? knownName : string.Empty);
                 }
 
                 return result;
             }
             set
             {
-                var source = value ?? new PersistentSyncDomainId[0];
+                var source = value ?? new string[0];
                 DomainWireIds = new ushort[source.Length];
                 for (var i = 0; i < source.Length; i++)
                 {
                     DomainWireIds[i] = PersistentSyncDomainCatalog.TryGet(source[i], out var definition)
                         ? definition.WireId
-                        : (ushort)source[i];
+                        : PersistentSyncDomainNaming.GetKnownWireId(source[i]);
                 }
             }
         }

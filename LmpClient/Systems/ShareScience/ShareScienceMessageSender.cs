@@ -10,7 +10,7 @@ namespace LmpClient.Systems.ShareScience
     {
         public void SendMessage(IMessageData msg)
         {
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Science))
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Science))
             {
                 return;
             }
@@ -20,7 +20,7 @@ namespace LmpClient.Systems.ShareScience
 
         public void SendScienceMessage(float science, string reason)
         {
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Science))
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Science))
             {
                 return;
             }

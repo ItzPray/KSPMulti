@@ -36,7 +36,7 @@ namespace LmpClient.Systems.ShareStrategy
         {
             var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
             return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Strategy,
+                PersistentSyncDomainNames.Strategy,
                 SettingsSystem.ServerSettings.GameMode,
                 in caps);
         }

@@ -52,7 +52,7 @@ namespace LmpClient.Systems.PersistentSync
 
         private ContractSnapshotInfo[] _pendingContracts;
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => Domain.LegacyId;
 
         /// <summary>
         /// True while a Contracts snapshot has been received from the server but has not yet successfully
@@ -229,7 +229,7 @@ namespace LmpClient.Systems.PersistentSync
             PostSnapshotParameterProgressGuids.Clear();
 
             var share = ShareContractsSystem.Singleton;
-            if (share?.MessageSender == null || !PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Contracts))
+            if (share?.MessageSender == null || !PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
             {
                 return;
             }

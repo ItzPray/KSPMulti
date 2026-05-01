@@ -20,9 +20,9 @@ namespace Server.System.PersistentSync
             _ownedScenario = (PersistentSyncOwnedScenarioAttribute)Attribute.GetCustomAttribute(type, typeof(PersistentSyncOwnedScenarioAttribute));
         }
 
-        public sealed override PersistentSyncDomainId DomainId => PersistentSyncDomainCatalog.TryGetByName(DomainName, out var definition)
+        public sealed override string DomainId => PersistentSyncDomainCatalog.TryGetByName(DomainName, out var definition)
             ? definition.DomainId
-            : (PersistentSyncDomainId)PersistentSyncDomainNaming.GetKnownWireId(DomainName);
+            : DomainName;
 
         protected PersistentSyncDomainDefinition Definition => PersistentSyncDomainCatalog.GetByName(DomainName);
         protected string DomainName => PersistentSyncDomainNaming.InferDomainName(GetType());

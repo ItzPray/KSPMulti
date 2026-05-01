@@ -10,7 +10,7 @@ namespace LmpClient.Systems.PersistentSync
     {
         private TCanonical _pending;
 
-        public abstract PersistentSyncDomainId DomainId { get; }
+        public abstract string DomainId { get; }
 
         /// <summary>Peer Share systems to silence during <see cref="ApplyCanonicalToStock"/>. Empty list is allowed.</summary>
         protected abstract IReadOnlyList<IShareProgressEventSuppressor> PeersToSilence { get; }
@@ -115,7 +115,7 @@ namespace LmpClient.Systems.PersistentSync
 
     public abstract class TypedPersistentSyncClientDomain<TSnapshotPayload> : IPersistentSyncClientDomain
     {
-        public abstract PersistentSyncDomainId DomainId { get; }
+        public abstract string DomainId { get; }
 
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {

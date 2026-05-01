@@ -1,4 +1,4 @@
-﻿using Contracts;
+using Contracts;
 using KSP.UI.Screens;
 using LmpClient;
 using LmpClient.Base;
@@ -176,7 +176,7 @@ namespace LmpClient.Systems.ShareContracts
         {
             var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
             return PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
-                PersistentSyncDomainId.Contracts,
+                PersistentSyncDomainNames.Contracts,
                 SettingsSystem.ServerSettings.GameMode,
                 in caps);
         }
@@ -537,7 +537,7 @@ namespace LmpClient.Systems.ShareContracts
                     return;
                 }
 
-                if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainId.Contracts))
+                if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
                 {
                     LunaLog.Log($"[PersistentSync] contract refresh skip source=LargeUniversalTimeJumpStart reason=persistent-sync-disabled targetTime={targetTick}");
                     return;
@@ -1070,7 +1070,7 @@ namespace LmpClient.Systems.ShareContracts
                 return false;
             }
 
-            return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.Contracts);
+            return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainNames.Contracts);
         }
 
         private void TryRunPostTransientStockRefresh(string source)
@@ -1297,7 +1297,7 @@ namespace LmpClient.Systems.ShareContracts
         private bool IsReplenishGateBlocked(out string reason)
         {
             if (PersistentSyncSystem.Singleton != null &&
-                PersistentSyncSystem.Singleton.Domains.TryGetValue(PersistentSyncDomainId.Contracts, out var contractsDomain) &&
+                PersistentSyncSystem.Singleton.Domains.TryGetValue(PersistentSyncDomainNames.Contracts, out var contractsDomain) &&
                 contractsDomain is ContractsPersistentSyncClientDomain contractsClientDomain &&
                 contractsClientDomain.HasPendingSnapshot)
             {
@@ -1424,7 +1424,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            var revision = ps.GetKnownRevision(PersistentSyncDomainId.Contracts);
+            var revision = ps.GetKnownRevision(PersistentSyncDomainNames.Contracts);
             var signature = $"rev={revision}|main={main.Count}|finished={ContractSystem.Instance.ContractsFinished?.Count ?? 0}";
             if (string.Equals(signature, _lastNonProducerOfferGenerationRequestSignature, StringComparison.Ordinal))
             {
@@ -1482,7 +1482,7 @@ namespace LmpClient.Systems.ShareContracts
             }
 
             var ps = PersistentSyncSystem.Singleton;
-            if (ps != null && ps.Enabled && !ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.Contracts))
+            if (ps != null && ps.Enabled && !ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainNames.Contracts))
             {
                 LunaLog.Log(
                     $"[PersistentSync] producer full reconcile skipped source={source} " +
@@ -1695,7 +1695,7 @@ namespace LmpClient.Systems.ShareContracts
                 return false;
             }
 
-            return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.Contracts);
+            return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainNames.Contracts);
         }
 
         /// <summary>
@@ -1719,7 +1719,7 @@ namespace LmpClient.Systems.ShareContracts
                 return false;
             }
 
-            return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainId.Contracts);
+            return ps.Reconciler.State.HasInitialSnapshot(PersistentSyncDomainNames.Contracts);
         }
 
         private static void RefreshContractLists(string source)

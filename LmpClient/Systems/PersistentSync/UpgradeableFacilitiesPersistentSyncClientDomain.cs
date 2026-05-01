@@ -37,7 +37,7 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private Coroutine _delayedStopIgnoringFacilityEventsCoroutine;
 
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override string DomainId => Domain.LegacyId;
 
         protected override PersistentSyncApplyOutcome ApplySnapshot(UpgradeableFacilityLevelPayload[] payload, PersistentSyncBufferedSnapshot snapshot)
         {

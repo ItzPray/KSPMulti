@@ -10,7 +10,7 @@ namespace LmpCommon.PersistentSync
     public static class PersistentSyncDomainApplicability
     {
         public static bool IsDomainApplicableForInitialSync(
-            PersistentSyncDomainId domain,
+            string domain,
             GameMode serverGameMode,
             in PersistentSyncSessionCapabilities caps)
         {
@@ -22,14 +22,14 @@ namespace LmpCommon.PersistentSync
         /// generation matches startup applicability, with extra producer-only constraints (e.g. difficulty).
         /// </summary>
         public static bool IsDomainApplicableForShareProducer(
-            PersistentSyncDomainId domain,
+            string domain,
             GameMode serverGameMode,
             in PersistentSyncSessionCapabilities caps)
         {
             return PersistentSyncDomainCatalog.IsDomainApplicableForShareProducer(domain, serverGameMode, in caps);
         }
 
-        public static IEnumerable<PersistentSyncDomainId> GetRequiredDomainsForInitialSync(
+        public static IEnumerable<string> GetRequiredDomainsForInitialSync(
             GameMode serverGameMode,
             PersistentSyncSessionCapabilities caps)
         {

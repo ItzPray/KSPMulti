@@ -184,9 +184,9 @@ namespace LmpCommon.PersistentSync
 
             foreach (var dependency in definition.AfterDomains)
             {
-                if (!byName.TryGetValue(dependency.Name, out var dependencyDefinition))
+                if (!byName.TryGetValue(dependency, out var dependencyDefinition))
                 {
-                    throw new InvalidOperationException($"Persistent sync domain {definition.Key.Name} depends on missing domain {dependency.Name}.");
+                    throw new InvalidOperationException($"Persistent sync domain {definition.Key.Name} depends on missing domain {dependency}.");
                 }
 
                 Visit(dependencyDefinition, byName, visiting, visited, result);
@@ -210,7 +210,7 @@ namespace LmpCommon.PersistentSync
     public sealed class PersistentSyncDomainRegistrationBuilder
     {
         private readonly PersistentSyncDomainKey _key;
-        private readonly List<PersistentSyncDomainKey> _afterDomains = new List<PersistentSyncDomainKey>();
+        private readonly List<string> _afterDomains = new List<string>();
         private readonly List<string> _serverScenarioBypasses = new List<string>();
         private Type _domainType;
         private string _scenarioName;
@@ -300,13 +300,13 @@ namespace LmpCommon.PersistentSync
             return this;
         }
 
-        public PersistentSyncDomainRegistrationBuilder After(PersistentSyncDomainKey dependency)
+        public PersistentSyncDomainRegistrationBuilder After(string dependency)
         {
             _afterDomains.Add(dependency);
             return this;
         }
 
-        public PersistentSyncDomainRegistrationBuilder ProjectsFrom(PersistentSyncDomainKey owner)
+        public PersistentSyncDomainRegistrationBuilder ProjectsFrom(string owner)
         {
             return After(owner);
         }

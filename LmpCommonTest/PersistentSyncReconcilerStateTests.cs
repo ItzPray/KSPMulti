@@ -8,7 +8,7 @@ namespace LmpCommonTest
     [TestClass]
     public class PersistentSyncReconcilerStateTests
     {
-        private static PersistentSyncBufferedSnapshot Snapshot(PersistentSyncDomainId domainId, long revision, byte marker = 0)
+        private static PersistentSyncBufferedSnapshot Snapshot(string domainId, long revision, byte marker = 0)
         {
             return new PersistentSyncBufferedSnapshot
             {
@@ -24,10 +24,10 @@ namespace LmpCommonTest
         public void TestResetTracksRequiredDomains()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds, PersistentSyncDomainId.Science });
+            state.Reset(new[] { PersistentSyncDomainNames.Funds, PersistentSyncDomainNames.Science });
 
             CollectionAssert.AreEquivalent(
-                new[] { PersistentSyncDomainId.Funds, PersistentSyncDomainId.Science },
+                new[] { PersistentSyncDomainNames.Funds, PersistentSyncDomainNames.Science },
                 state.RequiredDomains.ToArray());
             Assert.IsFalse(state.AreAllInitialSnapshotsApplied());
         }
@@ -36,46 +36,46 @@ namespace LmpCommonTest
         public void TestShouldIgnoreSnapshotWhenRevisionIsStale()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds });
-            state.MarkApplied(PersistentSyncDomainId.Funds, 3);
+            state.Reset(new[] { PersistentSyncDomainNames.Funds });
+            state.MarkApplied(PersistentSyncDomainNames.Funds, 3);
 
-            Assert.IsTrue(state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 3));
-            Assert.IsTrue(state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 2));
-            Assert.IsFalse(state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 4));
+            Assert.IsTrue(state.ShouldIgnoreSnapshot(PersistentSyncDomainNames.Funds, 3));
+            Assert.IsTrue(state.ShouldIgnoreSnapshot(PersistentSyncDomainNames.Funds, 2));
+            Assert.IsFalse(state.ShouldIgnoreSnapshot(PersistentSyncDomainNames.Funds, 4));
         }
 
         [TestMethod]
         public void TestShouldNotIgnoreFirstSnapshotAtRevisionZero()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds });
+            state.Reset(new[] { PersistentSyncDomainNames.Funds });
 
-            Assert.IsFalse(state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 0));
-            state.MarkApplied(PersistentSyncDomainId.Funds, 0);
-            Assert.IsTrue(state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 0));
+            Assert.IsFalse(state.ShouldIgnoreSnapshot(PersistentSyncDomainNames.Funds, 0));
+            state.MarkApplied(PersistentSyncDomainNames.Funds, 0);
+            Assert.IsTrue(state.ShouldIgnoreSnapshot(PersistentSyncDomainNames.Funds, 0));
         }
 
         [TestMethod]
         public void TestStoreDeferredReplacesOlderSnapshotForSameDomain()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Science });
+            state.Reset(new[] { PersistentSyncDomainNames.Science });
             state.StoreDeferred(new PersistentSyncBufferedSnapshot
             {
-                DomainId = PersistentSyncDomainId.Science,
+                DomainId = PersistentSyncDomainNames.Science,
                 Revision = 1,
                 NumBytes = 4,
                 Payload = new byte[] { 1, 2, 3, 4 }
             });
             state.StoreDeferred(new PersistentSyncBufferedSnapshot
             {
-                DomainId = PersistentSyncDomainId.Science,
+                DomainId = PersistentSyncDomainNames.Science,
                 Revision = 2,
                 NumBytes = 4,
                 Payload = new byte[] { 5, 6, 7, 8 }
             });
 
-            Assert.IsTrue(state.TryGetDeferred(PersistentSyncDomainId.Science, out var snapshot));
+            Assert.IsTrue(state.TryGetDeferred(PersistentSyncDomainNames.Science, out var snapshot));
             Assert.AreEqual(2L, snapshot.Revision);
             CollectionAssert.AreEqual(new byte[] { 5, 6, 7, 8 }, snapshot.Payload);
         }
@@ -84,12 +84,12 @@ namespace LmpCommonTest
         public void TestAllInitialSnapshotsAppliedAfterMarkApplied()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds, PersistentSyncDomainId.Reputation });
+            state.Reset(new[] { PersistentSyncDomainNames.Funds, PersistentSyncDomainNames.Reputation });
 
-            state.MarkApplied(PersistentSyncDomainId.Funds, 1);
+            state.MarkApplied(PersistentSyncDomainNames.Funds, 1);
             Assert.IsFalse(state.AreAllInitialSnapshotsApplied());
 
-            state.MarkApplied(PersistentSyncDomainId.Reputation, 2);
+            state.MarkApplied(PersistentSyncDomainNames.Reputation, 2);
             Assert.IsTrue(state.AreAllInitialSnapshotsApplied());
         }
 
@@ -101,15 +101,15 @@ namespace LmpCommonTest
         public void DeferredSnapshotDoesNotMarkDomainInitiallySynced()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds, PersistentSyncDomainId.Science });
+            state.Reset(new[] { PersistentSyncDomainNames.Funds, PersistentSyncDomainNames.Science });
 
-            state.StoreDeferred(Snapshot(PersistentSyncDomainId.Funds, 1, 11));
+            state.StoreDeferred(Snapshot(PersistentSyncDomainNames.Funds, 1, 11));
 
-            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainId.Funds));
-            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainId.Science));
-            Assert.AreEqual(0L, state.GetLastAppliedRevision(PersistentSyncDomainId.Funds));
+            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainNames.Funds));
+            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainNames.Science));
+            Assert.AreEqual(0L, state.GetLastAppliedRevision(PersistentSyncDomainNames.Funds));
             Assert.IsFalse(state.AreAllInitialSnapshotsApplied());
-            Assert.IsTrue(state.TryGetDeferred(PersistentSyncDomainId.Funds, out var pending));
+            Assert.IsTrue(state.TryGetDeferred(PersistentSyncDomainNames.Funds, out var pending));
             Assert.AreEqual(1L, pending.Revision);
         }
 
@@ -121,10 +121,10 @@ namespace LmpCommonTest
         public void RejectedApplyOutcomeLeavesNoInitialSnapshotAndNoDeferredBuffer_Model()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds });
+            state.Reset(new[] { PersistentSyncDomainNames.Funds });
 
-            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainId.Funds));
-            Assert.IsFalse(state.TryGetDeferred(PersistentSyncDomainId.Funds, out _));
+            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainNames.Funds));
+            Assert.IsFalse(state.TryGetDeferred(PersistentSyncDomainNames.Funds, out _));
 
             // Reconciler-side resync is not represented in PersistentSyncReconcilerState; state stays unsynced.
             Assert.IsFalse(state.AreAllInitialSnapshotsApplied());
@@ -138,11 +138,11 @@ namespace LmpCommonTest
         public void StaleSnapshotMustBeIgnoredWhenNewerRevisionIsAlreadyDeferred()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds });
-            state.StoreDeferred(Snapshot(PersistentSyncDomainId.Funds, 5, 55));
+            state.Reset(new[] { PersistentSyncDomainNames.Funds });
+            state.StoreDeferred(Snapshot(PersistentSyncDomainNames.Funds, 5, 55));
 
             Assert.IsTrue(
-                state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 4),
+                state.ShouldIgnoreSnapshot(PersistentSyncDomainNames.Funds, 4),
                 "Revision strictly older than the deferred revision must be ignored.");
         }
 
@@ -154,13 +154,13 @@ namespace LmpCommonTest
         public void MarkAppliedForOlderRevisionMustNotDiscardNewerDeferredSnapshot()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Science });
-            state.StoreDeferred(Snapshot(PersistentSyncDomainId.Science, 9, 99));
+            state.Reset(new[] { PersistentSyncDomainNames.Science });
+            state.StoreDeferred(Snapshot(PersistentSyncDomainNames.Science, 9, 99));
 
-            state.MarkApplied(PersistentSyncDomainId.Science, 8);
+            state.MarkApplied(PersistentSyncDomainNames.Science, 8);
 
             Assert.IsTrue(
-                state.TryGetDeferred(PersistentSyncDomainId.Science, out var stillPending) && stillPending.Revision == 9,
+                state.TryGetDeferred(PersistentSyncDomainNames.Science, out var stillPending) && stillPending.Revision == 9,
                 "A newer deferred snapshot must survive while its revision is still above the last applied revision.");
         }
 
@@ -168,11 +168,11 @@ namespace LmpCommonTest
         public void MarkAppliedOlderRevisionAfterNewerDoesNotLowerStoredAppliedRevision()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds });
-            state.MarkApplied(PersistentSyncDomainId.Funds, 5);
-            state.MarkApplied(PersistentSyncDomainId.Funds, 3);
+            state.Reset(new[] { PersistentSyncDomainNames.Funds });
+            state.MarkApplied(PersistentSyncDomainNames.Funds, 5);
+            state.MarkApplied(PersistentSyncDomainNames.Funds, 3);
 
-            Assert.AreEqual(5L, state.GetLastAppliedRevision(PersistentSyncDomainId.Funds));
+            Assert.AreEqual(5L, state.GetLastAppliedRevision(PersistentSyncDomainNames.Funds));
         }
 
         [TestMethod]
@@ -181,19 +181,19 @@ namespace LmpCommonTest
             var state = new PersistentSyncReconcilerState();
             state.Reset(new[]
             {
-                PersistentSyncDomainId.Funds,
-                PersistentSyncDomainId.Science,
-                PersistentSyncDomainId.Reputation
+                PersistentSyncDomainNames.Funds,
+                PersistentSyncDomainNames.Science,
+                PersistentSyncDomainNames.Reputation
             });
 
-            state.MarkApplied(PersistentSyncDomainId.Funds, 1);
-            state.StoreDeferred(Snapshot(PersistentSyncDomainId.Science, 1, 1));
+            state.MarkApplied(PersistentSyncDomainNames.Funds, 1);
+            state.StoreDeferred(Snapshot(PersistentSyncDomainNames.Science, 1, 1));
             Assert.IsFalse(state.AreAllInitialSnapshotsApplied());
 
-            state.MarkApplied(PersistentSyncDomainId.Science, 1);
+            state.MarkApplied(PersistentSyncDomainNames.Science, 1);
             Assert.IsFalse(state.AreAllInitialSnapshotsApplied());
 
-            state.MarkApplied(PersistentSyncDomainId.Reputation, 1);
+            state.MarkApplied(PersistentSyncDomainNames.Reputation, 1);
             Assert.IsTrue(state.AreAllInitialSnapshotsApplied());
         }
 
@@ -203,35 +203,35 @@ namespace LmpCommonTest
             var state = new PersistentSyncReconcilerState();
             state.Reset(new[]
             {
-                PersistentSyncDomainId.Funds,
-                PersistentSyncDomainId.Science
+                PersistentSyncDomainNames.Funds,
+                PersistentSyncDomainNames.Science
             });
 
-            state.StoreDeferred(Snapshot(PersistentSyncDomainId.Funds, 1));
-            state.StoreDeferred(Snapshot(PersistentSyncDomainId.Science, 1));
+            state.StoreDeferred(Snapshot(PersistentSyncDomainNames.Funds, 1));
+            state.StoreDeferred(Snapshot(PersistentSyncDomainNames.Science, 1));
 
             Assert.IsFalse(state.AreAllInitialSnapshotsApplied());
-            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainId.Funds));
-            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainId.Science));
+            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainNames.Funds));
+            Assert.IsFalse(state.HasInitialSnapshot(PersistentSyncDomainNames.Science));
         }
 
         [TestMethod]
         public void JoinHandshakeCompletesWithoutLiveMarkApplied()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds });
-            state.StoreDeferred(Snapshot(PersistentSyncDomainId.Funds, 0));
-            state.MarkInitialJoinHandshakeComplete(PersistentSyncDomainId.Funds);
+            state.Reset(new[] { PersistentSyncDomainNames.Funds });
+            state.StoreDeferred(Snapshot(PersistentSyncDomainNames.Funds, 0));
+            state.MarkInitialJoinHandshakeComplete(PersistentSyncDomainNames.Funds);
 
             Assert.IsTrue(state.AreAllJoinHandshakesComplete());
             Assert.IsFalse(state.AreAllInitialSnapshotsApplied());
             Assert.IsTrue(
-                state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 0),
+                state.ShouldIgnoreSnapshot(PersistentSyncDomainNames.Funds, 0),
                 "Duplicate delivery while the same revision is still deferred must be ignored.");
 
-            state.ClearDeferred(PersistentSyncDomainId.Funds);
+            state.ClearDeferred(PersistentSyncDomainNames.Funds);
             Assert.IsFalse(
-                state.ShouldIgnoreSnapshot(PersistentSyncDomainId.Funds, 0),
+                state.ShouldIgnoreSnapshot(PersistentSyncDomainNames.Funds, 0),
                 "After clearing deferred state, the same revision must be eligible again (resync / KSC reapply).");
         }
 
@@ -239,10 +239,10 @@ namespace LmpCommonTest
         public void MarkAppliedImpliesJoinHandshakeComplete()
         {
             var state = new PersistentSyncReconcilerState();
-            state.Reset(new[] { PersistentSyncDomainId.Funds });
-            state.MarkApplied(PersistentSyncDomainId.Funds, 1);
+            state.Reset(new[] { PersistentSyncDomainNames.Funds });
+            state.MarkApplied(PersistentSyncDomainNames.Funds, 1);
 
-            Assert.IsTrue(state.IsInitialJoinHandshakeComplete(PersistentSyncDomainId.Funds));
+            Assert.IsTrue(state.IsInitialJoinHandshakeComplete(PersistentSyncDomainNames.Funds));
             Assert.IsTrue(state.AreAllJoinHandshakesComplete());
             Assert.IsTrue(state.AreAllInitialSnapshotsApplied());
         }
