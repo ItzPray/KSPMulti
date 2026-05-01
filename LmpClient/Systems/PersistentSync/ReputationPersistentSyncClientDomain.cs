@@ -3,18 +3,13 @@ using LmpCommon.PersistentSync;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    public class ReputationPersistentSyncClientDomain : ScalarPersistentSyncClientDomain<float>
+    public class ReputationPersistentSyncClientDomain : SyncClientDomain<float>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Reputation", 2);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("Reputation")
+            registrar.RegisterCurrent()
                 .UsesClientDomain<ReputationPersistentSyncClientDomain>();
         }
-
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         protected override bool CanApplyLiveState()
         {

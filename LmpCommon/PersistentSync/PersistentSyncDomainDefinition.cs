@@ -32,7 +32,10 @@ namespace LmpCommon.PersistentSync
             PersistentSyncMaterializationSlot materializationSlot,
             Type domainType,
             IEnumerable<PersistentSyncDomainKey> afterDomains,
-            IEnumerable<string> serverScenarioBypasses)
+            IEnumerable<string> serverScenarioBypasses,
+            ushort wireId = 0,
+            string scenarioName = null,
+            string scalarFieldName = null)
         {
             Key = key;
             InitialSyncGameModes = initialSyncGameModes;
@@ -42,9 +45,14 @@ namespace LmpCommon.PersistentSync
             DomainType = domainType;
             AfterDomains = new List<PersistentSyncDomainKey>(afterDomains ?? new PersistentSyncDomainKey[0]).ToArray();
             ServerScenarioBypasses = new List<string>(serverScenarioBypasses ?? new string[0]).ToArray();
+            WireId = wireId;
+            ScenarioName = scenarioName;
+            ScalarFieldName = scalarFieldName;
         }
 
         public PersistentSyncDomainKey Key { get; }
+        public string Name => Key.Name;
+        public ushort WireId { get; }
         public PersistentSyncDomainId DomainId => Key.LegacyId;
         public GameMode InitialSyncGameModes { get; }
         public PersistentSyncCapabilityFlags RequiredCapabilities { get; }
@@ -53,5 +61,7 @@ namespace LmpCommon.PersistentSync
         public Type DomainType { get; }
         public PersistentSyncDomainKey[] AfterDomains { get; }
         public string[] ServerScenarioBypasses { get; }
+        public string ScenarioName { get; }
+        public string ScalarFieldName { get; }
     }
 }

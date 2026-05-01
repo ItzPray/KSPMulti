@@ -41,17 +41,17 @@ namespace LmpClient.Systems.PersistentSync
 
         public void SendFundsIntent(double funds, string reason)
         {
-            SendIntent(PersistentSyncDomainId.Funds, System.GetKnownRevision(PersistentSyncDomainId.Funds), new PersistentSyncValueWithReason<double>(funds, reason), reason);
+            SendIntent(PersistentSyncDomainId.Funds, System.GetKnownRevision(PersistentSyncDomainId.Funds), funds, reason);
         }
 
         public void SendScienceIntent(float science, string reason)
         {
-            SendIntent(PersistentSyncDomainId.Science, System.GetKnownRevision(PersistentSyncDomainId.Science), new PersistentSyncValueWithReason<float>(science, reason), reason);
+            SendIntent(PersistentSyncDomainId.Science, System.GetKnownRevision(PersistentSyncDomainId.Science), science, reason);
         }
 
         public void SendReputationIntent(float reputation, string reason)
         {
-            SendIntent(PersistentSyncDomainId.Reputation, System.GetKnownRevision(PersistentSyncDomainId.Reputation), new PersistentSyncValueWithReason<float>(reputation, reason), reason);
+            SendIntent(PersistentSyncDomainId.Reputation, System.GetKnownRevision(PersistentSyncDomainId.Reputation), reputation, reason);
         }
 
         public void SendUpgradeableFacilityIntent(string facilityId, int level, string reason)

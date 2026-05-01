@@ -22,9 +22,81 @@ namespace LmpCommon.PersistentSync
             return builder;
         }
 
+        public PersistentSyncDomainRegistrationBuilder RegisterCurrent()
+        {
+            if (_currentDomainType == null)
+            {
+                throw new InvalidOperationException("RegisterCurrent requires a current persistent sync domain type.");
+            }
+
+            var domainName = PersistentSyncDomainNaming.InferDomainName(_currentDomainType);
+            var key = new PersistentSyncDomainKey(domainName, PersistentSyncDomainNaming.GetKnownWireId(domainName));
+            var builder = Register(key);
+            var stockScenario = (PersistentSyncStockScenarioAttribute)Attribute.GetCustomAttribute(
+                _currentDomainType,
+                typeof(PersistentSyncStockScenarioAttribute));
+            if (stockScenario != null)
+            {
+                builder.OwnsStockScenario(stockScenario.ScenarioName, stockScenario.ScalarField);
+            }
+
+            var ownedScenario = (PersistentSyncOwnedScenarioAttribute)Attribute.GetCustomAttribute(
+                _currentDomainType,
+                typeof(PersistentSyncOwnedScenarioAttribute));
+            if (ownedScenario != null)
+            {
+                builder.OwnsKspmpScenario(ownedScenario.ScenarioName, ownedScenario.ScalarField);
+            }
+            else if (stockScenario == null && TryGetKnownScenarioForDomain(key.Name, out var knownScenario))
+            {
+                builder.OwnsStockScenario(knownScenario);
+            }
+
+            return builder;
+        }
+
+        private static bool TryGetKnownScenarioForDomain(string domainName, out string scenarioName)
+        {
+            switch (domainName)
+            {
+                case "Funds":
+                    scenarioName = "Funding";
+                    return true;
+                case "Science":
+                case "ScienceSubjects":
+                case "ExperimentalParts":
+                case "PartPurchases":
+                case "Technology":
+                    scenarioName = "ResearchAndDevelopment";
+                    return true;
+                case "Reputation":
+                    scenarioName = "Reputation";
+                    return true;
+                case "UpgradeableFacilities":
+                    scenarioName = "ScenarioUpgradeableFacilities";
+                    return true;
+                case "Contracts":
+                    scenarioName = "ContractSystem";
+                    return true;
+                case "Strategy":
+                    scenarioName = "StrategySystem";
+                    return true;
+                case "Achievements":
+                    scenarioName = "ProgressTracking";
+                    return true;
+                case "GameLaunchId":
+                    scenarioName = "LmpGameLaunchId";
+                    return true;
+                default:
+                    scenarioName = null;
+                    return false;
+            }
+        }
+
+
         public IReadOnlyList<PersistentSyncDomainDefinition> BuildDefinitions()
         {
-            var definitions = _builders.Select(b => b.Build()).ToArray();
+            var definitions = _builders.Select((b, index) => b.Build((ushort)index)).ToArray();
             Validate(definitions);
             return SortDefinitions(definitions);
         }
@@ -141,6 +213,8 @@ namespace LmpCommon.PersistentSync
         private readonly List<PersistentSyncDomainKey> _afterDomains = new List<PersistentSyncDomainKey>();
         private readonly List<string> _serverScenarioBypasses = new List<string>();
         private Type _domainType;
+        private string _scenarioName;
+        private string _scalarFieldName;
         private bool _hasGameModes;
         private GameMode _gameModes;
         private PersistentSyncCapabilityFlags _requiredCapabilities;
@@ -163,7 +237,14 @@ namespace LmpCommon.PersistentSync
 
         public PersistentSyncDomainRegistrationBuilder OwnsStockScenario(string scenarioName)
         {
+            return OwnsStockScenario(scenarioName, null);
+        }
+
+        public PersistentSyncDomainRegistrationBuilder OwnsStockScenario(string scenarioName, string scalarFieldName)
+        {
             var metadata = PersistentSyncStockScenarioMetadata.Get(scenarioName);
+            _scenarioName = scenarioName;
+            _scalarFieldName = scalarFieldName;
             _serverScenarioBypasses.Add(scenarioName);
             _requiredCapabilities |= metadata.RequiredCapabilities;
             if (!_hasGameModes)
@@ -176,6 +257,20 @@ namespace LmpCommon.PersistentSync
             {
                 _materializationSlot = metadata.MaterializationSlot;
                 _hasMaterializationSlot = true;
+            }
+
+            return this;
+        }
+
+        public PersistentSyncDomainRegistrationBuilder OwnsKspmpScenario(string scenarioName, string scalarFieldName = null)
+        {
+            _scenarioName = scenarioName;
+            _scalarFieldName = scalarFieldName;
+            _serverScenarioBypasses.Add(scenarioName);
+            if (!_hasGameModes)
+            {
+                _gameModes = GameMode.Sandbox | GameMode.Career | GameMode.Science;
+                _hasGameModes = true;
             }
 
             return this;
@@ -228,7 +323,7 @@ namespace LmpCommon.PersistentSync
             return this;
         }
 
-        internal PersistentSyncDomainDefinition Build()
+        internal PersistentSyncDomainDefinition Build(ushort sessionWireId)
         {
             if (!_hasGameModes)
             {
@@ -243,7 +338,10 @@ namespace LmpCommon.PersistentSync
                 _hasMaterializationSlot ? _materializationSlot : PersistentSyncMaterializationSlot.None,
                 _domainType,
                 _afterDomains,
-                _serverScenarioBypasses);
+                _serverScenarioBypasses,
+                sessionWireId,
+                _scenarioName,
+                _scalarFieldName);
         }
     }
 }

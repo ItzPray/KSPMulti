@@ -16,6 +16,10 @@ namespace LmpCommon.PersistentSync
         private static PersistentSyncDomainDefinition[] _definitions = new PersistentSyncDomainDefinition[0];
         private static Dictionary<PersistentSyncDomainId, PersistentSyncDomainDefinition> _byId =
             new Dictionary<PersistentSyncDomainId, PersistentSyncDomainDefinition>();
+        private static Dictionary<string, PersistentSyncDomainDefinition> _byName =
+            new Dictionary<string, PersistentSyncDomainDefinition>(StringComparer.Ordinal);
+        private static Dictionary<ushort, PersistentSyncDomainDefinition> _byWireId =
+            new Dictionary<ushort, PersistentSyncDomainDefinition>();
 
         public static IReadOnlyList<PersistentSyncDomainDefinition> AllOrdered => _definitions;
 
@@ -24,6 +28,8 @@ namespace LmpCommon.PersistentSync
             var ordered = (definitions ?? Enumerable.Empty<PersistentSyncDomainDefinition>()).ToArray();
             _definitions = ordered;
             _byId = ordered.ToDictionary(d => d.DomainId);
+            _byName = ordered.ToDictionary(d => d.Name, StringComparer.Ordinal);
+            _byWireId = ordered.ToDictionary(d => d.WireId);
         }
 
         public static PersistentSyncDomainDefinition Get(PersistentSyncDomainId domainId)
@@ -34,6 +40,36 @@ namespace LmpCommon.PersistentSync
             }
 
             return definition;
+        }
+
+        public static PersistentSyncDomainDefinition GetByName(string domainName)
+        {
+            if (!_byName.TryGetValue(domainName, out var definition))
+            {
+                throw new ArgumentOutOfRangeException(nameof(domainName), domainName, "Persistent sync domain is not registered.");
+            }
+
+            return definition;
+        }
+
+        public static bool TryGetByName(string domainName, out PersistentSyncDomainDefinition definition)
+        {
+            return _byName.TryGetValue(domainName, out definition);
+        }
+
+        public static PersistentSyncDomainDefinition GetByWireId(ushort wireId)
+        {
+            if (!_byWireId.TryGetValue(wireId, out var definition))
+            {
+                throw new ArgumentOutOfRangeException(nameof(wireId), wireId, "Persistent sync wire id is not registered.");
+            }
+
+            return definition;
+        }
+
+        public static bool TryGetByWireId(ushort wireId, out PersistentSyncDomainDefinition definition)
+        {
+            return _byWireId.TryGetValue(wireId, out definition);
         }
 
         public static bool TryGet(PersistentSyncDomainId domainId, out PersistentSyncDomainDefinition definition)

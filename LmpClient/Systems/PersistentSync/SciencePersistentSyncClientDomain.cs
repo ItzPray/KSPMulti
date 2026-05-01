@@ -16,18 +16,13 @@ using Strategies;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    public class SciencePersistentSyncClientDomain : ScalarPersistentSyncClientDomain<float>
+    public class SciencePersistentSyncClientDomain : SyncClientDomain<float>
     {
-        public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Science", 1);
-
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
-            registrar.Register(Domain)
-                .OwnsStockScenario("ResearchAndDevelopment")
+            registrar.RegisterCurrent()
                 .UsesClientDomain<SciencePersistentSyncClientDomain>();
         }
-
-        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         protected override bool CanApplyLiveState()
         {

@@ -7,7 +7,7 @@ namespace LmpCommon.PersistentSync
     /// </summary>
     public struct PersistentSyncDomainKey : IEquatable<PersistentSyncDomainKey>
     {
-        public PersistentSyncDomainKey(string name, byte wireId)
+        public PersistentSyncDomainKey(string name, ushort wireId)
         {
             if (string.IsNullOrEmpty(name))
             {
@@ -19,7 +19,7 @@ namespace LmpCommon.PersistentSync
         }
 
         public string Name { get; }
-        public byte WireId { get; }
+        public ushort WireId { get; }
         public PersistentSyncDomainId LegacyId => (PersistentSyncDomainId)WireId;
 
         public bool Equals(PersistentSyncDomainKey other)
@@ -51,7 +51,7 @@ namespace LmpCommon.PersistentSync
     /// </summary>
     public static class PersistentSyncDomain
     {
-        public static PersistentSyncDomainKey Define(string name, byte wireId)
+        public static PersistentSyncDomainKey Define(string name, ushort wireId)
         {
             return new PersistentSyncDomainKey(name, wireId);
         }

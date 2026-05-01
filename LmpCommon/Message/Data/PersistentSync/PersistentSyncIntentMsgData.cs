@@ -10,7 +10,16 @@ namespace LmpCommon.Message.Data.PersistentSync
 
         public override Message.Types.PersistentSyncMessageType PersistentSyncMessageType => Message.Types.PersistentSyncMessageType.Intent;
 
-        public PersistentSyncDomainId DomainId;
+        public ushort DomainWireId;
+        public PersistentSyncDomainId DomainId
+        {
+            get => PersistentSyncDomainCatalog.TryGetByWireId(DomainWireId, out var definition)
+                ? definition.DomainId
+                : (PersistentSyncDomainId)DomainWireId;
+            set => DomainWireId = PersistentSyncDomainCatalog.TryGet(value, out var definition)
+                ? definition.WireId
+                : (ushort)value;
+        }
         public long ClientKnownRevision;
         public byte[] Payload = new byte[0];
         public int NumBytes;
@@ -21,7 +30,7 @@ namespace LmpCommon.Message.Data.PersistentSync
         internal override void InternalSerialize(NetOutgoingMessage lidgrenMsg)
         {
             base.InternalSerialize(lidgrenMsg);
-            lidgrenMsg.Write((byte)DomainId);
+            lidgrenMsg.Write(DomainWireId);
             lidgrenMsg.Write(ClientKnownRevision);
             lidgrenMsg.Write(NumBytes);
             lidgrenMsg.Write(Payload, 0, NumBytes);
@@ -31,7 +40,7 @@ namespace LmpCommon.Message.Data.PersistentSync
         internal override void InternalDeserialize(NetIncomingMessage lidgrenMsg)
         {
             base.InternalDeserialize(lidgrenMsg);
-            DomainId = (PersistentSyncDomainId)lidgrenMsg.ReadByte();
+            DomainWireId = lidgrenMsg.ReadUInt16();
             ClientKnownRevision = lidgrenMsg.ReadInt64();
             NumBytes = lidgrenMsg.ReadInt32();
 
@@ -46,7 +55,7 @@ namespace LmpCommon.Message.Data.PersistentSync
 
         internal override int InternalGetMessageSize()
         {
-            return base.InternalGetMessageSize() + sizeof(byte) + sizeof(long) + sizeof(int) + NumBytes + (Reason ?? string.Empty).GetByteCount();
+            return base.InternalGetMessageSize() + sizeof(ushort) + sizeof(long) + sizeof(int) + NumBytes + (Reason ?? string.Empty).GetByteCount();
         }
     }
 }

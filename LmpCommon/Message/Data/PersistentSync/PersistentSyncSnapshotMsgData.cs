@@ -10,7 +10,16 @@ namespace LmpCommon.Message.Data.PersistentSync
 
         public override Message.Types.PersistentSyncMessageType PersistentSyncMessageType => Message.Types.PersistentSyncMessageType.Snapshot;
 
-        public PersistentSyncDomainId DomainId;
+        public ushort DomainWireId;
+        public PersistentSyncDomainId DomainId
+        {
+            get => PersistentSyncDomainCatalog.TryGetByWireId(DomainWireId, out var definition)
+                ? definition.DomainId
+                : (PersistentSyncDomainId)DomainWireId;
+            set => DomainWireId = PersistentSyncDomainCatalog.TryGet(value, out var definition)
+                ? definition.WireId
+                : (ushort)value;
+        }
         public long Revision;
         public PersistentAuthorityPolicy AuthorityPolicy;
         public byte[] Payload = new byte[0];
@@ -21,7 +30,7 @@ namespace LmpCommon.Message.Data.PersistentSync
         internal override void InternalSerialize(NetOutgoingMessage lidgrenMsg)
         {
             base.InternalSerialize(lidgrenMsg);
-            lidgrenMsg.Write((byte)DomainId);
+            lidgrenMsg.Write(DomainWireId);
             lidgrenMsg.Write(Revision);
             lidgrenMsg.Write((byte)AuthorityPolicy);
             lidgrenMsg.Write(NumBytes);
@@ -31,7 +40,7 @@ namespace LmpCommon.Message.Data.PersistentSync
         internal override void InternalDeserialize(NetIncomingMessage lidgrenMsg)
         {
             base.InternalDeserialize(lidgrenMsg);
-            DomainId = (PersistentSyncDomainId)lidgrenMsg.ReadByte();
+            DomainWireId = lidgrenMsg.ReadUInt16();
             Revision = lidgrenMsg.ReadInt64();
             AuthorityPolicy = (PersistentAuthorityPolicy)lidgrenMsg.ReadByte();
             NumBytes = lidgrenMsg.ReadInt32();
@@ -46,7 +55,7 @@ namespace LmpCommon.Message.Data.PersistentSync
 
         internal override int InternalGetMessageSize()
         {
-            return base.InternalGetMessageSize() + sizeof(byte) + sizeof(long) + sizeof(byte) + sizeof(int) + NumBytes;
+            return base.InternalGetMessageSize() + sizeof(ushort) + sizeof(long) + sizeof(byte) + sizeof(int) + NumBytes;
         }
     }
 }
