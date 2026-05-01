@@ -20,7 +20,7 @@ namespace Server.System.PersistentSync
         /// touching canonical state.
         ///
         /// Every concrete domain MUST declare its gate explicitly. The sanctioned templates
-        /// (<see cref="SyncDomainStoreBase{TCanonical}"/> and <see cref="ProjectionSyncDomain{TOwner}"/>)
+        /// (<see cref="SyncDomainStore{TPayload}"/> for scenario-owning domains and <see cref="ProjectionSyncDomain{TOwner}"/> for projections)
         /// declare this method <c>abstract</c> so authority is never silently inherited from the base class;
         /// a new domain author cannot forget to choose a gate.
         ///

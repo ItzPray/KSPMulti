@@ -33,6 +33,7 @@ namespace ServerPersistentSyncTest
         [TestInitialize]
         public void Setup()
         {
+            PersistentSyncRegistry.CreateRegisteredDomainsForTests(typeof(IPersistentSyncServerDomain).Assembly);
             PersistentSyncRegistry.Reset();
             ScenarioStoreSystem.CurrentScenarios.Clear();
         }
@@ -155,17 +156,18 @@ namespace ServerPersistentSyncTest
         }
 
         /// <summary>
-        /// Regression gate: AGENTS.md requires every persistent-sync server domain to inherit one of the two
-        /// sanctioned templates: SyncDomainStoreBase{TCanonical} for scenario-owning domains
-        /// or ProjectionSyncDomain{TOwner} for pure projections. No domain may implement
-        /// IPersistentSyncServerDomain directly. If someone adds a new direct implementor this
-        /// test fails so the reviewer has to migrate it onto one of the templates.
+        /// Regression gate: AGENTS.md requires every persistent-sync server domain to inherit one of the sanctioned
+        /// templates: <see cref="SyncDomainStore{TPayload}"/> for scenario-owning domains,
+        /// <see cref="ProjectionSyncDomain{TOwner}"/> for pure projections, or
+        /// <see cref="SyncDomainStoreBase{TCanonical}"/> only for template-level regression probes in this test suite.
+        /// No production domain may implement IPersistentSyncServerDomain directly.
         /// </summary>
         [TestMethod]
         public void AllServerDomainsInheritOneOfTheSanctionedTemplates()
         {
             var sanctionedOpenGenericBases = new[]
             {
+                typeof(SyncDomainStore<>),
                 typeof(SyncDomainStoreBase<>),
                 typeof(ProjectionSyncDomain<>)
             };
@@ -183,9 +185,9 @@ namespace ServerPersistentSyncTest
             if (violators.Count > 0)
             {
                 Assert.Fail(
-                    "The following types implement IPersistentSyncServerDomain directly without inheriting " +
-                    "SyncDomainStoreBase<TCanonical> (for scenario-owning domains) or " +
-                    "ProjectionSyncDomain<TOwner> (for pure projections). Migrate them onto one of these templates:\n  - "
+                    "The following types implement IPersistentSyncServerDomain without inheriting " +
+                    "SyncDomainStore<TPayload> (scenario-owning), ProjectionSyncDomain<TOwner> (projections), or " +
+                    "SyncDomainStoreBase<TCanonical> (template regression probes in ServerPersistentSyncTest only). Migrate them onto a sanctioned template:\n  - "
                     + string.Join("\n  - ", violators));
             }
         }
@@ -207,12 +209,25 @@ namespace ServerPersistentSyncTest
         }
 
         [TestMethod]
-        public void ServerRegistryRejectsDuplicateWireIds()
+        public void ServerRegistryIgnoresDuplicateLegacyKeyWireIds()
         {
-            Assert.ThrowsException<InvalidOperationException>(() =>
-                PersistentSyncRegistry.CreateRegisteredDomainsForTests(
-                    typeof(DuplicateFundsDomainA),
-                    typeof(DuplicateFundsDomainB)));
+            PersistentSyncRegistry.CreateRegisteredDomainsForTests(
+                typeof(DuplicateFundsDomainA),
+                typeof(DuplicateFundsDomainB));
+
+            Assert.AreEqual((ushort)0, PersistentSyncDomainCatalog.GetByName("DuplicateA").WireId);
+            Assert.AreEqual((ushort)1, PersistentSyncDomainCatalog.GetByName("DuplicateB").WireId);
+        }
+
+        [TestMethod]
+        public void ServerRegistryRegisterCurrentAssignsSessionWireIdsFromRegistrationOrder()
+        {
+            PersistentSyncRegistry.CreateRegisteredDomainsForTests(
+                typeof(SessionSecondSyncDomainStore),
+                typeof(SessionFirstSyncDomainStore));
+
+            Assert.AreEqual((ushort)0, PersistentSyncDomainCatalog.GetByName("SessionSecond").WireId);
+            Assert.AreEqual((ushort)1, PersistentSyncDomainCatalog.GetByName("SessionFirst").WireId);
         }
 
         [TestMethod]
@@ -355,6 +370,24 @@ namespace ServerPersistentSyncTest
                 registrar.Register(new PersistentSyncDomainKey("DuplicateB", 240))
                     .WithStockScenarioMetadata("Funding")
                     .UsesServerDomain<DuplicateFundsDomainB>();
+            }
+        }
+
+        private sealed class SessionFirstSyncDomainStore : TestDomainBase
+        {
+            public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+            {
+                registrar.RegisterCurrent()
+                    .ForGameModes(GameMode.Career);
+            }
+        }
+
+        private sealed class SessionSecondSyncDomainStore : TestDomainBase
+        {
+            public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
+            {
+                registrar.RegisterCurrent()
+                    .ForGameModes(GameMode.Career);
             }
         }
 

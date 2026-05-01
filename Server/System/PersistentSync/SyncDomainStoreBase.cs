@@ -10,20 +10,14 @@ using System;
 namespace Server.System.PersistentSync
 {
     /// <summary>
-    /// Canonical base class for every scenario-domain server reducer. Owns the parts every new domain used to
-    /// re-implement (and get subtly wrong): the revision counter, the equality short-circuit, authority
-    /// enforcement via <see cref="PersistentAuthorityPolicy"/>, and the scenario write critical section.
+    /// Internal scenario reducer pipeline shared by <see cref="SyncDomainStore{TPayload}"/> (public authoring
+    /// surface). Owns revision counting, equality short-circuit, authority enforcement via
+    /// <see cref="PersistentAuthorityPolicy"/>, and scenario write synchronization.
     ///
-    /// Domains expose only the three game-specific pieces:
-    /// <list type="bullet">
-    /// <item><description><see cref="LoadCanonical"/> reads the scenario node into the typed canonical state.</description></item>
-    /// <item><description><see cref="ReduceIntent"/> decodes a client intent/server mutation payload into a candidate next canonical state.</description></item>
-    /// <item><description><see cref="WriteCanonical"/> writes the canonical state back into the scenario node graph.</description></item>
-    /// <item><description><see cref="SerializeSnapshot"/> emits the wire payload clients buffer and apply.</description></item>
-    /// <item><description><see cref="AreEquivalent"/> compares two canonical states for revision purposes.</description></item>
-    /// </list>
-    ///
-    /// See <c>AGENTS.md</c> &quot;Scenario Sync Domain Contract&quot; for the mandatory rules this base class enforces.
+    /// Normal domains inherit <see cref="SyncDomainStore{TPayload}"/> only; this type stays public because
+    /// <see cref="SyncDomainStore{TPayload}"/> is public (C# accessibility rules). Prefer the grep gate under
+    /// <c>Scripts/VerifyPersistentSyncAuthoring.ps1</c> over subclassing this directly; see <c>AGENTS.md</c>
+    /// &quot;Scenario Sync Domain Contract&quot;.
     /// </summary>
     public abstract class SyncDomainStoreBase<TCanonical> : IPersistentSyncServerDomain
         where TCanonical : class

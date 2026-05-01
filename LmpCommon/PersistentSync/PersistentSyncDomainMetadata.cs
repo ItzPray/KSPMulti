@@ -85,44 +85,5 @@ namespace LmpCommon.PersistentSync
             return name;
         }
 
-        public static ushort GetKnownWireId(string domainName)
-        {
-            switch (domainName)
-            {
-                case "Funds": return 0;
-                case "Science": return 1;
-                case "Reputation": return 2;
-                case "UpgradeableFacilities": return 3;
-                case "Contracts": return 4;
-                case "Technology": return 5;
-                case "Strategy": return 6;
-                case "Achievements": return 7;
-                case "ScienceSubjects": return 8;
-                case "ExperimentalParts": return 9;
-                case "PartPurchases": return 10;
-                case "GameLaunchId": return 11;
-                default: return 0;
-            }
-        }
-
-        public static bool TryGetKnownName(ushort wireId, out string domainName)
-        {
-            switch (wireId)
-            {
-                case 0: domainName = PersistentSyncDomainNames.Funds; return true;
-                case 1: domainName = PersistentSyncDomainNames.Science; return true;
-                case 2: domainName = PersistentSyncDomainNames.Reputation; return true;
-                case 3: domainName = PersistentSyncDomainNames.UpgradeableFacilities; return true;
-                case 4: domainName = PersistentSyncDomainNames.Contracts; return true;
-                case 5: domainName = PersistentSyncDomainNames.Technology; return true;
-                case 6: domainName = PersistentSyncDomainNames.Strategy; return true;
-                case 7: domainName = PersistentSyncDomainNames.Achievements; return true;
-                case 8: domainName = PersistentSyncDomainNames.ScienceSubjects; return true;
-                case 9: domainName = PersistentSyncDomainNames.ExperimentalParts; return true;
-                case 10: domainName = PersistentSyncDomainNames.PartPurchases; return true;
-                case 11: domainName = PersistentSyncDomainNames.GameLaunchId; return true;
-                default: domainName = null; return false;
-            }
-        }
     }
 }

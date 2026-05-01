@@ -1,3 +1,4 @@
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
@@ -79,13 +80,32 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
-        public void RegistrarRejectsDuplicateWireIds()
+        public void RegistrarIgnoresDuplicateLegacyKeyWireIds()
         {
             var registrar = new PersistentSyncClientDomainRegistrar();
             registrar.Register(new PersistentSyncDomainKey("First", 100)).WithStockScenarioMetadata("Funding").UsesClientDomain<object>();
             registrar.Register(new PersistentSyncDomainKey("Second", 100)).WithStockScenarioMetadata("Reputation").UsesClientDomain<object>();
 
-            Assert.ThrowsException<InvalidOperationException>(() => registrar.BuildDefinitions());
+            var definitions = registrar.BuildDefinitions();
+
+            Assert.AreEqual((ushort)0, definitions.Single(d => d.DomainId == "First").WireId);
+            Assert.AreEqual((ushort)1, definitions.Single(d => d.DomainId == "Second").WireId);
+        }
+
+        [TestMethod]
+        public void RegisterCurrentAssignsSessionWireIdsFromRegistrationOrder()
+        {
+            var registrar = new PersistentSyncClientDomainRegistrar();
+
+            registrar.WithCurrentDomainType(typeof(SessionSecondSyncClientDomain), () =>
+                registrar.RegisterCurrent().ForGameModes(GameMode.Career));
+            registrar.WithCurrentDomainType(typeof(SessionFirstSyncClientDomain), () =>
+                registrar.RegisterCurrent().ForGameModes(GameMode.Career));
+
+            var definitions = registrar.BuildDefinitions();
+
+            Assert.AreEqual((ushort)0, definitions.Single(d => d.DomainId == "SessionSecond").WireId);
+            Assert.AreEqual((ushort)1, definitions.Single(d => d.DomainId == "SessionFirst").WireId);
         }
 
         [TestMethod]
@@ -95,6 +115,14 @@ namespace LmpCommonTest
 
             Assert.ThrowsException<InvalidOperationException>(() =>
                 registrar.Register(new PersistentSyncDomainKey("Unknown", 100)).WithStockScenarioMetadata("SomeFutureScenario"));
+        }
+
+        private sealed class SessionFirstSyncClientDomain
+        {
+        }
+
+        private sealed class SessionSecondSyncClientDomain
+        {
         }
     }
 }

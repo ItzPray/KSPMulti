@@ -11,8 +11,8 @@ namespace LmpCommon.PersistentSync
     /// </summary>
     public static class PersistentSyncDomainCatalog
     {
-        // One catalog row remains the source of truth for registration, startup applicability, and legacy scenario bypasses.
-        // Keep wire ids explicit on each definition; registrar order must not change string values.
+        // One catalog row remains the source of truth for registration, startup applicability, scenario bypasses,
+        // and the session-local wire id assigned during catalog construction.
         private static PersistentSyncDomainDefinition[] _definitions = new PersistentSyncDomainDefinition[0];
         private static Dictionary<string, PersistentSyncDomainDefinition> _byId =
             new Dictionary<string, PersistentSyncDomainDefinition>();

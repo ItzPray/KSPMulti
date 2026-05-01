@@ -2,7 +2,7 @@ using System;
 
 namespace LmpCommon.PersistentSync
 {
-    /// <summary>Stable identity for a persistent sync domain: human-readable name plus session wire id.</summary>
+    /// <summary>Domain registration key: human-readable name plus optional legacy caller-supplied wire id metadata.</summary>
     public struct PersistentSyncDomainKey : IEquatable<PersistentSyncDomainKey>
     {
         public PersistentSyncDomainKey(string name, ushort wireId)
@@ -43,6 +43,6 @@ namespace LmpCommon.PersistentSync
     }
 
     /// <summary>
-    /// Fluent helper for legacy tests only. Normal domains use inferred names via RegisterCurrent.
+    /// Fluent helper for tests and explicit registrations. Normal domains use inferred names via RegisterCurrent.
     /// </summary>
 }

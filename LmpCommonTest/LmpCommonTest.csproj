@@ -66,6 +66,7 @@
     <Compile Include="EventDomainSerializersPlaceholderTests.cs" />
     <Compile Include="MessageStoreTest.cs" />
     <Compile Include="PersistentSyncCatalogTests.cs" />
+    <Compile Include="PersistentSyncDomainCatalogTests.cs" />
     <Compile Include="PersistentSyncPerfSmokeTests.cs" />
     <Compile Include="PersistentSyncTestDomainCatalog.cs" />
     <Compile Include="PersistentSyncDomainApplicabilityTests.cs" />

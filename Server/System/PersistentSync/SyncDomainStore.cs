@@ -8,6 +8,10 @@ using System.Globalization;
 
 namespace Server.System.PersistentSync
 {
+    /// <summary>
+    /// Public authoring template for scenario-owning persistent-sync server domains (typed payloads, catalog wiring,
+    /// and reducer hooks). Builds on an internal shared reducer/scenario pipeline.
+    /// </summary>
     public abstract class SyncDomainStore<TPayload> : SyncDomainStoreBase<SyncDomainStore<TPayload>.PayloadBox>
     {
         private readonly PersistentSyncStockScenarioAttribute _stockScenario;

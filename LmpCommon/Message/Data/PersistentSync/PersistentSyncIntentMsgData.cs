@@ -15,10 +15,8 @@ namespace LmpCommon.Message.Data.PersistentSync
         {
             get => PersistentSyncDomainCatalog.TryGetByWireId(DomainWireId, out var definition)
                 ? definition.DomainId
-                : (PersistentSyncDomainNaming.TryGetKnownName(DomainWireId, out var knownName) ? knownName : string.Empty);
-            set => DomainWireId = PersistentSyncDomainCatalog.TryGet(value, out var definition)
-                ? definition.WireId
-                : PersistentSyncDomainNaming.GetKnownWireId(value);
+                : string.Empty;
+            set => DomainWireId = PersistentSyncDomainCatalog.Get(value).WireId;
         }
         public long ClientKnownRevision;
         public byte[] Payload = new byte[0];

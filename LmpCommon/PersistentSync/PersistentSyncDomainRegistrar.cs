@@ -30,7 +30,7 @@ namespace LmpCommon.PersistentSync
             }
 
             var domainName = PersistentSyncDomainNaming.InferDomainName(_currentDomainType);
-            var key = new PersistentSyncDomainKey(domainName, PersistentSyncDomainNaming.GetKnownWireId(domainName));
+            var key = new PersistentSyncDomainKey(domainName, 0);
             var builder = Register(key);
             var stockScenario = (PersistentSyncStockScenarioAttribute)Attribute.GetCustomAttribute(
                 _currentDomainType,
@@ -126,17 +126,6 @@ namespace LmpCommon.PersistentSync
             if (duplicateNames.Length > 0)
             {
                 throw new InvalidOperationException("Duplicate persistent sync domain names: " + string.Join(", ", duplicateNames));
-            }
-
-            var duplicateWireIds = definitions
-                .GroupBy(d => d.Key.WireId)
-                .Where(g => g.Count() > 1)
-                .Select(g => g.Key.ToString())
-                .OrderBy(n => n)
-                .ToArray();
-            if (duplicateWireIds.Length > 0)
-            {
-                throw new InvalidOperationException("Duplicate persistent sync wire ids: " + string.Join(", ", duplicateWireIds));
             }
 
             var missingTypes = definitions

@@ -20,7 +20,7 @@ namespace LmpCommon.PersistentSync
     }
 
     /// <summary>
-    /// Immutable snapshot of one persistent sync domain: legacy wire identity, applicability flags, materialization slot, owning scenario node, and optional ordering/projections metadata.
+    /// Immutable snapshot of one persistent sync domain: session wire identity, applicability flags, materialization slot, owning scenario node, and optional ordering/projections metadata.
     /// </summary>
     public sealed class PersistentSyncDomainDefinition
     {
@@ -65,7 +65,7 @@ namespace LmpCommon.PersistentSync
         public string ScalarFieldName { get; }
 
         /// <summary>
-        /// Rebuilds this definition with the server's authoritative wire id and applicability metadata from the settings catalog.
+        /// Rebuilds this definition with the server's session wire id and applicability metadata from the settings catalog.
         /// </summary>
         public PersistentSyncDomainDefinition WithServerCatalogRow(PersistentSyncCatalogRowWire row)
         {

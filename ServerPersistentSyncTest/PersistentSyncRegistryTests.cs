@@ -34,6 +34,7 @@ namespace ServerPersistentSyncTest
         [TestInitialize]
         public void Setup()
         {
+            PersistentSyncRegistry.CreateRegisteredDomainsForTests(typeof(IPersistentSyncServerDomain).Assembly);
             PersistentSyncRegistry.Reset();
             ScenarioStoreSystem.CurrentScenarios.Clear();
 

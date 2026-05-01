@@ -9,8 +9,8 @@ using LmpCommon.PersistentSync.Payloads.Achievements;
 namespace Server.System.PersistentSync
 {
     /// <summary>
-    /// Result of a <see cref="SyncDomainStoreBase{TCanonical}.ReduceIntent"/> call. The base class consumes this
-    /// to decide whether to bump revision, rewrite the scenario, and how to route the resulting snapshot.
+    /// Result returned from scenario-owning reducer hooks such as <see cref="SyncDomainStore{TPayload}.ReducePayload"/>.
+    /// The internal reducer pipeline consumes this to decide whether to bump revision, rewrite the scenario, and how to route the resulting snapshot.
     /// </summary>
     public sealed class ReduceResult<TCanonical>
     {
@@ -22,7 +22,7 @@ namespace Server.System.PersistentSync
 
         /// <summary>
         /// Candidate next canonical state. May reference the same instance as <c>current</c> for a no-op reduce; the
-        /// base class runs <see cref="SyncDomainStoreBase{TCanonical}.AreEquivalent"/> to decide whether a state
+        /// the pipeline runs equivalence checks to decide whether a state
         /// change occurred regardless of reference identity.
         /// </summary>
         public TCanonical NextState { get; private set; }
@@ -36,7 +36,7 @@ namespace Server.System.PersistentSync
         public bool ReplyToProducerClient { get; private set; }
 
         /// <summary>
-        /// When true on a client intent that did not change canonical state, <see cref="SyncDomainStoreBase{TCanonical}"/>
+        /// When true on a client intent that did not change canonical state, the reducer pipeline
         /// still sets <see cref="PersistentSyncDomainApplyResult.ReplyToOriginClient"/> so the sender receives an
         /// authoritative snapshot (e.g. Contracts monotonic merge repaired a regressed parameter observation).
         /// </summary>

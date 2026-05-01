@@ -20,7 +20,7 @@ namespace LmpCommon.Message.Data.PersistentSync
                 {
                     result[i] = PersistentSyncDomainCatalog.TryGetByWireId(DomainWireIds[i], out var definition)
                         ? definition.DomainId
-                        : (PersistentSyncDomainNaming.TryGetKnownName(DomainWireIds[i], out var knownName) ? knownName : string.Empty);
+                        : string.Empty;
                 }
 
                 return result;
@@ -31,9 +31,7 @@ namespace LmpCommon.Message.Data.PersistentSync
                 DomainWireIds = new ushort[source.Length];
                 for (var i = 0; i < source.Length; i++)
                 {
-                    DomainWireIds[i] = PersistentSyncDomainCatalog.TryGet(source[i], out var definition)
-                        ? definition.WireId
-                        : PersistentSyncDomainNaming.GetKnownWireId(source[i]);
+                    DomainWireIds[i] = PersistentSyncDomainCatalog.Get(source[i]).WireId;
                 }
             }
         }
