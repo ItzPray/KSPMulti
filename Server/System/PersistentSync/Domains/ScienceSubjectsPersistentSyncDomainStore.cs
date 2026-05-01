@@ -40,12 +40,12 @@ namespace Server.System.PersistentSync
             return new ScienceSubjectsPayload { Items = BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch)) };
         }
 
-        protected override ReduceResult<ScienceSubjectsPayload> ReducePayload(ClientStructure client, ScienceSubjectsPayload current, ScienceSubjectsPayload incoming, string reason, bool isServerMutation)
+        protected override SyncChangeResult<ScienceSubjectsPayload> HandleIncomingPayload(ClientStructure client, ScienceSubjectsPayload current, ScienceSubjectsPayload incoming, string reason, bool isServerMutation)
         {
-            var reduced = ReducePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
-            return reduced == null || !reduced.Accepted
-                ? ReduceResult<ScienceSubjectsPayload>.Reject()
-                : ReduceResult<ScienceSubjectsPayload>.Accept(new ScienceSubjectsPayload { Items = BuildSnapshotPayload(reduced.NextState) }, reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+            var change = HandlePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
+            return change == null || !change.Accepted
+                ? SyncChangeResult<ScienceSubjectsPayload>.Reject()
+                : SyncChangeResult<ScienceSubjectsPayload>.Accept(new ScienceSubjectsPayload { Items = BuildSnapshotPayload(change.NextState) }, change.ForceReplyToOriginClient, change.ReplyToProducerClient);
         }
 
         protected override ConfigNode WritePayload(ConfigNode scenario, ScienceSubjectsPayload payload)
@@ -82,7 +82,7 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        private static ReduceResult<Canonical> ReducePayloadState(Canonical current, ScienceSubjectSnapshotInfo[] intent, string reason, bool isServerMutation)
+        private static SyncChangeResult<Canonical> HandlePayloadState(Canonical current, ScienceSubjectSnapshotInfo[] intent, string reason, bool isServerMutation)
         {
             var next = new SortedDictionary<string, ScienceSubjectSnapshotInfo>(current.Subjects, StringComparer.Ordinal);
             foreach (var record in intent ?? Enumerable.Empty<ScienceSubjectSnapshotInfo>())
@@ -91,7 +91,7 @@ namespace Server.System.PersistentSync
                 if (normalized == null) continue;
                 next[normalized.Id] = normalized;
             }
-            return ReduceResult<Canonical>.Accept(new Canonical(next));
+            return SyncChangeResult<Canonical>.Accept(new Canonical(next));
         }
 
         private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)

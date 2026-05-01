@@ -25,7 +25,7 @@ namespace Server.System.PersistentSync
         /// a new domain author cannot forget to choose a gate.
         ///
         /// See AGENTS.md &quot;Scenario Sync Domain Contract&quot; rule: &quot;Authority is declared once and enforced at
-        /// the registry gate. No domain may do its own LockQuery check inside ReduceIntent.&quot;
+        /// the registry gate. No domain may do its own LockQuery check inside incoming-payload handling.&quot;
         /// </summary>
         bool AuthorizeIntent(ClientStructure client, byte[] payload);
     }

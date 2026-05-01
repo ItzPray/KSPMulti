@@ -42,7 +42,7 @@ namespace Server.System.PersistentSync
             return merged;
         }
 
-        protected override ReduceResult<uint> ReducePayload(
+        protected override SyncChangeResult<uint> HandleIncomingPayload(
             ClientStructure client,
             uint current,
             uint incoming,
@@ -57,11 +57,11 @@ namespace Server.System.PersistentSync
                     next = 1;
                 }
 
-                return ReduceResult<uint>.Accept(next);
+                return SyncChangeResult<uint>.Accept(next);
             }
             catch
             {
-                return ReduceResult<uint>.Reject();
+                return SyncChangeResult<uint>.Reject();
             }
         }
 

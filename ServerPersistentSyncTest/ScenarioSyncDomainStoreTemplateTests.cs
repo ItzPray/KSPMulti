@@ -118,7 +118,7 @@ namespace ServerPersistentSyncTest
 
             var result = store.ApplyClientIntent(null, MakeIntent(25, throwInsideReducer: true));
 
-            Assert.IsFalse(result.Accepted, "Exceptions in ReduceIntent must not bypass the reject path.");
+            Assert.IsFalse(result.Accepted, "Exceptions in incoming-payload handling must not bypass the reject path.");
             Assert.AreEqual(initialRevision, store.RevisionForTestsExposed);
         }
 
@@ -304,17 +304,17 @@ namespace ServerPersistentSyncTest
                     : new Canonical(0);
             }
 
-            protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, string reason, bool isServerMutation)
+            protected override SyncChangeResult<Canonical> HandleIncomingPayloadBytes(ClientStructure client, Canonical current, byte[] payload, string reason, bool isServerMutation)
             {
-                if (payload == null || payload.Length < sizeof(int)) return ReduceResult<Canonical>.Reject();
+                if (payload == null || payload.Length < sizeof(int)) return SyncChangeResult<Canonical>.Reject();
                 var value = BitConverter.ToInt32(payload, 0);
                 var rejected = payload.Length > sizeof(int) && payload[sizeof(int)] != 0;
                 var throwing = payload.Length > sizeof(int) + 1 && payload[sizeof(int) + 1] != 0;
 
                 if (throwing) throw new InvalidOperationException("probe-throw");
-                if (rejected) return ReduceResult<Canonical>.Reject();
+                if (rejected) return SyncChangeResult<Canonical>.Reject();
 
-                return ReduceResult<Canonical>.Accept(new Canonical(value));
+                return SyncChangeResult<Canonical>.Accept(new Canonical(value));
             }
 
             protected override ConfigNode WriteCanonical(ConfigNode scenario, Canonical canonical)

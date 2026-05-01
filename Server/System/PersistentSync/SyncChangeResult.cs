@@ -1,18 +1,12 @@
-using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
-using LmpCommon.PersistentSync.Payloads.Technology;
-using LmpCommon.PersistentSync.Payloads.Strategy;
-using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
-using LmpCommon.PersistentSync.Payloads.PartPurchases;
-using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
-using LmpCommon.PersistentSync.Payloads.Contracts;
-using LmpCommon.PersistentSync.Payloads.Achievements;
 namespace Server.System.PersistentSync
 {
     /// <summary>
-    /// Result returned from scenario-owning reducer hooks such as <see cref="SyncDomainStore{TPayload}.ReducePayload"/>.
-    /// The internal reducer pipeline consumes this to decide whether to bump revision, rewrite the scenario, and how to route the resulting snapshot.
+    /// Result returned from scenario-owning incoming-payload hooks such as
+    /// <see cref="SyncDomainStore{TPayload}.HandleIncomingPayload"/>.
+    /// The server pipeline consumes this to decide whether to bump revision, rewrite the scenario, and how to route
+    /// the resulting snapshot.
     /// </summary>
-    public sealed class ReduceResult<TCanonical>
+    public sealed class SyncChangeResult<TCanonical>
     {
         /// <summary>
         /// Whether the payload decoded and semantically validated. <c>false</c> produces a rejected apply result and
@@ -21,9 +15,8 @@ namespace Server.System.PersistentSync
         public bool Accepted { get; private set; }
 
         /// <summary>
-        /// Candidate next canonical state. May reference the same instance as <c>current</c> for a no-op reduce; the
-        /// the pipeline runs equivalence checks to decide whether a state
-        /// change occurred regardless of reference identity.
+        /// Candidate next canonical state. May reference the same instance as <c>current</c> for a no-op change; the
+        /// pipeline runs equivalence checks to decide whether a state change occurred regardless of reference identity.
         /// </summary>
         public TCanonical NextState { get; private set; }
 
@@ -36,23 +29,23 @@ namespace Server.System.PersistentSync
         public bool ReplyToProducerClient { get; private set; }
 
         /// <summary>
-        /// When true on a client intent that did not change canonical state, the reducer pipeline
+        /// When true on a client intent that did not change canonical state, the server pipeline
         /// still sets <see cref="PersistentSyncDomainApplyResult.ReplyToOriginClient"/> so the sender receives an
         /// authoritative snapshot (e.g. Contracts monotonic merge repaired a regressed parameter observation).
         /// </summary>
         public bool ForceReplyToOriginClient { get; private set; }
 
-        public static ReduceResult<TCanonical> Reject()
+        public static SyncChangeResult<TCanonical> Reject()
         {
-            return new ReduceResult<TCanonical> { Accepted = false };
+            return new SyncChangeResult<TCanonical> { Accepted = false };
         }
 
-        public static ReduceResult<TCanonical> Accept(
+        public static SyncChangeResult<TCanonical> Accept(
             TCanonical nextState,
             bool replyToProducerClient = false,
             bool forceReplyToOriginClient = false)
         {
-            return new ReduceResult<TCanonical>
+            return new SyncChangeResult<TCanonical>
             {
                 Accepted = true,
                 NextState = nextState,

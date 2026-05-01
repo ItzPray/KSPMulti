@@ -69,22 +69,22 @@ namespace Server.System.PersistentSync
             return BuildPayload(LoadCanonicalState(scenario, createdFromScratch));
         }
 
-        protected override ReduceResult<TechnologyPayload> ReducePayload(ClientStructure client, TechnologyPayload current, TechnologyPayload incoming, string reason, bool isServerMutation)
+        protected override SyncChangeResult<TechnologyPayload> HandleIncomingPayload(ClientStructure client, TechnologyPayload current, TechnologyPayload incoming, string reason, bool isServerMutation)
         {
             var canonical = ToCanonical(current);
-            var techReduced = ReduceTechnologyPayload(canonical, incoming?.Technologies, reason, isServerMutation);
-            if (techReduced == null || !techReduced.Accepted)
+            var techChange = HandleTechnologyPayload(canonical, incoming?.Technologies, reason, isServerMutation);
+            if (techChange == null || !techChange.Accepted)
             {
-                return ReduceResult<TechnologyPayload>.Reject();
+                return SyncChangeResult<TechnologyPayload>.Reject();
             }
 
-            var partsReduced = ReducePartPurchases(techReduced.NextState ?? canonical, incoming?.PartPurchases);
-            if (partsReduced == null || !partsReduced.Accepted)
+            var partsChange = HandlePartPurchases(techChange.NextState ?? canonical, incoming?.PartPurchases);
+            if (partsChange == null || !partsChange.Accepted)
             {
-                return ReduceResult<TechnologyPayload>.Reject();
+                return SyncChangeResult<TechnologyPayload>.Reject();
             }
 
-            return ReduceResult<TechnologyPayload>.Accept(BuildPayload(partsReduced.NextState), partsReduced.ForceReplyToOriginClient, partsReduced.ReplyToProducerClient);
+            return SyncChangeResult<TechnologyPayload>.Accept(BuildPayload(partsChange.NextState), partsChange.ForceReplyToOriginClient, partsChange.ReplyToProducerClient);
         }
 
         protected override ConfigNode WritePayload(ConfigNode scenario, TechnologyPayload payload)
@@ -140,7 +140,7 @@ namespace Server.System.PersistentSync
             return new Canonical(techStates, partsByTech);
         }
 
-        private static ReduceResult<Canonical> ReduceTechnologyPayload(Canonical current, TechnologySnapshotInfo[] intent, string reason, bool isServerMutation)
+        private static SyncChangeResult<Canonical> HandleTechnologyPayload(Canonical current, TechnologySnapshotInfo[] intent, string reason, bool isServerMutation)
         {
             var nextStates = new SortedDictionary<string, TechStateInfo>(current.TechStates, StringComparer.Ordinal);
 
@@ -156,7 +156,7 @@ namespace Server.System.PersistentSync
                 nextStates[techId] = new TechStateInfo(techId, state, cost);
             }
 
-            return ReduceResult<Canonical>.Accept(new Canonical(nextStates, current.PartsByTech));
+            return SyncChangeResult<Canonical>.Accept(new Canonical(nextStates, current.PartsByTech));
         }
 
         /// <summary>
@@ -169,22 +169,22 @@ namespace Server.System.PersistentSync
             var payload = PersistentSyncPayloadSerializer.Serialize(new PartPurchasesPayload { Items = records ?? Array.Empty<PartPurchaseSnapshotInfo>() });
             var proxyReason = "[PartPurchases] " + (reason ?? string.Empty);
 
-            // Route through a thin internal seam that bypasses Technology's ReduceIntent (which interprets
-            // payload as Technology wire format) and instead reduces the PartPurchases wire format.
-            return ApplyWithCustomReduce<PartPurchasesPayload>(payload, clientKnownRevision, proxyReason, isServerMutation,
+                // Route through a thin internal seam that bypasses Technology's normal payload handler (which
+                // interprets payload as Technology wire format) and instead handles the PartPurchases wire format.
+                return ApplyWithCustomIncomingPayload<PartPurchasesPayload>(payload, clientKnownRevision, proxyReason, isServerMutation,
                 (current, partPurchasesPayload) =>
                 {
-                    var reduced = ReducePartPurchases(ToCanonical(current.Payload), partPurchasesPayload?.Items);
-                    return reduced == null || !reduced.Accepted
-                        ? ReduceResult<PayloadBox>.Reject()
-                        : ReduceResult<PayloadBox>.Accept(
-                            new PayloadBox(BuildPayload(reduced.NextState)),
-                            reduced.ForceReplyToOriginClient,
-                            reduced.ReplyToProducerClient);
+                    var change = HandlePartPurchases(ToCanonical(current.Payload), partPurchasesPayload?.Items);
+                    return change == null || !change.Accepted
+                        ? SyncChangeResult<PayloadBox>.Reject()
+                        : SyncChangeResult<PayloadBox>.Accept(
+                            new PayloadBox(BuildPayload(change.NextState)),
+                            change.ForceReplyToOriginClient,
+                            change.ReplyToProducerClient);
                 });
         }
 
-        private static ReduceResult<Canonical> ReducePartPurchases(Canonical current, PartPurchaseSnapshotInfo[] records)
+        private static SyncChangeResult<Canonical> HandlePartPurchases(Canonical current, PartPurchaseSnapshotInfo[] records)
         {
             records = records ?? new PartPurchaseSnapshotInfo[0];
             var nextParts = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
@@ -210,7 +210,7 @@ namespace Server.System.PersistentSync
                 nextParts[record.TechId] = normalizedParts;
             }
 
-            return ReduceResult<Canonical>.Accept(new Canonical(current.TechStates, nextParts));
+            return SyncChangeResult<Canonical>.Accept(new Canonical(current.TechStates, nextParts));
         }
 
         private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)

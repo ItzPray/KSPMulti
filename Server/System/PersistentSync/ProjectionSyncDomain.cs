@@ -153,8 +153,8 @@ namespace Server.System.PersistentSync
         }
 
         /// <summary>
-        /// Route the incoming intent / server mutation payload into the owner domain's reducer, returning the
-        /// owner's un-reprojected <see cref="PersistentSyncDomainApplyResult"/>. The base class handles
+        /// Route the incoming intent / server mutation payload into the owner domain's incoming-payload handler,
+        /// returning the owner's un-reprojected <see cref="PersistentSyncDomainApplyResult"/>. The base class handles
         /// reprojection into <see cref="DomainId"/>'s snapshot wire shape.
         /// </summary>
         protected abstract PersistentSyncDomainApplyResult ApplyToOwner(

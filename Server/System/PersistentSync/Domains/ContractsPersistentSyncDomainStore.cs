@@ -23,7 +23,7 @@ namespace Server.System.PersistentSync
 {
     /// <summary>
     /// Authoritative server-side contract store. Contracts keeps a custom binary codec for the legacy
-    /// sentinel/envelope wire formats, but reducer code works with typed payload objects.
+    /// sentinel/envelope wire formats, but domain change logic works with typed payload objects.
     /// </summary>
     [PersistentSyncStockScenario("ContractSystem")]
     public sealed class ContractsPersistentSyncDomainStore : SyncDomainStore<ContractsPayload>
@@ -80,8 +80,8 @@ namespace Server.System.PersistentSync
                     case ContractIntentPayloadKind.ParameterProgressObserved:
                     case ContractIntentPayloadKind.ContractCompletedObserved:
                     case ContractIntentPayloadKind.ContractFailedObserved:
-                        // Flying player often does not hold the contract lock (lock owner = offer generation). Reducer
-                        // still requires canonical Active target; see ReduceObservedActive.
+                        // Flying player often does not hold the contract lock (lock owner = offer generation). Handler
+                        // still requires canonical Active target; see HandleObservedActive.
                         return true;
                     case ContractIntentPayloadKind.OfferObserved:
                     case ContractIntentPayloadKind.FullReconcile:
@@ -112,12 +112,12 @@ namespace Server.System.PersistentSync
             return requires;
         }
 
-        protected override ReduceResult<ContractsPayload> ReducePayload(ClientStructure client, ContractsPayload current, ContractsPayload incoming, string reason, bool isServerMutation)
+        protected override SyncChangeResult<ContractsPayload> HandleIncomingPayload(ClientStructure client, ContractsPayload current, ContractsPayload incoming, string reason, bool isServerMutation)
         {
-            var reduced = ReducePayloadState(client, ToCanonical(current), incoming, reason, isServerMutation);
-            return reduced == null || !reduced.Accepted
-                ? ReduceResult<ContractsPayload>.Reject()
-                : ReduceResult<ContractsPayload>.Accept(BuildPayload(reduced.NextState), reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+            var change = HandlePayloadState(client, ToCanonical(current), incoming, reason, isServerMutation);
+            return change == null || !change.Accepted
+                ? SyncChangeResult<ContractsPayload>.Reject()
+                : SyncChangeResult<ContractsPayload>.Accept(BuildPayload(change.NextState), change.ForceReplyToOriginClient, change.ReplyToProducerClient);
         }
 
         protected override ConfigNode WritePayload(ConfigNode scenario, ContractsPayload payload)
@@ -179,22 +179,22 @@ namespace Server.System.PersistentSync
         // LoadFromPersistence holds the state lock for the duration of both calls (see SyncDomainStoreBase).
         private bool _loadRequiresWriteBack;
 
-        private ReduceResult<Canonical> ReducePayloadState(ClientStructure client, Canonical current, ContractsPayload payload, string reason, bool isServerMutation)
+        private SyncChangeResult<Canonical> HandlePayloadState(ClientStructure client, Canonical current, ContractsPayload payload, string reason, bool isServerMutation)
         {
             // Authority was already enforced by AuthorizeIntent at the registry gate for client intents; server
-            // mutations are trusted by construction. The reducer is pure state-transition logic here.
+            // mutations are trusted by construction. This method is pure state-transition logic.
             if (payload?.Intent != null)
             {
-                return ReduceTypedIntent(current, payload.Intent);
+                return HandleTypedIntent(current, payload.Intent);
             }
 
             var envelope = payload?.Snapshot ?? new ContractSnapshotPayload();
             return envelope.Mode == ContractSnapshotPayloadMode.FullReplace
-                ? ReduceFullReplace(current, envelope.Contracts)
-                : ReduceRecords(current, envelope.Contracts);
+                ? ApplyFullReplace(current, envelope.Contracts)
+                : ApplyRecords(current, envelope.Contracts);
         }
 
-        private ReduceResult<Canonical> ReduceTypedIntent(Canonical current, ContractIntentPayload intentPayload)
+        private SyncChangeResult<Canonical> HandleTypedIntent(Canonical current, ContractIntentPayload intentPayload)
         {
             switch (intentPayload.Kind)
             {
@@ -206,61 +206,61 @@ namespace Server.System.PersistentSync
                     // Fallback (null snapshot, pre-fix clients): keep the state-only rewrite so the command still
                     // advances canonical state even though the stored row's runtime fields remain Offered-era.
                     return intentPayload.Contract != null
-                        ? ReduceAcceptWithProvidedSnapshot(current, intentPayload.ContractGuid, intentPayload.Contract)
-                        : ReduceCommandStateRewrite(current, intentPayload.ContractGuid, "Active", ContractSnapshotPlacement.Active, requireOfferPool: true);
+                        ? ApplyAcceptWithProvidedSnapshot(current, intentPayload.ContractGuid, intentPayload.Contract)
+                        : ApplyCommandStateRewrite(current, intentPayload.ContractGuid, "Active", ContractSnapshotPlacement.Active, requireOfferPool: true);
                 case ContractIntentPayloadKind.DeclineContract:
-                    return ReduceCommandStateRewrite(current, intentPayload.ContractGuid, "Declined", ContractSnapshotPlacement.Finished, requireOfferPool: true);
+                    return ApplyCommandStateRewrite(current, intentPayload.ContractGuid, "Declined", ContractSnapshotPlacement.Finished, requireOfferPool: true);
                 case ContractIntentPayloadKind.CancelContract:
-                    return ReduceCommandStateRewrite(current, intentPayload.ContractGuid, "Cancelled", ContractSnapshotPlacement.Finished, requireOfferPool: false, requireActive: true);
+                    return ApplyCommandStateRewrite(current, intentPayload.ContractGuid, "Cancelled", ContractSnapshotPlacement.Finished, requireOfferPool: false, requireActive: true);
                 case ContractIntentPayloadKind.RequestOfferGeneration:
-                    return ReduceOfferGenerationRequest(current);
+                    return HandleOfferGenerationRequest(current);
                 case ContractIntentPayloadKind.OfferObserved:
-                    return ReduceObservedOffer(current, intentPayload);
+                    return HandleObservedOffer(current, intentPayload);
                 case ContractIntentPayloadKind.ParameterProgressObserved:
                 case ContractIntentPayloadKind.ContractCompletedObserved:
                 case ContractIntentPayloadKind.ContractFailedObserved:
-                    return ReduceObservedActive(current, intentPayload);
+                    return HandleObservedActive(current, intentPayload);
                 case ContractIntentPayloadKind.FullReconcile:
-                    return ReduceFullReplace(current, intentPayload.Contracts);
+                    return ApplyFullReplace(current, intentPayload.Contracts);
                 default:
-                    return ReduceResult<Canonical>.Reject();
+                    return SyncChangeResult<Canonical>.Reject();
             }
         }
 
-        private static ReduceResult<Canonical> ReduceCommandStateRewrite(Canonical current, Guid contractGuid, string targetState, ContractSnapshotPlacement placement, bool requireOfferPool = false, bool requireActive = false)
+        private static SyncChangeResult<Canonical> ApplyCommandStateRewrite(Canonical current, Guid contractGuid, string targetState, ContractSnapshotPlacement placement, bool requireOfferPool = false, bool requireActive = false)
         {
             if (!current.ContractsByGuid.TryGetValue(contractGuid, out var existing))
             {
-                return ReduceResult<Canonical>.Reject();
+                return SyncChangeResult<Canonical>.Reject();
             }
 
-            if (requireOfferPool && !IsOfferPoolContract(existing)) return ReduceResult<Canonical>.Reject();
-            if (requireActive && !IsActiveContract(existing)) return ReduceResult<Canonical>.Reject();
+            if (requireOfferPool && !IsOfferPoolContract(existing)) return SyncChangeResult<Canonical>.Reject();
+            if (requireActive && !IsActiveContract(existing)) return SyncChangeResult<Canonical>.Reject();
 
             var rewritten = RewriteContractState(existing, targetState, placement);
-            return ReduceSingleRecord(current, rewritten);
+            return ApplySingleRecord(current, rewritten);
         }
 
         /// <summary>
-        /// Reducer for the enriched AcceptContract path where the client
+        /// Handler for the enriched AcceptContract path where the client
         /// supplies the full post-Accept contract record alongside the command. The state-machine gate remains the
         /// same as the legacy rewrite path: the target contract must exist in canonical state and be an
         /// offer-pool row, but the accepted data is the client-provided snapshot (carrying the post-Accept
         /// runtime fields) instead of the stale Offered-era bytes that RewriteContractState would
         /// edit. The client cannot downgrade an already-Active or already-Finished row through this path: the
         /// IsOfferPoolContract gate mirrors the Offered-to-Active one-way transition invariant
-        /// from ReduceFullReplace.
+        /// from ApplyFullReplace.
         /// </summary>
-        private static ReduceResult<Canonical> ReduceAcceptWithProvidedSnapshot(Canonical current, Guid contractGuid, ContractSnapshotInfo providedSnapshot)
+        private static SyncChangeResult<Canonical> ApplyAcceptWithProvidedSnapshot(Canonical current, Guid contractGuid, ContractSnapshotInfo providedSnapshot)
         {
             if (providedSnapshot == null || providedSnapshot.ContractGuid != contractGuid || contractGuid == Guid.Empty)
             {
-                return ReduceResult<Canonical>.Reject();
+                return SyncChangeResult<Canonical>.Reject();
             }
 
             if (!current.ContractsByGuid.TryGetValue(contractGuid, out var existing) || !IsOfferPoolContract(existing))
             {
-                return ReduceResult<Canonical>.Reject();
+                return SyncChangeResult<Canonical>.Reject();
             }
 
             // Force the canonical row into the Active placement/state even if the client's snapshot says otherwise
@@ -270,41 +270,41 @@ namespace Server.System.PersistentSync
             var normalized = ContractSnapshotInfoComparer.Clone(providedSnapshot);
             normalized.ContractState = "Active";
             normalized.Placement = ContractSnapshotPlacement.Active;
-            return ReduceSingleRecord(current, normalized);
+            return ApplySingleRecord(current, normalized);
         }
 
-        private static ReduceResult<Canonical> ReduceOfferGenerationRequest(Canonical current)
+        private static SyncChangeResult<Canonical> HandleOfferGenerationRequest(Canonical current)
         {
             // This intent never changes canonical state; we return the same state so the base class's
             // equality short-circuit collapses it to an accepted no-op. The producer-replay routing is
             // signaled via ReplyToProducerClient when the offer pool is empty.
             var offerPoolEmpty = !current.ContractsByGuid.Values.Any(IsOfferPoolContract);
-            return ReduceResult<Canonical>.Accept(current, replyToProducerClient: offerPoolEmpty);
+            return SyncChangeResult<Canonical>.Accept(current, replyToProducerClient: offerPoolEmpty);
         }
 
-        private static ReduceResult<Canonical> ReduceObservedOffer(Canonical current, ContractIntentPayload intentPayload)
+        private static SyncChangeResult<Canonical> HandleObservedOffer(Canonical current, ContractIntentPayload intentPayload)
         {
             if (!TryGetSingleIntentContract(intentPayload, out var incoming) || !IsOfferPoolContract(incoming))
             {
-                return ReduceResult<Canonical>.Reject();
+                return SyncChangeResult<Canonical>.Reject();
             }
 
-            return ReduceSingleRecord(current, incoming);
+            return ApplySingleRecord(current, incoming);
         }
 
-        private static ReduceResult<Canonical> ReduceObservedActive(Canonical current, ContractIntentPayload intentPayload)
+        private static SyncChangeResult<Canonical> HandleObservedActive(Canonical current, ContractIntentPayload intentPayload)
         {
             if (!TryGetSingleIntentContract(intentPayload, out var incoming)
                 || !current.ContractsByGuid.TryGetValue(incoming.ContractGuid, out var existing)
                 || !IsActiveContract(existing))
             {
-                return ReduceResult<Canonical>.Reject();
+                return SyncChangeResult<Canonical>.Reject();
             }
 
             // Stock can fire parameter updates from every client; observers often lag (no vessel / crew loaded yet).
             // Without this guard, a regressed PARAM snapshot replaces canonical state and fights the client who
             // actually completed the step, causing endless snapshot ping-pong and server log spam.
-            // When we repair the wire row against canonical completion, ForceReplyToOriginClient (via ReduceSingleRecord)
+            // When we repair the wire row against canonical completion, ForceReplyToOriginClient (via ApplySingleRecord)
             // makes ScenarioSync echo the snapshot to the sender even if revision unchanged, so their UI matches.
             var forceOriginReply = false;
             if (intentPayload.Kind == ContractIntentPayloadKind.ParameterProgressObserved)
@@ -312,7 +312,7 @@ namespace Server.System.PersistentSync
                 incoming = MergeParameterProgressObservationMonotonic(existing, incoming, out forceOriginReply);
             }
 
-            return ReduceSingleRecord(current, incoming, forceOriginReply);
+            return ApplySingleRecord(current, incoming, forceOriginReply);
         }
 
         /// <summary>
@@ -449,7 +449,7 @@ namespace Server.System.PersistentSync
             }
         }
 
-        private static ReduceResult<Canonical> ReduceSingleRecord(
+        private static SyncChangeResult<Canonical> ApplySingleRecord(
             Canonical current,
             ContractSnapshotInfo incoming,
             bool forceReplyToOriginClient = false)
@@ -457,10 +457,10 @@ namespace Server.System.PersistentSync
             var nextMap = current.ContractsByGuid.ToDictionary(kv => kv.Key, kv => ContractSnapshotInfoComparer.Clone(kv.Value));
             var nextOrder = nextMap.Any() ? nextMap.Values.Max(c => c.Order) + 1 : 0;
             ApplyCanonicalRecord(nextMap, incoming, ref nextOrder);
-            return ReduceResult<Canonical>.Accept(new Canonical(nextMap), replyToProducerClient: false, forceReplyToOriginClient);
+            return SyncChangeResult<Canonical>.Accept(new Canonical(nextMap), replyToProducerClient: false, forceReplyToOriginClient);
         }
 
-        private static ReduceResult<Canonical> ReduceRecords(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)
+        private static SyncChangeResult<Canonical> ApplyRecords(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)
         {
             var nextMap = current.ContractsByGuid.ToDictionary(kv => kv.Key, kv => ContractSnapshotInfoComparer.Clone(kv.Value));
             var nextOrder = nextMap.Any() ? nextMap.Values.Max(c => c.Order) + 1 : 0;
@@ -469,7 +469,7 @@ namespace Server.System.PersistentSync
                 ApplyCanonicalRecord(nextMap, rec, ref nextOrder);
             }
 
-            return ReduceResult<Canonical>.Accept(new Canonical(nextMap));
+            return SyncChangeResult<Canonical>.Accept(new Canonical(nextMap));
         }
 
         /// <summary>
@@ -485,7 +485,7 @@ namespace Server.System.PersistentSync
         /// (Offered to Withdrawn, Declined, etc. via the explicit command intents or a producer-proposed forward
         /// transition in the incoming set), never by omission from a producer reconcile.
         /// </summary>
-        private static ReduceResult<Canonical> ReduceFullReplace(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)
+        private static SyncChangeResult<Canonical> ApplyFullReplace(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)
         {
             var incomingByGuid = new Dictionary<Guid, ContractSnapshotInfo>();
             foreach (var rec in incoming ?? Enumerable.Empty<ContractSnapshotInfo>())
@@ -543,7 +543,7 @@ namespace Server.System.PersistentSync
                     $"finalRows={nextMap.Count}");
             }
 
-            return ReduceResult<Canonical>.Accept(new Canonical(nextMap));
+            return SyncChangeResult<Canonical>.Accept(new Canonical(nextMap));
         }
 
         private static bool IsFinishedContract(ContractSnapshotInfo contract)

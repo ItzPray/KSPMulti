@@ -39,12 +39,12 @@ namespace Server.System.PersistentSync
             return new AchievementsPayload { Items = BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch)) };
         }
 
-        protected override ReduceResult<AchievementsPayload> ReducePayload(ClientStructure client, AchievementsPayload current, AchievementsPayload incoming, string reason, bool isServerMutation)
+        protected override SyncChangeResult<AchievementsPayload> HandleIncomingPayload(ClientStructure client, AchievementsPayload current, AchievementsPayload incoming, string reason, bool isServerMutation)
         {
-            var reduced = ReducePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
-            return reduced == null || !reduced.Accepted
-                ? ReduceResult<AchievementsPayload>.Reject()
-                : ReduceResult<AchievementsPayload>.Accept(new AchievementsPayload { Items = BuildSnapshotPayload(reduced.NextState) }, reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+            var change = HandlePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
+            return change == null || !change.Accepted
+                ? SyncChangeResult<AchievementsPayload>.Reject()
+                : SyncChangeResult<AchievementsPayload>.Accept(new AchievementsPayload { Items = BuildSnapshotPayload(change.NextState) }, change.ForceReplyToOriginClient, change.ReplyToProducerClient);
         }
 
         protected override ConfigNode WritePayload(ConfigNode scenario, AchievementsPayload payload)
@@ -87,7 +87,7 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        private static ReduceResult<Canonical> ReducePayloadState(Canonical current, AchievementSnapshotInfo[] intent, string reason, bool isServerMutation)
+        private static SyncChangeResult<Canonical> HandlePayloadState(Canonical current, AchievementSnapshotInfo[] intent, string reason, bool isServerMutation)
         {
             var next = new SortedDictionary<string, AchievementSnapshotInfo>(current.Achievements, StringComparer.Ordinal);
             foreach (var record in intent ?? Enumerable.Empty<AchievementSnapshotInfo>())
@@ -96,7 +96,7 @@ namespace Server.System.PersistentSync
                 if (normalized == null) continue;
                 next[normalized.Id] = normalized;
             }
-            return ReduceResult<Canonical>.Accept(new Canonical(next));
+            return SyncChangeResult<Canonical>.Accept(new Canonical(next));
         }
 
         private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)

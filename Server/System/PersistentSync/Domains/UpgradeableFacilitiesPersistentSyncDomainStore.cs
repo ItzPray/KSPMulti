@@ -54,21 +54,21 @@ namespace Server.System.PersistentSync
             return new UpgradeableFacilitiesPayload { Items = BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch)) };
         }
 
-        protected override ReduceResult<UpgradeableFacilitiesPayload> ReducePayload(ClientStructure client, UpgradeableFacilitiesPayload current, UpgradeableFacilitiesPayload incoming, string reason, bool isServerMutation)
+        protected override SyncChangeResult<UpgradeableFacilitiesPayload> HandleIncomingPayload(ClientStructure client, UpgradeableFacilitiesPayload current, UpgradeableFacilitiesPayload incoming, string reason, bool isServerMutation)
         {
             var state = ToCanonical(current.Items);
             foreach (var intent in incoming?.Items ?? Array.Empty<UpgradeableFacilityLevelPayload>())
             {
-                var reduced = ReducePayloadState(state, intent, reason, isServerMutation);
-                if (reduced == null || !reduced.Accepted)
+                var change = HandlePayloadState(state, intent, reason, isServerMutation);
+                if (change == null || !change.Accepted)
                 {
-                    return ReduceResult<UpgradeableFacilitiesPayload>.Reject();
+                    return SyncChangeResult<UpgradeableFacilitiesPayload>.Reject();
                 }
 
-                state = reduced.NextState ?? state;
+                state = change.NextState ?? state;
             }
 
-            return ReduceResult<UpgradeableFacilitiesPayload>.Accept(new UpgradeableFacilitiesPayload { Items = BuildSnapshotPayload(state) });
+            return SyncChangeResult<UpgradeableFacilitiesPayload>.Accept(new UpgradeableFacilitiesPayload { Items = BuildSnapshotPayload(state) });
         }
 
         protected override ConfigNode WritePayload(ConfigNode scenario, UpgradeableFacilitiesPayload payload)
@@ -123,19 +123,19 @@ namespace Server.System.PersistentSync
             return canonical;
         }
 
-        private static ReduceResult<Canonical> ReducePayloadState(Canonical current, UpgradeableFacilityLevelPayload intent, string reason, bool isServerMutation)
+        private static SyncChangeResult<Canonical> HandlePayloadState(Canonical current, UpgradeableFacilityLevelPayload intent, string reason, bool isServerMutation)
         {
             var facilityId = intent?.FacilityId;
             var level = intent?.Level ?? 0;
 
             if (string.IsNullOrEmpty(facilityId))
             {
-                return ReduceResult<Canonical>.Reject();
+                return SyncChangeResult<Canonical>.Reject();
             }
 
             if (!TryResolveCanonicalFacilityId(facilityId, out var canonicalFacilityId))
             {
-                return ReduceResult<Canonical>.Reject();
+                return SyncChangeResult<Canonical>.Reject();
             }
 
             if (current.Levels.TryGetValue(canonicalFacilityId, out var existingLevel))
@@ -146,12 +146,12 @@ namespace Server.System.PersistentSync
                 // collapses them into a no-op.
                 if (level < existingLevel)
                 {
-                    return ReduceResult<Canonical>.Accept(current);
+                    return SyncChangeResult<Canonical>.Accept(current);
                 }
 
                 if (existingLevel == level)
                 {
-                    return ReduceResult<Canonical>.Accept(current);
+                    return SyncChangeResult<Canonical>.Accept(current);
                 }
             }
 
@@ -159,7 +159,7 @@ namespace Server.System.PersistentSync
             {
                 [canonicalFacilityId] = level
             };
-            return ReduceResult<Canonical>.Accept(new Canonical(next));
+            return SyncChangeResult<Canonical>.Accept(new Canonical(next));
         }
 
         private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)

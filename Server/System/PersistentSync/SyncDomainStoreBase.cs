@@ -10,7 +10,7 @@ using System;
 namespace Server.System.PersistentSync
 {
     /// <summary>
-    /// Internal scenario reducer pipeline shared by <see cref="SyncDomainStore{TPayload}"/> (public authoring
+    /// Internal scenario-change pipeline shared by <see cref="SyncDomainStore{TPayload}"/> (public authoring
     /// surface). Owns revision counting, equality short-circuit, authority enforcement via
     /// <see cref="PersistentAuthorityPolicy"/>, and scenario write synchronization.
     ///
@@ -71,8 +71,8 @@ namespace Server.System.PersistentSync
         }
 
         /// <summary>
-        /// Exposed only for the ScenarioSyncReducerPipelineTests base-class regression harness. Do not call from
-        /// production reducer code; always go through <see cref="ApplyClientIntent"/> / <see cref="ApplyServerMutation"/>.
+        /// Exposed only for the scenario-change pipeline regression harness. Do not call from
+        /// production domain logic; always go through <see cref="ApplyClientIntent"/> / <see cref="ApplyServerMutation"/>.
         /// </summary>
         internal TCanonical CurrentForTests => _current;
 
@@ -184,75 +184,76 @@ namespace Server.System.PersistentSync
 
         /// <summary>
         /// Alternate apply path for projection domains that share this store's canonical state but speak a
-        /// different wire format. Supplies a custom reducer in place of <see cref="ReduceIntent"/>; the rest
+        /// different wire format. Supplies custom incoming-payload handling in place of
+        /// <see cref="HandleIncomingPayloadBytes"/>; the rest
         /// of the pipeline (state lock, equality short-circuit, revision bump, scenario write) is reused.
         /// Internal so only same-assembly domain stores (e.g. PartPurchases projecting onto Technology) can
         /// invoke it.
         /// </summary>
-        internal PersistentSyncDomainApplyResult ApplyWithCustomReduce(byte[] payload, long? clientKnownRevision, string reason, bool isServerMutation, Func<TCanonical, byte[], ReduceResult<TCanonical>> reducer)
+        internal PersistentSyncDomainApplyResult ApplyWithCustomIncomingPayload(byte[] payload, long? clientKnownRevision, string reason, bool isServerMutation, Func<TCanonical, byte[], SyncChangeResult<TCanonical>> handler)
         {
-            if (reducer == null) throw new ArgumentNullException(nameof(reducer));
-            return ApplyInternal(null, payload ?? Array.Empty<byte>(), clientKnownRevision, reason, isServerMutation, reducer);
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            return ApplyInternal(null, payload ?? Array.Empty<byte>(), clientKnownRevision, reason, isServerMutation, handler);
         }
 
-        internal PersistentSyncDomainApplyResult ApplyWithCustomReduce<TPayload>(
+        internal PersistentSyncDomainApplyResult ApplyWithCustomIncomingPayload<TPayload>(
             byte[] payload,
             long? clientKnownRevision,
             string reason,
             bool isServerMutation,
-            Func<TCanonical, TPayload, ReduceResult<TCanonical>> reducer)
+            Func<TCanonical, TPayload, SyncChangeResult<TCanonical>> handler)
         {
-            if (reducer == null) throw new ArgumentNullException(nameof(reducer));
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
             return ApplyInternal(
                 null,
                 payload ?? Array.Empty<byte>(),
                 clientKnownRevision,
                 reason,
                 isServerMutation,
-                (current, rawPayload) => reducer(
+                (current, rawPayload) => handler(
                     current,
                     PersistentSyncPayloadSerializer.Deserialize<TPayload>(rawPayload, rawPayload.Length)));
         }
 
-        private PersistentSyncDomainApplyResult ApplyInternal(ClientStructure client, byte[] payload, long? clientKnownRevision, string reason, bool isServerMutation, Func<TCanonical, byte[], ReduceResult<TCanonical>> customReducer = null)
+        private PersistentSyncDomainApplyResult ApplyInternal(ClientStructure client, byte[] payload, long? clientKnownRevision, string reason, bool isServerMutation, Func<TCanonical, byte[], SyncChangeResult<TCanonical>> customHandler = null)
         {
             payload = payload ?? Array.Empty<byte>();
             lock (_stateLock)
             {
                 var previous = _current ?? (_current = CreateEmpty());
-                ReduceResult<TCanonical> reduce;
+                SyncChangeResult<TCanonical> change;
                 try
                 {
-                    reduce = customReducer != null
-                        ? customReducer(previous, payload)
-                        : ReduceIntent(client, previous, payload, reason, isServerMutation);
+                    change = customHandler != null
+                        ? customHandler(previous, payload)
+                        : HandleIncomingPayloadBytes(client, previous, payload, reason, isServerMutation);
                 }
                 catch (Exception ex)
                 {
-                    LunaLog.Error($"[PersistentSync] {DomainId} ReduceIntent threw (isServerMutation={isServerMutation} reason={reason}): {ex.Message}");
+                    LunaLog.Error($"[PersistentSync] {DomainId} HandleIncomingPayload threw (isServerMutation={isServerMutation} reason={reason}): {ex.Message}");
                     return Rejected();
                 }
 
-                if (reduce == null || !reduce.Accepted)
+                if (change == null || !change.Accepted)
                 {
-                    return Rejected(reduce);
+                    return Rejected(change);
                 }
 
-                var next = reduce.NextState ?? previous;
+                var next = change.NextState ?? previous;
 
-                // Equality short-circuit: base class enforces that reducers which produce an equivalent state
+                // Equality short-circuit: base class enforces that incoming handlers which produce an equivalent state
                 // never bump Revision or rewrite the scenario. This is rule 4 of the Scenario Sync Domain Contract.
                 if (AreEquivalent(previous, next))
                 {
                     var replyBecauseRevisionDrift =
                         !isServerMutation && clientKnownRevision.HasValue && clientKnownRevision.Value != _revision;
-                    var replyBecauseDomainForced = !isServerMutation && reduce.ForceReplyToOriginClient;
+                    var replyBecauseDomainForced = !isServerMutation && change.ForceReplyToOriginClient;
                     return new PersistentSyncDomainApplyResult
                     {
                         Accepted = true,
                         Changed = false,
                         ReplyToOriginClient = replyBecauseRevisionDrift || replyBecauseDomainForced,
-                        ReplyToProducerClient = reduce.ReplyToProducerClient,
+                        ReplyToProducerClient = change.ReplyToProducerClient,
                         Snapshot = GetCurrentSnapshotLocked()
                     };
                 }
@@ -284,7 +285,7 @@ namespace Server.System.PersistentSync
                     Accepted = true,
                     Changed = true,
                     ReplyToOriginClient = false,
-                    ReplyToProducerClient = reduce.ReplyToProducerClient,
+                    ReplyToProducerClient = change.ReplyToProducerClient,
                     Snapshot = GetCurrentSnapshotLocked()
                 };
             }
@@ -303,14 +304,14 @@ namespace Server.System.PersistentSync
             };
         }
 
-        private static PersistentSyncDomainApplyResult Rejected(ReduceResult<TCanonical> reduce = null)
+        private static PersistentSyncDomainApplyResult Rejected(SyncChangeResult<TCanonical> change = null)
         {
             return new PersistentSyncDomainApplyResult
             {
                 Accepted = false,
                 Changed = false,
                 ReplyToOriginClient = false,
-                ReplyToProducerClient = reduce?.ReplyToProducerClient ?? false,
+                ReplyToProducerClient = change?.ReplyToProducerClient ?? false,
                 Snapshot = null
             };
         }
@@ -323,14 +324,15 @@ namespace Server.System.PersistentSync
 
         /// <summary>
         /// Decode a payload (client intent or server mutation) against <paramref name="current"/>, returning a
-        /// <see cref="ReduceResult{T}"/> describing the next state. Domains must not mutate <paramref name="current"/>
-        /// in place: always return a new immutable snapshot or the same reference if the reduce was a no-op.
+        /// <see cref="SyncChangeResult{TCanonical}"/> describing the next state. Domains must not mutate
+        /// <paramref name="current"/> in place: always return a new immutable snapshot or the same reference if the
+        /// incoming payload is a no-op.
         /// </summary>
-        protected abstract ReduceResult<TCanonical> ReduceIntent(ClientStructure client, TCanonical current, byte[] payload, string reason, bool isServerMutation);
+        protected abstract SyncChangeResult<TCanonical> HandleIncomingPayloadBytes(ClientStructure client, TCanonical current, byte[] payload, string reason, bool isServerMutation);
 
         /// <summary>
         /// Rebuild the scenario node graph from <paramref name="canonical"/>. Called under the scenario write lock
-        /// after a state-changing reduce. The base class normally re-uses the passed-in <paramref name="scenario"/>
+        /// after a state-changing incoming payload. The base class normally re-uses the passed-in <paramref name="scenario"/>
         /// node, but LunaConfigNode's serializer retains raw pre-parse text for nodes it did not construct from
         /// scratch; domains that need a full subtree rewrite may return a freshly-constructed ConfigNode from
         /// this method to have the base class swap it into <see cref="ScenarioStoreSystem.CurrentScenarios"/>.

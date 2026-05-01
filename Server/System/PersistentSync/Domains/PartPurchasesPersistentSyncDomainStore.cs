@@ -18,7 +18,7 @@ namespace Server.System.PersistentSync
     /// write to the scenario; its state lives in Technology's canonical <c>PartsByTech</c>. This class exists
     /// only to satisfy the wire contract (client still sends PartPurchases
     /// intents and expects snapshots in the PartPurchases binary format). All mutations are routed into
-    /// Technology's reducer so the "one scenario, one domain" Scenario Sync Domain Contract rule holds for
+    /// Technology's handler so the "one scenario, one domain" Scenario Sync Domain Contract rule holds for
     /// the shared <c>Tech/*</c> node path.
     ///
     /// Inherits the ProjectionSyncDomain{TOwner} template; no domain in the registry implements

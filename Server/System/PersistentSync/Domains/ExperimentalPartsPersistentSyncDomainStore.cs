@@ -40,12 +40,12 @@ namespace Server.System.PersistentSync
             return new ExperimentalPartsPayload { Items = BuildSnapshotPayload(LoadCanonicalState(scenario, createdFromScratch)) };
         }
 
-        protected override ReduceResult<ExperimentalPartsPayload> ReducePayload(ClientStructure client, ExperimentalPartsPayload current, ExperimentalPartsPayload incoming, string reason, bool isServerMutation)
+        protected override SyncChangeResult<ExperimentalPartsPayload> HandleIncomingPayload(ClientStructure client, ExperimentalPartsPayload current, ExperimentalPartsPayload incoming, string reason, bool isServerMutation)
         {
-            var reduced = ReducePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
-            return reduced == null || !reduced.Accepted
-                ? ReduceResult<ExperimentalPartsPayload>.Reject()
-                : ReduceResult<ExperimentalPartsPayload>.Accept(new ExperimentalPartsPayload { Items = BuildSnapshotPayload(reduced.NextState) }, reduced.ForceReplyToOriginClient, reduced.ReplyToProducerClient);
+            var change = HandlePayloadState(ToCanonical(current.Items), incoming.Items, reason, isServerMutation);
+            return change == null || !change.Accepted
+                ? SyncChangeResult<ExperimentalPartsPayload>.Reject()
+                : SyncChangeResult<ExperimentalPartsPayload>.Accept(new ExperimentalPartsPayload { Items = BuildSnapshotPayload(change.NextState) }, change.ForceReplyToOriginClient, change.ReplyToProducerClient);
         }
 
         protected override ConfigNode WritePayload(ConfigNode scenario, ExperimentalPartsPayload payload)
@@ -112,7 +112,7 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        private static ReduceResult<Canonical> ReducePayloadState(Canonical current, ExperimentalPartSnapshotInfo[] intent, string reason, bool isServerMutation)
+        private static SyncChangeResult<Canonical> HandlePayloadState(Canonical current, ExperimentalPartSnapshotInfo[] intent, string reason, bool isServerMutation)
         {
             var next = new SortedDictionary<string, int>(current.Counts, StringComparer.Ordinal);
             foreach (var record in intent ?? Enumerable.Empty<ExperimentalPartSnapshotInfo>())
@@ -127,7 +127,7 @@ namespace Server.System.PersistentSync
 
                 next[record.PartName] = record.Count;
             }
-            return ReduceResult<Canonical>.Accept(new Canonical(next));
+            return SyncChangeResult<Canonical>.Accept(new Canonical(next));
         }
 
         private static ConfigNode WriteCanonicalState(ConfigNode scenario, Canonical canonical)

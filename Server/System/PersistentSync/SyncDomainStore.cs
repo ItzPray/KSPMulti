@@ -10,7 +10,7 @@ namespace Server.System.PersistentSync
 {
     /// <summary>
     /// Public authoring template for scenario-owning persistent-sync server domains (typed payloads, catalog wiring,
-    /// and reducer hooks). Builds on an internal shared reducer/scenario pipeline.
+    /// and incoming-payload hooks). Builds on an internal shared scenario-change pipeline.
     /// </summary>
     public abstract class SyncDomainStore<TPayload> : SyncDomainStoreBase<SyncDomainStore<TPayload>.PayloadBox>
     {
@@ -67,14 +67,14 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected virtual ReduceResult<TPayload> ReducePayload(
+        protected virtual SyncChangeResult<TPayload> HandleIncomingPayload(
             ClientStructure client,
             TPayload current,
             TPayload incoming,
             string reason,
             bool isServerMutation)
         {
-            return ReduceResult<TPayload>.Accept(incoming);
+            return SyncChangeResult<TPayload>.Accept(incoming);
         }
 
         protected virtual bool PayloadsAreEqual(TPayload left, TPayload right)
@@ -102,7 +102,7 @@ namespace Server.System.PersistentSync
             return WritePayload(scenario, canonical != null ? canonical.Payload : CreateDefaultPayload());
         }
 
-        protected sealed override ReduceResult<PayloadBox> ReduceIntent(
+        protected sealed override SyncChangeResult<PayloadBox> HandleIncomingPayloadBytes(
             ClientStructure client,
             PayloadBox current,
             byte[] payload,
@@ -111,16 +111,16 @@ namespace Server.System.PersistentSync
         {
             payload = payload ?? Array.Empty<byte>();
             var incoming = PersistentSyncPayloadSerializer.Deserialize<TPayload>(payload, payload.Length);
-            var reduced = ReducePayload(client, current != null ? current.Payload : CreateDefaultPayload(), incoming, reason, isServerMutation);
-            if (reduced == null || !reduced.Accepted)
+            var change = HandleIncomingPayload(client, current != null ? current.Payload : CreateDefaultPayload(), incoming, reason, isServerMutation);
+            if (change == null || !change.Accepted)
             {
-                return ReduceResult<PayloadBox>.Reject();
+                return SyncChangeResult<PayloadBox>.Reject();
             }
 
-            return ReduceResult<PayloadBox>.Accept(
-                new PayloadBox(reduced.NextState),
-                reduced.ForceReplyToOriginClient,
-                reduced.ReplyToProducerClient);
+            return SyncChangeResult<PayloadBox>.Accept(
+                new PayloadBox(change.NextState),
+                change.ForceReplyToOriginClient,
+                change.ReplyToProducerClient);
         }
 
         protected sealed override byte[] SerializeSnapshot(PayloadBox canonical)
