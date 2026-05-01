@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace Server.System.PersistentSync
 {
-    public sealed class UpgradeableFacilitiesPersistentSyncDomainStore : ScenarioSyncDomainStore<UpgradeableFacilitiesPersistentSyncDomainStore.Canonical>
+    public sealed class UpgradeableFacilitiesPersistentSyncDomainStore : ScenarioSyncDomainStore<UpgradeableFacilitiesPersistentSyncDomainStore.Canonical, UpgradeableFacilityLevelPayload, UpgradeableFacilityLevelPayload[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("UpgradeableFacilities", 3);
 
@@ -40,8 +40,6 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ScenarioUpgradeableFacilities";
-
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
         protected override Canonical CreateEmpty()
         {
@@ -85,9 +83,10 @@ namespace Server.System.PersistentSync
             return canonical;
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, UpgradeableFacilityLevelPayload intent, string reason, bool isServerMutation)
         {
-            UpgradeableFacilitiesIntentPayloadSerializer.Deserialize(payload, numBytes, out var facilityId, out var level);
+            var facilityId = intent?.FacilityId;
+            var level = intent?.Level ?? 0;
 
             if (string.IsNullOrEmpty(facilityId))
             {
@@ -133,11 +132,12 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected override byte[] SerializeSnapshot(Canonical canonical)
+        protected override UpgradeableFacilityLevelPayload[] BuildSnapshotPayload(Canonical canonical)
         {
             LogFacilityLevelsSnapshot("GetCurrentSnapshot", canonical, RevisionForTests);
-            var snapshotMap = new Dictionary<string, int>(canonical.Levels);
-            return UpgradeableFacilitiesSnapshotPayloadSerializer.Serialize(snapshotMap);
+            return canonical.Levels
+                .Select(kvp => new UpgradeableFacilityLevelPayload { FacilityId = kvp.Key, Level = kvp.Value })
+                .ToArray();
         }
 
         protected override bool AreEquivalent(Canonical a, Canonical b)

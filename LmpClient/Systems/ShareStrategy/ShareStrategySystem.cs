@@ -1,4 +1,4 @@
-﻿using KSP.UI.Screens;
+using KSP.UI.Screens;
 using LmpClient.Events;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareFunds;
@@ -96,7 +96,7 @@ namespace LmpClient.Systems.ShareStrategy
 
         public bool ApplyStrategySnapshot(StrategySnapshotInfo strategyInfo, string source, bool refreshUi)
         {
-            var incomingStrategyNode = ShareStrategyMessageHandler.ConvertByteArrayToConfigNode(strategyInfo.Data, strategyInfo.NumBytes);
+            var incomingStrategyNode = ShareStrategyMessageHandler.ConvertByteArrayToConfigNode(strategyInfo.Data, strategyInfo.Data.Length);
             if (incomingStrategyNode == null) return false;
             var incomingStrategyFactor = float.Parse(incomingStrategyNode.GetValue("factor"), CultureInfo.InvariantCulture);
             var incomingStrategyIsActive = bool.Parse(incomingStrategyNode.GetValue("isActive"));
@@ -147,3 +147,4 @@ namespace LmpClient.Systems.ShareStrategy
         }
     }
 }
+

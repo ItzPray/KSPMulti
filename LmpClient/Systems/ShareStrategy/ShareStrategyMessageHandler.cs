@@ -1,4 +1,4 @@
-﻿using KSP.UI.Screens;
+using KSP.UI.Screens;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
@@ -36,7 +36,7 @@ namespace LmpClient.Systems.ShareStrategy
                 LunaLog.Log($"Queue StrategyUpdate with: {strategy.Name}");
                 System.QueueAction(() =>
                 {
-                    ApplyStrategySnapshot(strategy.Name, strategy.Data, strategy.NumBytes, "LegacyShareProgressFallback", true);
+                    ApplyStrategySnapshot(strategy.Name, strategy.Data, strategy.Data.Length, "LegacyShareProgressFallback", true);
                 });
             }
         }
@@ -46,8 +46,7 @@ namespace LmpClient.Systems.ShareStrategy
             return ShareStrategySystem.Singleton.ApplyStrategySnapshot(new LmpCommon.PersistentSync.StrategySnapshotInfo
             {
                 Name = strategyName,
-                Data = data,
-                NumBytes = numBytes
+                Data = data
             }, source, refreshUi);
         }
 
@@ -84,3 +83,4 @@ namespace LmpClient.Systems.ShareStrategy
         }
     }
 }
+

@@ -20,7 +20,7 @@ namespace Server.System.PersistentSync
     /// <item><description><see cref="DeserializeIntentPayload"/> + <see cref="SerializeSnapshotPayload"/> (wire)</description></item>
     /// </list>
     /// </summary>
-    public abstract class ScalarPersistentSyncDomainStore<T> : ScenarioSyncDomainStore<ScalarCanonical<T>>
+    public abstract class ScalarPersistentSyncDomainStore<T> : ScenarioSyncDomainStore<ScalarCanonical<T>, PersistentSyncValueWithReason<T>, T>
     {
         protected abstract string ScenarioFieldName { get; }
 
@@ -69,9 +69,9 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected sealed override byte[] SerializeSnapshot(ScalarCanonical<T> canonical)
+        protected sealed override T BuildSnapshotPayload(ScalarCanonical<T> canonical)
         {
-            return SerializeSnapshotPayload((canonical ?? new ScalarCanonical<T>(GetStartingValue())).Value);
+            return (canonical ?? new ScalarCanonical<T>(GetStartingValue())).Value;
         }
 
         protected sealed override bool AreEquivalent(ScalarCanonical<T> a, ScalarCanonical<T> b)
@@ -81,19 +81,15 @@ namespace Server.System.PersistentSync
             return ValuesAreEqual(a.Value, b.Value);
         }
 
-        protected sealed override ReduceResult<ScalarCanonical<T>> ReduceIntent(ClientStructure client, ScalarCanonical<T> current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        protected sealed override ReduceResult<ScalarCanonical<T>> ReduceIntent(ClientStructure client, ScalarCanonical<T> current, PersistentSyncValueWithReason<T> intent, string reason, bool isServerMutation)
         {
-            var incomingValue = DeserializeIntentPayload(payload, numBytes, out _);
-            return ReduceResult<ScalarCanonical<T>>.Accept(new ScalarCanonical<T>(incomingValue));
+            return ReduceResult<ScalarCanonical<T>>.Accept(new ScalarCanonical<T>(intent != null ? intent.Value : GetStartingValue()));
         }
 
         protected abstract T GetStartingValue();
         protected abstract bool TryParseStoredValue(string value, out T parsedValue);
         protected abstract string FormatStoredValue(T value);
         protected abstract bool ValuesAreEqual(T currentValue, T incomingValue);
-        protected abstract T DeserializeIntentPayload(byte[] payload, int numBytes, out string reason);
-        protected abstract byte[] SerializeSnapshotPayload(T value);
-
         protected static bool TryParseDouble(string value, out double parsedValue)
         {
             return double.TryParse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsedValue);

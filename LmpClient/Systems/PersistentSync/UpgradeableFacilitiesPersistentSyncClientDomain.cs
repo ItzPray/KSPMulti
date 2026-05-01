@@ -12,7 +12,7 @@ using Upgradeables;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    public class UpgradeableFacilitiesPersistentSyncClientDomain : IPersistentSyncClientDomain
+    public class UpgradeableFacilitiesPersistentSyncClientDomain : TypedPersistentSyncClientDomain<UpgradeableFacilityLevelPayload[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("UpgradeableFacilities", 3);
 
@@ -37,19 +37,13 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private Coroutine _delayedStopIgnoringFacilityEventsCoroutine;
 
-        public PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
+        protected override PersistentSyncApplyOutcome ApplySnapshot(UpgradeableFacilityLevelPayload[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
-            try
-            {
-                _pendingFacilityLevels = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(snapshot.Payload, snapshot.NumBytes);
-                _authoritativeLevelsFromServer = CloneLevelMap(_pendingFacilityLevels);
-            }
-            catch
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
+            _pendingFacilityLevels = (payload ?? new UpgradeableFacilityLevelPayload[0])
+                .ToDictionary(level => level.FacilityId, level => level.Level, StringComparer.Ordinal);
+            _authoritativeLevelsFromServer = CloneLevelMap(_pendingFacilityLevels);
 
             LunaLog.Log($"[PersistentSync] UpgradeableFacilities ApplySnapshot revision={snapshot.Revision} received levels=[{FormatLevelMap(_pendingFacilityLevels)}]");
             return FlushPendingState();
@@ -70,7 +64,7 @@ namespace LmpClient.Systems.PersistentSync
             return true;
         }
 
-        public PersistentSyncApplyOutcome FlushPendingState()
+        public override PersistentSyncApplyOutcome FlushPendingState()
         {
             if (_pendingFacilityLevels == null)
             {

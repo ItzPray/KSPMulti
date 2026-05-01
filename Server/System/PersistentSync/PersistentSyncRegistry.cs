@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.Message.Server;
 using LmpCommon.PersistentSync;
@@ -234,7 +234,7 @@ namespace Server.System.PersistentSync
                 {
                     try
                     {
-                        var rows = ContractSnapshotPayloadSerializer.Deserialize(snapshot.Payload, snapshot.NumBytes)?.Count ?? 0;
+                        var rows = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(snapshot.Payload, snapshot.NumBytes)?.Contracts?.Count ?? 0;
                         LunaLog.Normal(
                             $"[PersistentSync] snapshot send target=singleClient client={clientName} domain={snapshot.DomainId} " +
                             $"revision={snapshot.Revision} contractWireRows={rows} payloadBytes={snapshot.NumBytes}");

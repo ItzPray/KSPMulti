@@ -5,7 +5,7 @@ namespace LmpCommon.PersistentSync
     /// <summary>
     /// Public CLR facade for client-to-server contract commands (Accept / Decline / Cancel / RequestOfferGeneration).
     /// Commands are low-trust user intents: any client may submit them; the server validates target canonical state.
-    /// Wire-level payload is produced via <see cref="ContractIntentPayloadSerializer"/>.
+    /// Wire-level payload is produced through the shared persistent sync payload schemas.
     /// <para>
     /// Accept additionally carries the post-Accept <see cref="ContractSnapshotInfo"/> because stock
     /// <c>Contract.Accept()</c> populates runtime-only fields (dateAccepted, dateDeadline, subclass-specific
@@ -49,21 +49,23 @@ namespace LmpCommon.PersistentSync
         public static ContractCommandIntent RequestOfferGeneration() =>
             new ContractCommandIntent(ContractCommandIntentKind.RequestOfferGeneration, Guid.Empty);
 
-        public byte[] Serialize()
+        public ContractIntentPayload ToPayload()
         {
             switch (Kind)
             {
                 case ContractCommandIntentKind.Accept:
-                    return ContractSnapshot != null
-                        ? ContractIntentPayloadSerializer.SerializeCommandWithContract(
-                            ContractIntentPayloadKind.AcceptContract, ContractGuid, ContractSnapshot)
-                        : ContractIntentPayloadSerializer.SerializeCommand(ContractIntentPayloadKind.AcceptContract, ContractGuid);
+                    return new ContractIntentPayload
+                    {
+                        Kind = ContractIntentPayloadKind.AcceptContract,
+                        ContractGuid = ContractGuid,
+                        Contract = ContractSnapshotInfoComparer.Clone(ContractSnapshot)
+                    };
                 case ContractCommandIntentKind.Decline:
-                    return ContractIntentPayloadSerializer.SerializeCommand(ContractIntentPayloadKind.DeclineContract, ContractGuid);
+                    return new ContractIntentPayload { Kind = ContractIntentPayloadKind.DeclineContract, ContractGuid = ContractGuid };
                 case ContractCommandIntentKind.Cancel:
-                    return ContractIntentPayloadSerializer.SerializeCommand(ContractIntentPayloadKind.CancelContract, ContractGuid);
+                    return new ContractIntentPayload { Kind = ContractIntentPayloadKind.CancelContract, ContractGuid = ContractGuid };
                 case ContractCommandIntentKind.RequestOfferGeneration:
-                    return ContractIntentPayloadSerializer.SerializeRequestOfferGeneration();
+                    return new ContractIntentPayload { Kind = ContractIntentPayloadKind.RequestOfferGeneration };
                 default:
                     throw new InvalidOperationException($"Unknown ContractCommandIntentKind: {Kind}");
             }

@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Server.System.PersistentSync
 {
-    public sealed class AchievementsPersistentSyncDomainStore : ScenarioSyncDomainStore<AchievementsPersistentSyncDomainStore.Canonical>
+    public sealed class AchievementsPersistentSyncDomainStore : ScenarioSyncDomainStore<AchievementsPersistentSyncDomainStore.Canonical, AchievementSnapshotInfo[], AchievementSnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Achievements", 7);
 
@@ -25,8 +25,6 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ProgressTracking";
-
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
         protected override Canonical CreateEmpty()
         {
@@ -58,11 +56,10 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, AchievementSnapshotInfo[] intent, string reason, bool isServerMutation)
         {
-            var records = AchievementSnapshotPayloadSerializer.Deserialize(payload) ?? Enumerable.Empty<AchievementSnapshotInfo>();
             var next = new SortedDictionary<string, AchievementSnapshotInfo>(current.Achievements, StringComparer.Ordinal);
-            foreach (var record in records)
+            foreach (var record in intent ?? Enumerable.Empty<AchievementSnapshotInfo>())
             {
                 var normalized = NormalizeSnapshotInfo(record);
                 if (normalized == null) continue;
@@ -85,9 +82,9 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected override byte[] SerializeSnapshot(Canonical canonical)
+        protected override AchievementSnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
         {
-            return AchievementSnapshotPayloadSerializer.Serialize(canonical.Achievements.Values.Select(CloneInfo).ToArray());
+            return canonical.Achievements.Values.Select(CloneInfo).ToArray();
         }
 
         protected override bool AreEquivalent(Canonical a, Canonical b)
@@ -111,19 +108,18 @@ namespace Server.System.PersistentSync
             return NormalizeSnapshotInfo(new AchievementSnapshotInfo
             {
                 Id = node.Name ?? string.Empty,
-                NumBytes = Encoding.UTF8.GetByteCount(node.ToString()),
                 Data = Encoding.UTF8.GetBytes(node.ToString())
             });
         }
 
         private static AchievementSnapshotInfo NormalizeSnapshotInfo(AchievementSnapshotInfo achievement)
         {
-            if (achievement == null || achievement.Data == null || achievement.NumBytes <= 0)
+            if (achievement == null || achievement.Data == null || achievement.Data.Length <= 0)
             {
                 return null;
             }
 
-            var node = new ConfigNode(Encoding.UTF8.GetString(achievement.Data, 0, achievement.NumBytes));
+            var node = new ConfigNode(Encoding.UTF8.GetString(achievement.Data, 0, achievement.Data.Length));
             var id = !string.IsNullOrEmpty(node.Name) ? node.Name : achievement.Id;
             if (string.IsNullOrEmpty(id))
             {
@@ -134,7 +130,6 @@ namespace Server.System.PersistentSync
             return new AchievementSnapshotInfo
             {
                 Id = id,
-                NumBytes = normalizedBytes.Length,
                 Data = normalizedBytes
             };
         }
@@ -143,17 +138,16 @@ namespace Server.System.PersistentSync
         {
             if (left == null || right == null) return left == right;
             return string.Equals(left.Id, right.Id, StringComparison.Ordinal) &&
-                   string.Equals(Encoding.UTF8.GetString(left.Data, 0, left.NumBytes), Encoding.UTF8.GetString(right.Data, 0, right.NumBytes), StringComparison.Ordinal);
+                   string.Equals(Encoding.UTF8.GetString(left.Data, 0, left.Data.Length), Encoding.UTF8.GetString(right.Data, 0, right.Data.Length), StringComparison.Ordinal);
         }
 
         private static AchievementSnapshotInfo CloneInfo(AchievementSnapshotInfo source)
         {
-            var data = new byte[source.NumBytes];
-            Buffer.BlockCopy(source.Data, 0, data, 0, source.NumBytes);
+            var data = new byte[source.Data.Length];
+            Buffer.BlockCopy(source.Data, 0, data, 0, source.Data.Length);
             return new AchievementSnapshotInfo
             {
                 Id = source.Id,
-                NumBytes = source.NumBytes,
                 Data = data
             };
         }
@@ -165,7 +159,7 @@ namespace Server.System.PersistentSync
             builder.AppendLine("{");
             foreach (var achievement in achievements)
             {
-                builder.Append(IndentBlock(Encoding.UTF8.GetString(achievement.Data, 0, achievement.NumBytes), "    "));
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(achievement.Data, 0, achievement.Data.Length), "    "));
             }
 
             builder.AppendLine("}");
@@ -279,3 +273,4 @@ namespace Server.System.PersistentSync
         }
     }
 }
+

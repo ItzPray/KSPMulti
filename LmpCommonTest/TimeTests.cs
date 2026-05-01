@@ -1,4 +1,4 @@
-﻿using LmpCommon.Time;
+using LmpCommon.Time;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 

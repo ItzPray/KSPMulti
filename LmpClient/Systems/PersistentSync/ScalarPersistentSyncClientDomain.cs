@@ -14,7 +14,7 @@ namespace LmpClient.Systems.PersistentSync
         {
             try
             {
-                var deserialized = DeserializePayload(snapshot.Payload, snapshot.NumBytes);
+                var deserialized = PersistentSyncPayloadSerializer.Deserialize<T>(snapshot.Payload, snapshot.NumBytes);
                 _pendingValue = deserialized;
                 _hasPendingValue = true;
             }
@@ -60,7 +60,6 @@ namespace LmpClient.Systems.PersistentSync
             }
         }
 
-        protected abstract T DeserializePayload(byte[] payload, int numBytes);
         protected abstract bool CanApplyLiveState();
         protected abstract void ApplyLiveState(T value);
     }

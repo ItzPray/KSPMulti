@@ -1,4 +1,4 @@
-﻿using LmpCommon.Message;
+using LmpCommon.Message;
 using LmpCommon.Message.Base;
 using LmpCommon.Message.Data.Vessel;
 using LmpCommon.Message.Server;

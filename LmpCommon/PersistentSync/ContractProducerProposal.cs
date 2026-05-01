@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LmpCommon.PersistentSync
 {
@@ -48,23 +49,39 @@ namespace LmpCommon.PersistentSync
             return new ContractProducerProposal(ContractProducerProposalKind.FullReconcile, null, materialized);
         }
 
-        public byte[] Serialize()
+        public ContractIntentPayload ToPayload()
         {
             switch (Kind)
             {
                 case ContractProducerProposalKind.OfferObserved:
-                    return ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.OfferObserved, Contract);
+                    return CreateSingleContractPayload(ContractIntentPayloadKind.OfferObserved);
                 case ContractProducerProposalKind.ParameterProgressObserved:
-                    return ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ParameterProgressObserved, Contract);
+                    return CreateSingleContractPayload(ContractIntentPayloadKind.ParameterProgressObserved);
                 case ContractProducerProposalKind.CompletedObserved:
-                    return ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ContractCompletedObserved, Contract);
+                    return CreateSingleContractPayload(ContractIntentPayloadKind.ContractCompletedObserved);
                 case ContractProducerProposalKind.FailedObserved:
-                    return ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ContractFailedObserved, Contract);
+                    return CreateSingleContractPayload(ContractIntentPayloadKind.ContractFailedObserved);
                 case ContractProducerProposalKind.FullReconcile:
-                    return ContractIntentPayloadSerializer.SerializeFullReconcile(Contracts);
+                    return new ContractIntentPayload
+                    {
+                        Kind = ContractIntentPayloadKind.FullReconcile,
+                        Contracts = (Contracts ?? Array.Empty<ContractSnapshotInfo>())
+                            .Select(ContractSnapshotInfoComparer.Clone)
+                            .ToArray()
+                    };
                 default:
                     throw new InvalidOperationException($"Unknown ContractProducerProposalKind: {Kind}");
             }
+        }
+
+        private ContractIntentPayload CreateSingleContractPayload(ContractIntentPayloadKind kind)
+        {
+            return new ContractIntentPayload
+            {
+                Kind = kind,
+                ContractGuid = Contract?.ContractGuid ?? Guid.Empty,
+                Contract = ContractSnapshotInfoComparer.Clone(Contract)
+            };
         }
     }
 

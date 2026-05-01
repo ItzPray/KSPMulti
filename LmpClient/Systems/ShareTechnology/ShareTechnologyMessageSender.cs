@@ -1,4 +1,4 @@
-﻿using KSP.UI.Screens;
+using KSP.UI.Screens;
 using LmpClient;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
@@ -171,7 +171,6 @@ namespace LmpClient.Systems.ShareTechnology
                 technologies.Add(new TechnologySnapshotInfo
                 {
                     TechId = techState.techID,
-                    NumBytes = data.Length,
                     Data = data
                 });
             }
@@ -317,3 +316,4 @@ namespace LmpClient.Systems.ShareTechnology
         }
     }
 }
+

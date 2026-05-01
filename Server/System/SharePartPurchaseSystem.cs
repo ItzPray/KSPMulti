@@ -17,7 +17,7 @@ namespace Server.System
 
             if (PersistentSyncRegistry.IsPersistentSyncInitialized)
             {
-                var payload = PartPurchasesSnapshotPayloadSerializer.Serialize(new[]
+                var payload = PersistentSyncPayloadSerializer.Serialize(new[]
                 {
                     new PartPurchaseSnapshotInfo
                     {

@@ -1,4 +1,4 @@
-﻿using LmpCommon.Message.Data.ShareProgress;
+using LmpCommon.Message.Data.ShareProgress;
 using LmpCommon.Message.Server;
 using LmpCommon.PersistentSync;
 using Server.Client;
@@ -17,12 +17,11 @@ namespace Server.System
 
             if (PersistentSyncRegistry.IsPersistentSyncInitialized)
             {
-                var payload = AchievementSnapshotPayloadSerializer.Serialize(new[]
+                var payload = PersistentSyncPayloadSerializer.Serialize(new[]
                 {
                     new AchievementSnapshotInfo
                     {
                         Id = data.Id,
-                        NumBytes = data.NumBytes,
                         Data = data.Data
                     }
                 });
@@ -36,3 +35,4 @@ namespace Server.System
         }
     }
 }
+

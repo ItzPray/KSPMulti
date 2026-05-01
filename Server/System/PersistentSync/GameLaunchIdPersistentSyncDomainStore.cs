@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -13,7 +13,7 @@ namespace Server.System.PersistentSync
     /// reporting vessel-era part stamps cannot lower the counter. LoadCanonical also reconciles
     /// against VesselStoreSystem so legacy saves without this file still pick up existing vessels.
     /// </summary>
-    public sealed class GameLaunchIdPersistentSyncDomainStore : ScenarioSyncDomainStore<ScalarCanonical<uint>>
+    public sealed class GameLaunchIdPersistentSyncDomainStore : ScenarioSyncDomainStore<ScalarCanonical<uint>, PersistentSyncValueWithReason<uint>, uint>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("GameLaunchId", 11);
 
@@ -29,8 +29,6 @@ namespace Server.System.PersistentSync
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
 
         protected override string ScenarioName => GameLaunchIdScenarioBootstrap.ScenarioKey;
-
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
         protected override ScalarCanonical<uint> CreateEmpty()
         {
@@ -53,14 +51,13 @@ namespace Server.System.PersistentSync
         protected override ReduceResult<ScalarCanonical<uint>> ReduceIntent(
             ClientStructure client,
             ScalarCanonical<uint> current,
-            byte[] payload,
-            int numBytes,
+            PersistentSyncValueWithReason<uint> intent,
             string reason,
             bool isServerMutation)
         {
             try
             {
-                GameLaunchIdIntentPayloadSerializer.Deserialize(payload, numBytes, out var incoming, out _);
+                var incoming = intent?.Value ?? 1u;
                 var next = global::System.Math.Max(current?.Value ?? 1u, incoming);
                 if (next < 1)
                 {
@@ -86,9 +83,9 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected override byte[] SerializeSnapshot(ScalarCanonical<uint> canonical)
+        protected override uint BuildSnapshotPayload(ScalarCanonical<uint> canonical)
         {
-            return GameLaunchIdSnapshotPayloadSerializer.Serialize((canonical ?? new ScalarCanonical<uint>(1u)).Value);
+            return (canonical ?? new ScalarCanonical<uint>(1u)).Value;
         }
 
         protected override bool AreEquivalent(ScalarCanonical<uint> a, ScalarCanonical<uint> b)

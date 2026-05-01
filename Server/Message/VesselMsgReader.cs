@@ -153,7 +153,7 @@ namespace Server.Message
                 return;
             }
 
-            var payload = GameLaunchIdIntentPayloadSerializer.Serialize(maxLid, "VesselProto");
+            var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<uint>(maxLid, "VesselProto"));
             PersistentSyncRegistry.ApplyServerMutation(
                 PersistentSyncDomainId.GameLaunchId,
                 payload,

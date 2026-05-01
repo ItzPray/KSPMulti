@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Server.System.PersistentSync
 {
-    public sealed class StrategyPersistentSyncDomainStore : ScenarioSyncDomainStore<StrategyPersistentSyncDomainStore.Canonical>
+    public sealed class StrategyPersistentSyncDomainStore : ScenarioSyncDomainStore<StrategyPersistentSyncDomainStore.Canonical, StrategySnapshotInfo[], StrategySnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Strategy", 6);
 
@@ -27,8 +27,6 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "StrategySystem";
-
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
         protected override Canonical CreateEmpty()
         {
@@ -56,11 +54,10 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, StrategySnapshotInfo[] intent, string reason, bool isServerMutation)
         {
-            var records = StrategySnapshotPayloadSerializer.Deserialize(payload) ?? Enumerable.Empty<StrategySnapshotInfo>();
             var next = new SortedDictionary<string, StrategySnapshotInfo>(current.Strategies, StringComparer.Ordinal);
-            foreach (var record in records)
+            foreach (var record in intent ?? Enumerable.Empty<StrategySnapshotInfo>())
             {
                 var normalized = NormalizeSnapshotInfo(record);
                 if (normalized == null)
@@ -96,9 +93,9 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected override byte[] SerializeSnapshot(Canonical canonical)
+        protected override StrategySnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
         {
-            return StrategySnapshotPayloadSerializer.Serialize(canonical.Strategies.Values.Select(CloneInfo).ToArray());
+            return canonical.Strategies.Values.Select(CloneInfo).ToArray();
         }
 
         protected override bool AreEquivalent(Canonical a, Canonical b)
@@ -124,19 +121,18 @@ namespace Server.System.PersistentSync
             return NormalizeSnapshotInfo(new StrategySnapshotInfo
             {
                 Name = bareNode.GetValue(StrategyNameFieldName)?.Value ?? string.Empty,
-                NumBytes = Encoding.UTF8.GetByteCount(bareNode.ToString()),
                 Data = Encoding.UTF8.GetBytes(bareNode.ToString())
             });
         }
 
         private static StrategySnapshotInfo NormalizeSnapshotInfo(StrategySnapshotInfo strategy)
         {
-            if (strategy == null || strategy.Data == null || strategy.NumBytes <= 0)
+            if (strategy == null || strategy.Data == null || strategy.Data.Length <= 0)
             {
                 return null;
             }
 
-            var node = new ConfigNode(Encoding.UTF8.GetString(strategy.Data, 0, strategy.NumBytes));
+            var node = new ConfigNode(Encoding.UTF8.GetString(strategy.Data, 0, strategy.Data.Length));
             var name = node.GetValue(StrategyNameFieldName)?.Value;
             if (string.IsNullOrEmpty(name))
             {
@@ -152,14 +148,13 @@ namespace Server.System.PersistentSync
             return new StrategySnapshotInfo
             {
                 Name = name,
-                NumBytes = normalizedBytes.Length,
                 Data = normalizedBytes
             };
         }
 
         private static ConfigNode CreateScenarioStrategyNode(StrategySnapshotInfo strategy)
         {
-            return new ConfigNode(Encoding.UTF8.GetString(strategy.Data, 0, strategy.NumBytes)) { Name = StrategyNodeName };
+            return new ConfigNode(Encoding.UTF8.GetString(strategy.Data, 0, strategy.Data.Length)) { Name = StrategyNodeName };
         }
 
         private static string BuildBareNodeText(ConfigNode strategyNode)
@@ -173,17 +168,16 @@ namespace Server.System.PersistentSync
         {
             if (left == null || right == null) return left == right;
             return string.Equals(left.Name, right.Name, StringComparison.Ordinal) &&
-                   string.Equals(Encoding.UTF8.GetString(left.Data, 0, left.NumBytes), Encoding.UTF8.GetString(right.Data, 0, right.NumBytes), StringComparison.Ordinal);
+                   string.Equals(Encoding.UTF8.GetString(left.Data, 0, left.Data.Length), Encoding.UTF8.GetString(right.Data, 0, right.Data.Length), StringComparison.Ordinal);
         }
 
         private static StrategySnapshotInfo CloneInfo(StrategySnapshotInfo source)
         {
-            var data = new byte[source.NumBytes];
-            Buffer.BlockCopy(source.Data, 0, data, 0, source.NumBytes);
+            var data = new byte[source.Data.Length];
+            Buffer.BlockCopy(source.Data, 0, data, 0, source.Data.Length);
             return new StrategySnapshotInfo
             {
                 Name = source.Name,
-                NumBytes = source.NumBytes,
                 Data = data
             };
         }
@@ -197,3 +191,4 @@ namespace Server.System.PersistentSync
         }
     }
 }
+

@@ -16,11 +16,6 @@ namespace LmpClient.Systems.PersistentSync
 
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        protected override double DeserializePayload(byte[] payload, int numBytes)
-        {
-            return FundsSnapshotPayloadSerializer.Deserialize(payload, numBytes);
-        }
-
         protected override bool CanApplyLiveState()
         {
             return Funding.Instance != null;

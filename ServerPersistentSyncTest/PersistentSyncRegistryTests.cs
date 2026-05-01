@@ -43,15 +43,15 @@ namespace ServerPersistentSyncTest
             var store = new FundsPersistentSyncDomainStore();
 
             store.LoadFromPersistence(false);
-            Assert.AreEqual(1200.5d, FundsSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, sizeof(double)));
+            Assert.AreEqual(1200.5d, PersistentSyncPayloadSerializer.Deserialize<double>(store.GetCurrentSnapshot().Payload, sizeof(double)));
 
-            var payload = FundsIntentPayloadSerializer.Serialize(1800.25d, "Contract");
+            var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(1800.25d, "Contract"));
             var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "Contract"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
             Assert.AreEqual(1L, result.Snapshot.Revision);
-            Assert.AreEqual(1800.25d, FundsSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes));
+            Assert.AreEqual(1800.25d, PersistentSyncPayloadSerializer.Deserialize<double>(result.Snapshot.Payload, result.Snapshot.NumBytes));
             Assert.AreEqual(1800.25d, double.Parse(ScenarioStoreSystem.CurrentScenarios["Funding"].GetValue("funds").Value, CultureInfo.InvariantCulture));
         }
 
@@ -63,16 +63,16 @@ namespace ServerPersistentSyncTest
 
             var scienceStore = new SciencePersistentSyncDomainStore();
             scienceStore.LoadFromPersistence(false);
-            Assert.AreEqual(42.5f, ScienceSnapshotPayloadSerializer.Deserialize(scienceStore.GetCurrentSnapshot().Payload, sizeof(float)));
+            Assert.AreEqual(42.5f, PersistentSyncPayloadSerializer.Deserialize<float>(scienceStore.GetCurrentSnapshot().Payload, sizeof(float)));
 
             var reputationStore = new ReputationPersistentSyncDomainStore();
             reputationStore.LoadFromPersistence(false);
-            Assert.AreEqual(9.5f, ReputationSnapshotPayloadSerializer.Deserialize(reputationStore.GetCurrentSnapshot().Payload, sizeof(float)));
+            Assert.AreEqual(9.5f, PersistentSyncPayloadSerializer.Deserialize<float>(reputationStore.GetCurrentSnapshot().Payload, sizeof(float)));
 
-            var sciencePayload = ScienceIntentPayloadSerializer.Serialize(77.25f, "Science lab");
+            var sciencePayload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<float>(77.25f, "Science lab"));
             var scienceResult = scienceStore.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Science, sciencePayload, "Science lab"));
 
-            var reputationPayload = ReputationIntentPayloadSerializer.Serialize(12.75f, "Contract");
+            var reputationPayload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<float>(12.75f, "Contract"));
             var reputationResult = reputationStore.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Reputation, reputationPayload, "Contract"));
 
             Assert.AreEqual(77.25f, float.Parse(ScenarioStoreSystem.CurrentScenarios["ResearchAndDevelopment"].GetValue("sci").Value, CultureInfo.InvariantCulture));
@@ -88,7 +88,7 @@ namespace ServerPersistentSyncTest
             var store = new FundsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var payload = FundsIntentPayloadSerializer.Serialize(2500d, "No-op");
+            var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(2500d, "No-op"));
             var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "No-op"));
 
             Assert.IsTrue(result.Accepted);
@@ -113,9 +113,9 @@ namespace ServerPersistentSyncTest
 
             Assert.AreEqual(2, snapshots.Length);
             Assert.AreEqual(PersistentSyncDomainId.Funds, snapshots[0].DomainId);
-            Assert.AreEqual(333d, FundsSnapshotPayloadSerializer.Deserialize(snapshots[0].Payload, snapshots[0].NumBytes));
+            Assert.AreEqual(333d, PersistentSyncPayloadSerializer.Deserialize<double>(snapshots[0].Payload, snapshots[0].NumBytes));
             Assert.AreEqual(PersistentSyncDomainId.Reputation, snapshots[1].DomainId);
-            Assert.AreEqual(55f, ReputationSnapshotPayloadSerializer.Deserialize(snapshots[1].Payload, snapshots[1].NumBytes));
+            Assert.AreEqual(55f, PersistentSyncPayloadSerializer.Deserialize<float>(snapshots[1].Payload, snapshots[1].NumBytes));
         }
 
         [TestMethod]
@@ -124,13 +124,13 @@ namespace ServerPersistentSyncTest
             ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
             PersistentSyncRegistry.Initialize(false);
 
-            var payload = FundsIntentPayloadSerializer.Serialize(700d, "Server Command");
+            var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(700d, "Server Command"));
             var result = PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainId.Funds, payload, payload.Length, "Server Command");
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
             Assert.AreEqual(1L, result.Snapshot.Revision);
-            Assert.AreEqual(700d, FundsSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes));
+            Assert.AreEqual(700d, PersistentSyncPayloadSerializer.Deserialize<double>(result.Snapshot.Payload, result.Snapshot.NumBytes));
             Assert.AreEqual(700d, double.Parse(ScenarioStoreSystem.CurrentScenarios["Funding"].GetValue("funds").Value, CultureInfo.InvariantCulture));
         }
 
@@ -144,24 +144,24 @@ namespace ServerPersistentSyncTest
             var store = new UpgradeableFacilitiesPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var initialSnapshot = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+            var initialSnapshot = DeserializeFacilityLevels(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
             Assert.AreEqual(1, initialSnapshot["SpaceCenter/MissionControl"]);
             Assert.AreEqual(0, initialSnapshot["SpaceCenter/TrackingStation"]);
 
-            var payload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 2);
+            var payload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 2 });
             var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "Mission Control upgrade"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
             Assert.AreEqual(1L, result.Snapshot.Revision);
 
-            var roundTripSnapshot = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var roundTripSnapshot = DeserializeFacilityLevels(result.Snapshot.Payload, result.Snapshot.NumBytes);
             Assert.AreEqual(2, roundTripSnapshot["SpaceCenter/MissionControl"]);
             Assert.AreEqual("1", ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"].GetNode("SpaceCenter/MissionControl").Value.GetValue("lvl").Value);
 
             PersistentSyncRegistry.Initialize(false);
             var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.UpgradeableFacilities }).Single();
-            var registryFacilities = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(registrySnapshot.Payload, registrySnapshot.NumBytes);
+            var registryFacilities = DeserializeFacilityLevels(registrySnapshot.Payload, registrySnapshot.NumBytes);
             Assert.AreEqual(2, registryFacilities["SpaceCenter/MissionControl"]);
         }
 
@@ -189,7 +189,7 @@ namespace ServerPersistentSyncTest
             var store = new UpgradeableFacilitiesPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var snap = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(
+            var snap = DeserializeFacilityLevels(
                 store.GetCurrentSnapshot().Payload,
                 store.GetCurrentSnapshot().NumBytes);
             Assert.AreEqual(1, snap["SpaceCenter/LaunchPad"]);
@@ -205,7 +205,7 @@ namespace ServerPersistentSyncTest
             var store = new UpgradeableFacilitiesPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var payload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 1);
+            var payload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 1 });
             var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, payload, "No-op"));
 
             Assert.IsTrue(result.Accepted);
@@ -224,19 +224,19 @@ namespace ServerPersistentSyncTest
             var store = new UpgradeableFacilitiesPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var before = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(
+            var before = DeserializeFacilityLevels(
                 store.GetCurrentSnapshot().Payload,
                 store.GetCurrentSnapshot().NumBytes);
             Assert.AreEqual(2, before["SpaceCenter/MissionControl"]);
 
-            var downgradePayload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize("SpaceCenter/MissionControl", 0);
+            var downgradePayload = PersistentSyncPayloadSerializer.Serialize(new UpgradeableFacilityLevelPayload { FacilityId = "SpaceCenter/MissionControl", Level = 0 });
             var result = store.ApplyClientIntent(null, CreateIntent(PersistentSyncDomainId.UpgradeableFacilities, downgradePayload, "Spurious KSC init"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsFalse(result.Changed);
             Assert.AreEqual(0L, result.Snapshot.Revision);
 
-            var after = UpgradeableFacilitiesSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var after = DeserializeFacilityLevels(result.Snapshot.Payload, result.Snapshot.NumBytes);
             Assert.AreEqual(2, after["SpaceCenter/MissionControl"]);
             Assert.AreEqual("1", ScenarioStoreSystem.CurrentScenarios["ScenarioUpgradeableFacilities"].GetNode("SpaceCenter/MissionControl").Value.GetValue("lvl").Value);
         }
@@ -263,7 +263,8 @@ namespace ServerPersistentSyncTest
             var store = new ContractsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var initialSnapshot = ContractSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+            var initialSnapshotData = store.GetCurrentSnapshot();
+            var initialSnapshot = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(initialSnapshotData.Payload, initialSnapshotData.NumBytes).Contracts;
             Assert.AreEqual(2, initialSnapshot.Count);
             Assert.AreEqual(contractA.ContractGuid, initialSnapshot[0].ContractGuid);
             Assert.AreEqual("Offered", initialSnapshot[0].ContractState);
@@ -276,7 +277,7 @@ namespace ServerPersistentSyncTest
                 -1,
                 "Complete",
                 "10,1,1,1,0");
-            var mutationPayload = ContractSnapshotPayloadSerializer.Serialize(new[] { changedContractA });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new ContractSnapshotPayload { Contracts = new[] { changedContractA }.ToList() });
             var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Parameter progress");
 
             Assert.IsTrue(result.Accepted);
@@ -296,11 +297,11 @@ namespace ServerPersistentSyncTest
             PersistentSyncRegistry.Initialize(false);
             PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainId.Contracts, store);
             var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
-            var registryContracts = ContractSnapshotPayloadSerializer.Deserialize(registrySnapshot.Payload, registrySnapshot.NumBytes);
+            var registryContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(registrySnapshot.Payload, registrySnapshot.NumBytes).Contracts;
             Assert.AreEqual(2, registryContracts.Count);
             var registryContract = registryContracts.Single(c => c.ContractGuid == contractA.ContractGuid);
             Assert.AreEqual("Offered", registryContract.ContractState);
-            var registryNode = new ConfigNode(Encoding.UTF8.GetString(registryContract.Data, 0, registryContract.NumBytes));
+            var registryNode = new ConfigNode(Encoding.UTF8.GetString(registryContract.Data, 0, registryContract.Data.Length));
             Assert.AreEqual("Complete", registryNode.GetNode("PARAM").Value.GetValue("state").Value);
         }
 
@@ -321,7 +322,8 @@ CONTRACTS
                 var store = new ContractsPersistentSyncDomainStore();
                 store.LoadFromPersistence(false);
 
-                var snapshot = ContractSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+                var snapshotData = store.GetCurrentSnapshot();
+                var snapshot = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(snapshotData.Payload, snapshotData.NumBytes).Contracts;
                 Assert.IsTrue(snapshot.Count > 0, "Career server with empty CONTRACTS should seed from embedded template.");
             }
             finally
@@ -359,7 +361,8 @@ CONTRACTS
             var store = new ContractsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var snapshot = ContractSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+            var snapshotData = store.GetCurrentSnapshot();
+            var snapshot = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(snapshotData.Payload, snapshotData.NumBytes).Contracts;
             Assert.AreEqual(2, snapshot.Count, "Duplicate offered rows should be collapsed during startup load.");
             Assert.IsTrue(snapshot.Any(c => c.ContractGuid == secondDuplicate.ContractGuid), "The latest duplicate should be retained.");
             Assert.IsFalse(snapshot.Any(c => c.ContractGuid == firstDuplicate.ContractGuid), "Older duplicate rows should be removed from the canonical snapshot.");
@@ -406,15 +409,17 @@ CONTRACTS
             var store = new ContractsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var fullReplacePayload = ContractSnapshotPayloadSerializer.Serialize(
-                ContractSnapshotPayloadMode.FullReplace,
-                new[] { currentActive, currentFinished });
+            var fullReplacePayload = PersistentSyncPayloadSerializer.Serialize(new ContractSnapshotPayload
+            {
+                Mode = ContractSnapshotPayloadMode.FullReplace,
+                Contracts = new[] { currentActive, currentFinished }.ToList()
+            });
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
             var result = store.ApplyClientIntent(CreateClient("ContractOwner"), CreateIntent(PersistentSyncDomainId.Contracts, fullReplacePayload, "ContractInventoryFull:Test"));
 
             Assert.IsTrue(result.Accepted);
 
-            var snapshot = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var snapshot = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(result.Snapshot.Payload, result.Snapshot.NumBytes).Contracts;
             Assert.AreEqual(3, snapshot.Count, "Canonical offered rows must be preserved through a producer FullReplace that omits them.");
             Assert.IsTrue(snapshot.Any(c => c.ContractGuid == canonicalOffer.ContractGuid), "Offered canonical row must survive an omission-based FullReplace.");
             Assert.IsTrue(snapshot.Any(c => c.ContractGuid == currentActive.ContractGuid));
@@ -446,14 +451,16 @@ CONTRACTS
             var store = new ContractsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var fullReplacePayload = ContractSnapshotPayloadSerializer.Serialize(
-                ContractSnapshotPayloadMode.FullReplace,
-                new[] { retiredOffer });
+            var fullReplacePayload = PersistentSyncPayloadSerializer.Serialize(new ContractSnapshotPayload
+            {
+                Mode = ContractSnapshotPayloadMode.FullReplace,
+                Contracts = new[] { retiredOffer }.ToList()
+            });
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
             var result = store.ApplyClientIntent(CreateClient("ContractOwner"), CreateIntent(PersistentSyncDomainId.Contracts, fullReplacePayload, "ContractInventoryFull:Test"));
 
             Assert.IsTrue(result.Accepted);
-            var snapshot = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var snapshot = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(result.Snapshot.Payload, result.Snapshot.NumBytes).Contracts;
             var row = snapshot.SingleOrDefault(c => c.ContractGuid == canonicalOffer.ContractGuid);
             Assert.IsNotNull(row, "Retired offer must remain in the snapshot as a Finished row.");
             Assert.AreEqual("Withdrawn", row.ContractState);
@@ -475,7 +482,7 @@ CONTRACTS
             var store = new ContractsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var mutationPayload = ContractSnapshotPayloadSerializer.Serialize(new[] { CreateContractSnapshotInfo(contract.ContractGuid, "Offered", ContractSnapshotPlacement.Current, -1, "Incomplete", "50,0,3,3,0") });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new ContractSnapshotPayload { Contracts = new[] { CreateContractSnapshotInfo(contract.ContractGuid, "Offered", ContractSnapshotPlacement.Current, -1, "Incomplete", "50,0,3,3,0") }.ToList() });
             var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "No-op");
 
             Assert.IsTrue(result.Accepted);
@@ -493,12 +500,12 @@ CONTRACTS
             var store = new TechnologyPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var initialSnapshot = TechnologySnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
-            Assert.AreEqual(2, initialSnapshot.Count);
+            var initialSnapshot = PersistentSyncPayloadSerializer.Deserialize<TechnologySnapshotInfo[]>(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+            Assert.AreEqual(2, initialSnapshot.Length);
             Assert.AreEqual("basicRocketry", initialSnapshot[0].TechId);
 
             var advRocketry = CreateTechnologySnapshotInfo("advRocketry", "Available", 45, "advLiquidEngine");
-            var mutationPayload = TechnologySnapshotPayloadSerializer.Serialize(new[] { advRocketry });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new[] { advRocketry });
             var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Unlock advRocketry");
 
             Assert.IsTrue(result.Accepted);
@@ -518,8 +525,8 @@ CONTRACTS
             PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainId.Technology, store);
 
             var registrySnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Technology }).Single();
-            var registryTechnologies = TechnologySnapshotPayloadSerializer.Deserialize(registrySnapshot.Payload, registrySnapshot.NumBytes);
-            Assert.AreEqual(3, registryTechnologies.Count);
+            var registryTechnologies = PersistentSyncPayloadSerializer.Deserialize<TechnologySnapshotInfo[]>(registrySnapshot.Payload, registrySnapshot.NumBytes);
+            Assert.AreEqual(3, registryTechnologies.Length);
             Assert.IsTrue(registryTechnologies.Any(technology => technology.TechId == "advRocketry"));
         }
 
@@ -568,13 +575,13 @@ Tech
             var store = new TechnologyPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var snapshot = TechnologySnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
+            var snapshot = PersistentSyncPayloadSerializer.Deserialize<TechnologySnapshotInfo[]>(store.GetCurrentSnapshot().Payload, store.GetCurrentSnapshot().NumBytes);
 
             var techIds = snapshot.Select(t => t.TechId).OrderBy(id => id).ToArray();
             CollectionAssert.AreEqual(new[] { "basicRocketry", "engineering101", "generalRocketry", "start" }, techIds);
             foreach (var info in snapshot)
             {
-                var node = new ConfigNode(Encoding.UTF8.GetString(info.Data, 0, info.NumBytes));
+                var node = new ConfigNode(Encoding.UTF8.GetString(info.Data, 0, info.Data.Length));
                 Assert.AreEqual("Available", node.GetValue("state")?.Value, $"tech {info.TechId} state");
                 Assert.IsFalse(string.IsNullOrEmpty(node.GetValue("cost")?.Value), $"tech {info.TechId} cost missing");
             }
@@ -588,7 +595,7 @@ Tech
             var store = new TechnologyPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var mutationPayload = TechnologySnapshotPayloadSerializer.Serialize(new[] { CreateTechnologySnapshotInfo("basicRocketry", "Available", 5, "liquidEngine") });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new[] { CreateTechnologySnapshotInfo("basicRocketry", "Available", 5, "liquidEngine") });
             var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "No-op");
 
             Assert.IsTrue(result.Accepted);
@@ -605,7 +612,7 @@ Tech
             store.LoadFromPersistence(false);
 
             var costUpdate = CreateTechnologySnapshotInfo("basicRocketry", "Available", 9, "liquidEngine");
-            var mutationPayload = TechnologySnapshotPayloadSerializer.Serialize(new[] { costUpdate });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new[] { costUpdate });
             var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Update cost only");
 
             Assert.IsTrue(result.Accepted);
@@ -626,10 +633,10 @@ Tech
             var store = new StrategyPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var initialSnapshot = StrategySnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload);
+            var initialSnapshot = PersistentSyncPayloadSerializer.Deserialize<StrategySnapshotInfo[]>(store.GetCurrentSnapshot().Payload);
             Assert.AreEqual(2, initialSnapshot.Length);
 
-            var mutationPayload = StrategySnapshotPayloadSerializer.Serialize(new[] { CreateStrategySnapshotInfo("recovery", 0.75f, true) });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new[] { CreateStrategySnapshotInfo("recovery", 0.75f, true) });
             var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Activate recovery");
 
             Assert.IsTrue(result.Accepted);
@@ -649,7 +656,7 @@ Tech
             var store = new AchievementsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var mutationPayload = AchievementSnapshotPayloadSerializer.Serialize(new[] { CreateAchievementSnapshotInfo("Duna", "Complete") });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new[] { CreateAchievementSnapshotInfo("Duna", "Complete") });
             var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Reach Duna");
 
             Assert.IsTrue(result.Accepted);
@@ -672,10 +679,10 @@ Tech
             var store = new ScienceSubjectsPersistentSyncDomainStore();
             store.LoadFromPersistence(false);
 
-            var initialSnapshot = ScienceSubjectSnapshotPayloadSerializer.Deserialize(store.GetCurrentSnapshot().Payload);
+            var initialSnapshot = PersistentSyncPayloadSerializer.Deserialize<ScienceSubjectSnapshotInfo[]>(store.GetCurrentSnapshot().Payload);
             Assert.AreEqual(1, initialSnapshot.Length);
 
-            var mutationPayload = ScienceSubjectSnapshotPayloadSerializer.Serialize(new[] { CreateScienceSubjectSnapshotInfo("evaReport@MunInSpaceHigh", 2f, 8f) });
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new[] { CreateScienceSubjectSnapshotInfo("evaReport@MunInSpaceHigh", 2f, 8f) });
             var result = store.ApplyServerMutation(mutationPayload, mutationPayload.Length, "Mun EVA");
 
             Assert.IsTrue(result.Accepted);
@@ -702,12 +709,12 @@ Tech
             var partPurchasesStore = new PartPurchasesPersistentSyncDomainStore(technologyStore);
             partPurchasesStore.LoadFromPersistence(false);
 
-            var experimentalPayload = ExperimentalPartsSnapshotPayloadSerializer.Serialize(new[] { new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 } });
+            var experimentalPayload = PersistentSyncPayloadSerializer.Serialize(new[] { new ExperimentalPartSnapshotInfo { PartName = "liquidEngine", Count = 2 } });
             var experimentalResult = experimentalStore.ApplyServerMutation(experimentalPayload, experimentalPayload.Length, "More stock");
             Assert.IsTrue(experimentalResult.Accepted);
             Assert.IsTrue(experimentalResult.Changed);
 
-            var purchasePayload = PartPurchasesSnapshotPayloadSerializer.Serialize(new[]
+            var purchasePayload = PersistentSyncPayloadSerializer.Serialize(new[]
             {
                 new PartPurchaseSnapshotInfo
                 {
@@ -728,7 +735,7 @@ Tech
             // PartPurchases wire snapshot is projected from Technology's canonical, so the returned payload
             // must reflect the mutation we just routed through it.
             var projectedSnapshot = partPurchasesStore.GetCurrentSnapshot();
-            var projected = PartPurchasesSnapshotPayloadSerializer.Deserialize(projectedSnapshot.Payload);
+            var projected = PersistentSyncPayloadSerializer.Deserialize<PartPurchaseSnapshotInfo[]>(projectedSnapshot.Payload);
             Assert.AreEqual(1, projected.Length);
             Assert.AreEqual("basicRocketry", projected[0].TechId);
             CollectionAssert.AreEqual(new[] { "liquidEngine", "solidBooster" }, projected[0].PartNames);
@@ -756,7 +763,7 @@ Tech
 
             // Mutation routed through PartPurchases: the owner advances first (it owns the canonical), and
             // the projection reprojects the owner's new revision.
-            var purchasePayload = PartPurchasesSnapshotPayloadSerializer.Serialize(new[]
+            var purchasePayload = PersistentSyncPayloadSerializer.Serialize(new[]
             {
                 new PartPurchaseSnapshotInfo
                 {
@@ -778,7 +785,7 @@ Tech
 
             // Mutation routed through the owner directly: the owner advances; the projection must pick the
             // new revision up on its next GetCurrentSnapshot call.
-            var techPayload = TechnologySnapshotPayloadSerializer.Serialize(new[] { CreateTechnologySnapshotInfo("basicRocketry", "Available", 5) });
+            var techPayload = PersistentSyncPayloadSerializer.Serialize(new[] { CreateTechnologySnapshotInfo("basicRocketry", "Available", 5) });
             var ownerResult = technologyStore.ApplyServerMutation(techPayload, techPayload.Length, "Refresh tech");
             Assert.IsTrue(ownerResult.Accepted);
             Assert.AreEqual(
@@ -793,13 +800,13 @@ Tech
             ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "100");
             PersistentSyncRegistry.Initialize(false);
 
-            var payload = FundsIntentPayloadSerializer.Serialize(700d, "Legit");
+            var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(700d, "Legit"));
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "Legit"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
             Assert.AreEqual(1L, result.Snapshot.Revision);
-            Assert.AreEqual(700d, FundsSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes));
+            Assert.AreEqual(700d, PersistentSyncPayloadSerializer.Deserialize<double>(result.Snapshot.Payload, result.Snapshot.NumBytes));
             Assert.AreEqual(700d, double.Parse(ScenarioStoreSystem.CurrentScenarios["Funding"].GetValue("funds").Value, CultureInfo.InvariantCulture));
         }
 
@@ -815,7 +822,7 @@ Tech
             var decorator = new ServerDerivedFundsDecorator(isolatedStore);
             PersistentSyncRegistry.ReplaceRegisteredDomainForTests(PersistentSyncDomainId.Funds, decorator);
 
-            var payload = FundsIntentPayloadSerializer.Serialize(999d, "Denied");
+            var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(999d, "Denied"));
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(null, CreateIntent(PersistentSyncDomainId.Funds, payload, "Denied"));
 
             Assert.IsFalse(result.Accepted);
@@ -852,16 +859,16 @@ Tech
             var ownerClient = CreateClient("ContractOwner");
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, ownerClient.PlayerName), false, out _);
 
-            var payload = ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ParameterProgressObserved, changedContract);
+            var payload = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.ParameterProgressObserved, ContractGuid = changedContract?.ContractGuid ?? Guid.Empty, Contract = changedContract });
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(ownerClient, CreateIntent(PersistentSyncDomainId.Contracts, payload, "Parameter progress"));
 
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
             Assert.AreEqual(1L, result.Snapshot.Revision);
 
-            var updatedContracts = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var updatedContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(result.Snapshot.Payload, result.Snapshot.NumBytes).Contracts;
             var updatedContract = updatedContracts.Single(c => c.ContractGuid == existingContract.ContractGuid);
-            var updatedNode = new ConfigNode(Encoding.UTF8.GetString(updatedContract.Data, 0, updatedContract.NumBytes));
+            var updatedNode = new ConfigNode(Encoding.UTF8.GetString(updatedContract.Data, 0, updatedContract.Data.Length));
             Assert.AreEqual("Complete", updatedNode.GetNode("PARAM").Value.GetValue("state").Value);
         }
 
@@ -885,9 +892,11 @@ Tech
 
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
 
-            var payload = ContractIntentPayloadSerializer.SerializeCommand(
-                ContractIntentPayloadKind.AcceptContract,
-                existingContract.ContractGuid);
+            var payload = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload
+            {
+                Kind = ContractIntentPayloadKind.AcceptContract,
+                ContractGuid = existingContract.ContractGuid
+            });
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("OtherClient"),
                 CreateIntent(PersistentSyncDomainId.Contracts, payload, "Accept command"));
@@ -895,11 +904,11 @@ Tech
             Assert.IsTrue(result.Accepted);
             Assert.IsTrue(result.Changed);
 
-            var updatedContracts = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var updatedContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(result.Snapshot.Payload, result.Snapshot.NumBytes).Contracts;
             var updatedContract = updatedContracts.Single(c => c.ContractGuid == existingContract.ContractGuid);
             Assert.AreEqual("Active", updatedContract.ContractState);
             Assert.AreEqual(ContractSnapshotPlacement.Active, updatedContract.Placement);
-            var contractText = Encoding.UTF8.GetString(updatedContract.Data, 0, updatedContract.NumBytes);
+            var contractText = Encoding.UTF8.GetString(updatedContract.Data, 0, updatedContract.Data.Length);
             StringAssert.Contains(contractText, "state = Active");
         }
 
@@ -931,7 +940,7 @@ Tech
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
             var domainSnapshotBefore = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
 
-            var payload = ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ParameterProgressObserved, changedContract);
+            var payload = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.ParameterProgressObserved, ContractGuid = changedContract?.ContractGuid ?? Guid.Empty, Contract = changedContract });
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(CreateClient("OtherClient"), CreateIntent(PersistentSyncDomainId.Contracts, payload, "Denied progress"));
 
             Assert.IsFalse(result.Accepted);
@@ -939,9 +948,9 @@ Tech
             var domainSnapshotAfter = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
             Assert.AreEqual(domainSnapshotBefore.Revision, domainSnapshotAfter.Revision);
 
-            var contractsAfter = ContractSnapshotPayloadSerializer.Deserialize(domainSnapshotAfter.Payload, domainSnapshotAfter.NumBytes);
+            var contractsAfter = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(domainSnapshotAfter.Payload, domainSnapshotAfter.NumBytes).Contracts;
             var contractAfter = contractsAfter.Single(c => c.ContractGuid == existingContract.ContractGuid);
-            var contractText = Encoding.UTF8.GetString(contractAfter.Data, 0, contractAfter.NumBytes);
+            var contractText = Encoding.UTF8.GetString(contractAfter.Data, 0, contractAfter.Data.Length);
             StringAssert.Contains(contractText, "state = Incomplete");
             StringAssert.Contains(contractText, "values = 2,0,0,0,0");
         }
@@ -976,7 +985,7 @@ Tech
 
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "LockHolderNotFlying"), false, out _);
 
-            var payload = ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ParameterProgressObserved, changedContract);
+            var payload = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.ParameterProgressObserved, ContractGuid = changedContract?.ContractGuid ?? Guid.Empty, Contract = changedContract });
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("FlyingClient"),
                 CreateIntent(PersistentSyncDomainId.Contracts, payload, "Parameter progress from non-lock-holder"));
@@ -985,9 +994,9 @@ Tech
             Assert.IsTrue(result.Changed);
             Assert.AreEqual(1L, result.Snapshot.Revision);
 
-            var updatedContracts = ContractSnapshotPayloadSerializer.Deserialize(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var updatedContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(result.Snapshot.Payload, result.Snapshot.NumBytes).Contracts;
             var updatedContract = updatedContracts.Single(c => c.ContractGuid == existingContract.ContractGuid);
-            var updatedNode = new ConfigNode(Encoding.UTF8.GetString(updatedContract.Data, 0, updatedContract.NumBytes));
+            var updatedNode = new ConfigNode(Encoding.UTF8.GetString(updatedContract.Data, 0, updatedContract.Data.Length));
             Assert.AreEqual("Complete", updatedNode.GetNode("PARAM").Value.GetValue("state").Value);
         }
 
@@ -1022,9 +1031,12 @@ Tech
 
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "LockHolder"), false, out _);
 
-            var payload = ContractIntentPayloadSerializer.SerializeProposal(
-                ContractIntentPayloadKind.ParameterProgressObserved,
-                regressedObservation);
+            var payload = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload
+            {
+                Kind = ContractIntentPayloadKind.ParameterProgressObserved,
+                ContractGuid = regressedObservation.ContractGuid,
+                Contract = regressedObservation
+            });
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("LagObserver"),
                 CreateIntent(PersistentSyncDomainId.Contracts, payload, "Observer sends stale param"));
@@ -1038,9 +1050,9 @@ Tech
                 "Sender must still receive the authoritative snapshot so local contract UI converges to Complete.");
 
             var domainSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
-            var contracts = ContractSnapshotPayloadSerializer.Deserialize(domainSnapshot.Payload, domainSnapshot.NumBytes);
+            var contracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(domainSnapshot.Payload, domainSnapshot.NumBytes).Contracts;
             var row = contracts.Single(c => c.ContractGuid == existingContract.ContractGuid);
-            var node = new ConfigNode(Encoding.UTF8.GetString(row.Data, 0, row.NumBytes));
+            var node = new ConfigNode(Encoding.UTF8.GetString(row.Data, 0, row.Data.Length));
             Assert.AreEqual("Complete", node.GetNode("PARAM").Value.GetValue("state").Value);
         }
 
@@ -1067,7 +1079,7 @@ Tech
 
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ProducerClient"), false, out _);
 
-            var requestPayload = ContractCommandIntent.RequestOfferGeneration().Serialize();
+            var requestPayload = PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.RequestOfferGeneration().ToPayload());
             var revisionBefore = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single().Revision;
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("RequestorClient"),
@@ -1102,7 +1114,7 @@ Tech
 
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ProducerClient"), false, out _);
 
-            var requestPayload = ContractCommandIntent.RequestOfferGeneration().Serialize();
+            var requestPayload = PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.RequestOfferGeneration().ToPayload());
             var result = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("RequestorClient"),
                 CreateIntent(PersistentSyncDomainId.Contracts, requestPayload, "RequestOfferGeneration"));
@@ -1139,7 +1151,7 @@ Tech
 
             var acceptResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("OtherClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, ContractCommandIntent.Accept(offeredContract.ContractGuid).Serialize(), "Accept"));
+                CreateIntent(PersistentSyncDomainId.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Accept(offeredContract.ContractGuid).ToPayload()), "Accept"));
             Assert.IsTrue(acceptResult.Accepted);
             Assert.IsTrue(acceptResult.Changed);
 
@@ -1154,18 +1166,18 @@ Tech
                 "1,1,0,0,0");
             var progressResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 producer,
-                CreateIntent(PersistentSyncDomainId.Contracts, ContractProducerProposal.ParameterProgressObserved(progressedContract).Serialize(), "ParamProgress"));
+                CreateIntent(PersistentSyncDomainId.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractProducerProposal.ParameterProgressObserved(progressedContract).ToPayload()), "ParamProgress"));
             Assert.IsTrue(progressResult.Accepted);
             Assert.IsTrue(progressResult.Changed);
 
             // Reconnecting-client simulation: fetch snapshot directly. Both canonical transitions must be present.
             var snapshotForReconnectingClient = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
-            var canonicalContracts = ContractSnapshotPayloadSerializer.Deserialize(snapshotForReconnectingClient.Payload, snapshotForReconnectingClient.NumBytes);
+            var canonicalContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(snapshotForReconnectingClient.Payload, snapshotForReconnectingClient.NumBytes).Contracts;
             var canonicalContract = canonicalContracts.Single(c => c.ContractGuid == offeredContract.ContractGuid);
 
             Assert.AreEqual("Active", canonicalContract.ContractState);
             Assert.AreEqual(ContractSnapshotPlacement.Active, canonicalContract.Placement);
-            var contractText = Encoding.UTF8.GetString(canonicalContract.Data, 0, canonicalContract.NumBytes);
+            var contractText = Encoding.UTF8.GetString(canonicalContract.Data, 0, canonicalContract.Data.Length);
             StringAssert.Contains(contractText, "state = Active");
             StringAssert.Contains(contractText, "state = Complete"); // parameter state
             StringAssert.Contains(contractText, "values = 1,1,0,0,0");
@@ -1201,15 +1213,15 @@ Tech
             LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ProducerClient"), false, out _);
             var acceptResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("AnyClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, ContractCommandIntent.Accept(offeredContract.ContractGuid).Serialize(), "Accept"));
+                CreateIntent(PersistentSyncDomainId.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Accept(offeredContract.ContractGuid).ToPayload()), "Accept"));
             var declineResult = PersistentSyncRegistry.ApplyClientIntentWithAuthority(
                 CreateClient("AnyClient"),
-                CreateIntent(PersistentSyncDomainId.Contracts, ContractCommandIntent.Decline(otherOffer.ContractGuid).Serialize(), "Decline"));
+                CreateIntent(PersistentSyncDomainId.Contracts, PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Decline(otherOffer.ContractGuid).ToPayload()), "Decline"));
             Assert.IsTrue(acceptResult.Accepted && acceptResult.Changed);
             Assert.IsTrue(declineResult.Accepted && declineResult.Changed);
 
             var liveSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
-            var liveContracts = ContractSnapshotPayloadSerializer.Deserialize(liveSnapshot.Payload, liveSnapshot.NumBytes)
+            var liveContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(liveSnapshot.Payload, liveSnapshot.NumBytes).Contracts
                 .OrderBy(c => c.ContractGuid)
                 .ToList();
 
@@ -1218,7 +1230,7 @@ Tech
             PersistentSyncRegistry.Initialize(false);
 
             var reloadedSnapshot = PersistentSyncRegistry.GetSnapshots(new[] { PersistentSyncDomainId.Contracts }).Single();
-            var reloadedContracts = ContractSnapshotPayloadSerializer.Deserialize(reloadedSnapshot.Payload, reloadedSnapshot.NumBytes)
+            var reloadedContracts = PersistentSyncPayloadSerializer.Deserialize<ContractSnapshotPayload>(reloadedSnapshot.Payload, reloadedSnapshot.NumBytes).Contracts
                 .OrderBy(c => c.ContractGuid)
                 .ToList();
 
@@ -1229,8 +1241,8 @@ Tech
                 Assert.AreEqual(liveContracts[i].ContractGuid, reloadedContracts[i].ContractGuid);
                 Assert.AreEqual(liveContracts[i].ContractState, reloadedContracts[i].ContractState);
                 Assert.AreEqual(liveContracts[i].Placement, reloadedContracts[i].Placement);
-                var before = Encoding.UTF8.GetString(liveContracts[i].Data, 0, liveContracts[i].NumBytes);
-                var after = Encoding.UTF8.GetString(reloadedContracts[i].Data, 0, reloadedContracts[i].NumBytes);
+                var before = Encoding.UTF8.GetString(liveContracts[i].Data, 0, liveContracts[i].Data.Length);
+                var after = Encoding.UTF8.GetString(reloadedContracts[i].Data, 0, reloadedContracts[i].Data.Length);
                 Assert.AreEqual(before, after,
                     $"Contract {liveContracts[i].ContractGuid} body must be byte-identical across restart.");
             }
@@ -1242,12 +1254,12 @@ Tech
             // Gate: the public CLR facades ContractCommandIntent / ContractProducerProposal are a functional wrapper
             // around the intent payload serializer and must produce byte-identical wire payloads.
             var guid = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddd01");
-            var facadeAccept = ContractCommandIntent.Accept(guid).Serialize();
-            var directAccept = ContractIntentPayloadSerializer.SerializeCommand(ContractIntentPayloadKind.AcceptContract, guid);
+            var facadeAccept = PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.Accept(guid).ToPayload());
+            var directAccept = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.AcceptContract, ContractGuid = guid });
             CollectionAssert.AreEqual(directAccept, facadeAccept);
 
-            var facadeRequest = ContractCommandIntent.RequestOfferGeneration().Serialize();
-            var directRequest = ContractIntentPayloadSerializer.SerializeRequestOfferGeneration();
+            var facadeRequest = PersistentSyncPayloadSerializer.Serialize(ContractCommandIntent.RequestOfferGeneration().ToPayload());
+            var directRequest = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.RequestOfferGeneration });
             CollectionAssert.AreEqual(directRequest, facadeRequest);
 
             var contract = CreateContractSnapshotInfo(
@@ -1257,12 +1269,12 @@ Tech
                 0,
                 "Complete",
                 "1,1,0,0,0");
-            var facadeProposal = ContractProducerProposal.ParameterProgressObserved(contract).Serialize();
-            var directProposal = ContractIntentPayloadSerializer.SerializeProposal(ContractIntentPayloadKind.ParameterProgressObserved, contract);
+            var facadeProposal = PersistentSyncPayloadSerializer.Serialize(ContractProducerProposal.ParameterProgressObserved(contract).ToPayload());
+            var directProposal = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.ParameterProgressObserved, ContractGuid = contract?.ContractGuid ?? Guid.Empty, Contract = contract });
             CollectionAssert.AreEqual(directProposal, facadeProposal);
 
-            var facadeReconcile = ContractProducerProposal.FullReconcile(new[] { contract }).Serialize();
-            var directReconcile = ContractIntentPayloadSerializer.SerializeFullReconcile(new[] { contract });
+            var facadeReconcile = PersistentSyncPayloadSerializer.Serialize(ContractProducerProposal.FullReconcile(new[] { contract }).ToPayload());
+            var directReconcile = PersistentSyncPayloadSerializer.Serialize(new ContractIntentPayload { Kind = ContractIntentPayloadKind.FullReconcile, Contracts = new[] { contract } });
             CollectionAssert.AreEqual(directReconcile, facadeReconcile);
         }
 
@@ -1343,7 +1355,7 @@ Tech
             {
                 builder.AppendLine("CONTRACT");
                 builder.AppendLine("{");
-                builder.Append(IndentBlock(Encoding.UTF8.GetString(contract.Data, 0, contract.NumBytes), "    "));
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(contract.Data, 0, contract.Data.Length), "    "));
                 builder.AppendLine("}");
             }
 
@@ -1361,7 +1373,7 @@ Tech
             {
                 builder.AppendLine("Tech");
                 builder.AppendLine("{");
-                builder.Append(IndentBlock(Encoding.UTF8.GetString(technology.Data, 0, technology.NumBytes), "    "));
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(technology.Data, 0, technology.Data.Length), "    "));
                 builder.AppendLine("}");
             }
 
@@ -1378,7 +1390,7 @@ Tech
             {
                 builder.AppendLine("Tech");
                 builder.AppendLine("{");
-                builder.Append(IndentBlock(Encoding.UTF8.GetString(technology.Data, 0, technology.NumBytes), "    "));
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(technology.Data, 0, technology.Data.Length), "    "));
                 builder.AppendLine("}");
             }
 
@@ -1386,7 +1398,7 @@ Tech
             {
                 builder.AppendLine("Science");
                 builder.AppendLine("{");
-                builder.Append(IndentBlock(Encoding.UTF8.GetString(subject.Data, 0, subject.NumBytes), "    "));
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(subject.Data, 0, subject.Data.Length), "    "));
                 builder.AppendLine("}");
             }
 
@@ -1419,7 +1431,6 @@ PARAM
                 ContractState = state,
                 Placement = placement,
                 Order = order,
-                NumBytes = data.Length,
                 Data = data
             };
         }
@@ -1440,7 +1451,6 @@ lmpOfferTitle = {title}
                 ContractState = state,
                 Placement = placement,
                 Order = order,
-                NumBytes = data.Length,
                 Data = data
             };
         }
@@ -1459,7 +1469,6 @@ lmpOfferTitle = {title}
             return new TechnologySnapshotInfo
             {
                 TechId = techId,
-                NumBytes = data.Length,
                 Data = data
             };
         }
@@ -1476,7 +1485,7 @@ lmpOfferTitle = {title}
             {
                 builder.AppendLine("STRATEGY");
                 builder.AppendLine("{");
-                builder.Append(IndentBlock(Encoding.UTF8.GetString(strategy.Data, 0, strategy.NumBytes), "    "));
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(strategy.Data, 0, strategy.Data.Length), "    "));
                 builder.AppendLine("}");
             }
 
@@ -1491,7 +1500,6 @@ lmpOfferTitle = {title}
             return new StrategySnapshotInfo
             {
                 Name = name,
-                NumBytes = data.Length,
                 Data = data
             };
         }
@@ -1506,7 +1514,7 @@ lmpOfferTitle = {title}
 
             foreach (var achievement in achievements.OrderBy(value => value.Id))
             {
-                builder.Append(IndentBlock(Encoding.UTF8.GetString(achievement.Data, 0, achievement.NumBytes), "    "));
+                builder.Append(IndentBlock(Encoding.UTF8.GetString(achievement.Data, 0, achievement.Data.Length), "    "));
             }
 
             builder.AppendLine("}");
@@ -1520,7 +1528,6 @@ lmpOfferTitle = {title}
             return new AchievementSnapshotInfo
             {
                 Id = id,
-                NumBytes = data.Length,
                 Data = data
             };
         }
@@ -1532,7 +1539,6 @@ lmpOfferTitle = {title}
             return new ScienceSubjectSnapshotInfo
             {
                 Id = id,
-                NumBytes = data.Length,
                 Data = data
             };
         }
@@ -1541,6 +1547,12 @@ lmpOfferTitle = {title}
         {
             var lines = value.Replace("\r\n", "\n").Split('\n');
             return string.Join("\n", lines.Where(line => line.Length > 0).Select(line => indent + line)) + "\n";
+        }
+
+        private static Dictionary<string, int> DeserializeFacilityLevels(byte[] payload, int numBytes)
+        {
+            return PersistentSyncPayloadSerializer.Deserialize<UpgradeableFacilityLevelPayload[]>(payload, numBytes)
+                .ToDictionary(level => level.FacilityId, level => level.Level);
         }
 
         private static PersistentSyncIntentMsgData CreateIntent(PersistentSyncDomainId domainId, byte[] payload, string reason)

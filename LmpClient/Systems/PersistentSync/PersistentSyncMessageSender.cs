@@ -34,69 +34,64 @@ namespace LmpClient.Systems.PersistentSync
             SendMessage(msgData);
         }
 
+        public void SendIntent<TPayload>(PersistentSyncDomainId domainId, long clientKnownRevision, TPayload payload, string reason)
+        {
+            SendIntent(domainId, clientKnownRevision, PersistentSyncPayloadSerializer.Serialize(payload), reason);
+        }
+
         public void SendFundsIntent(double funds, string reason)
         {
-            var payload = FundsIntentPayloadSerializer.Serialize(funds, reason);
-            SendIntent(PersistentSyncDomainId.Funds, System.GetKnownRevision(PersistentSyncDomainId.Funds), payload, reason);
+            SendIntent(PersistentSyncDomainId.Funds, System.GetKnownRevision(PersistentSyncDomainId.Funds), new PersistentSyncValueWithReason<double>(funds, reason), reason);
         }
 
         public void SendScienceIntent(float science, string reason)
         {
-            var payload = ScienceIntentPayloadSerializer.Serialize(science, reason);
-            SendIntent(PersistentSyncDomainId.Science, System.GetKnownRevision(PersistentSyncDomainId.Science), payload, reason);
+            SendIntent(PersistentSyncDomainId.Science, System.GetKnownRevision(PersistentSyncDomainId.Science), new PersistentSyncValueWithReason<float>(science, reason), reason);
         }
 
         public void SendReputationIntent(float reputation, string reason)
         {
-            var payload = ReputationIntentPayloadSerializer.Serialize(reputation, reason);
-            SendIntent(PersistentSyncDomainId.Reputation, System.GetKnownRevision(PersistentSyncDomainId.Reputation), payload, reason);
+            SendIntent(PersistentSyncDomainId.Reputation, System.GetKnownRevision(PersistentSyncDomainId.Reputation), new PersistentSyncValueWithReason<float>(reputation, reason), reason);
         }
 
         public void SendUpgradeableFacilityIntent(string facilityId, int level, string reason)
         {
-            var payload = UpgradeableFacilitiesIntentPayloadSerializer.Serialize(facilityId, level);
-            SendIntent(PersistentSyncDomainId.UpgradeableFacilities, System.GetKnownRevision(PersistentSyncDomainId.UpgradeableFacilities), payload, reason);
+            SendIntent(PersistentSyncDomainId.UpgradeableFacilities, System.GetKnownRevision(PersistentSyncDomainId.UpgradeableFacilities), new UpgradeableFacilityLevelPayload { FacilityId = facilityId, Level = level }, reason);
         }
 
-        public void SendContractsIntentPayload(byte[] payload, string reason)
+        public void SendContractsIntentPayload(ContractIntentPayload payload, string reason)
         {
             SendIntent(PersistentSyncDomainId.Contracts, System.GetKnownRevision(PersistentSyncDomainId.Contracts), payload, reason);
         }
 
         public void SendTechnologyIntent(TechnologySnapshotInfo[] technologies, string reason)
         {
-            var payload = TechnologySnapshotPayloadSerializer.Serialize(technologies);
-            SendIntent(PersistentSyncDomainId.Technology, System.GetKnownRevision(PersistentSyncDomainId.Technology), payload, reason);
+            SendIntent(PersistentSyncDomainId.Technology, System.GetKnownRevision(PersistentSyncDomainId.Technology), technologies, reason);
         }
 
         public void SendStrategyIntent(StrategySnapshotInfo[] strategies, string reason)
         {
-            var payload = StrategySnapshotPayloadSerializer.Serialize(strategies);
-            SendIntent(PersistentSyncDomainId.Strategy, System.GetKnownRevision(PersistentSyncDomainId.Strategy), payload, reason);
+            SendIntent(PersistentSyncDomainId.Strategy, System.GetKnownRevision(PersistentSyncDomainId.Strategy), strategies, reason);
         }
 
         public void SendAchievementsIntent(AchievementSnapshotInfo[] achievements, string reason)
         {
-            var payload = AchievementSnapshotPayloadSerializer.Serialize(achievements);
-            SendIntent(PersistentSyncDomainId.Achievements, System.GetKnownRevision(PersistentSyncDomainId.Achievements), payload, reason);
+            SendIntent(PersistentSyncDomainId.Achievements, System.GetKnownRevision(PersistentSyncDomainId.Achievements), achievements, reason);
         }
 
         public void SendScienceSubjectsIntent(ScienceSubjectSnapshotInfo[] subjects, string reason)
         {
-            var payload = ScienceSubjectSnapshotPayloadSerializer.Serialize(subjects);
-            SendIntent(PersistentSyncDomainId.ScienceSubjects, System.GetKnownRevision(PersistentSyncDomainId.ScienceSubjects), payload, reason);
+            SendIntent(PersistentSyncDomainId.ScienceSubjects, System.GetKnownRevision(PersistentSyncDomainId.ScienceSubjects), subjects, reason);
         }
 
         public void SendExperimentalPartsIntent(ExperimentalPartSnapshotInfo[] parts, string reason)
         {
-            var payload = ExperimentalPartsSnapshotPayloadSerializer.Serialize(parts);
-            SendIntent(PersistentSyncDomainId.ExperimentalParts, System.GetKnownRevision(PersistentSyncDomainId.ExperimentalParts), payload, reason);
+            SendIntent(PersistentSyncDomainId.ExperimentalParts, System.GetKnownRevision(PersistentSyncDomainId.ExperimentalParts), parts, reason);
         }
 
         public void SendPartPurchasesIntent(PartPurchaseSnapshotInfo[] purchases, string reason)
         {
-            var payload = PartPurchasesSnapshotPayloadSerializer.Serialize(purchases);
-            SendIntent(PersistentSyncDomainId.PartPurchases, System.GetKnownRevision(PersistentSyncDomainId.PartPurchases), payload, reason);
+            SendIntent(PersistentSyncDomainId.PartPurchases, System.GetKnownRevision(PersistentSyncDomainId.PartPurchases), purchases, reason);
         }
     }
 }

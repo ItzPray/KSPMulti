@@ -29,11 +29,6 @@ namespace LmpClient.Systems.PersistentSync
 
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        protected override float DeserializePayload(byte[] payload, int numBytes)
-        {
-            return ScienceSnapshotPayloadSerializer.Deserialize(payload, numBytes);
-        }
-
         protected override bool CanApplyLiveState()
         {
             return ResearchAndDevelopment.Instance != null;
@@ -45,7 +40,7 @@ namespace LmpClient.Systems.PersistentSync
         }
     }
 
-    public class StrategyPersistentSyncClientDomain : IPersistentSyncClientDomain
+    public class StrategyPersistentSyncClientDomain : TypedPersistentSyncClientDomain<StrategySnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Strategy", 6);
 
@@ -58,25 +53,18 @@ namespace LmpClient.Systems.PersistentSync
 
         private Dictionary<string, StrategySnapshotInfo> _pendingStrategies;
 
-        public PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
+        protected override PersistentSyncApplyOutcome ApplySnapshot(StrategySnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
-            try
-            {
-                _pendingStrategies = StrategySnapshotPayloadSerializer.Deserialize(snapshot.Payload)
-                    .Where(strategy => strategy != null && !string.IsNullOrEmpty(strategy.Name))
-                    .ToDictionary(strategy => strategy.Name, strategy => strategy, StringComparer.Ordinal);
-            }
-            catch
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
+            _pendingStrategies = (payload ?? new StrategySnapshotInfo[0])
+                .Where(strategy => strategy != null && !string.IsNullOrEmpty(strategy.Name))
+                .ToDictionary(strategy => strategy.Name, strategy => strategy, StringComparer.Ordinal);
 
             return FlushPendingState();
         }
 
-        public PersistentSyncApplyOutcome FlushPendingState()
+        public override PersistentSyncApplyOutcome FlushPendingState()
         {
             if (_pendingStrategies == null)
             {
@@ -102,7 +90,7 @@ namespace LmpClient.Systems.PersistentSync
         }
     }
 
-    public class AchievementsPersistentSyncClientDomain : IPersistentSyncClientDomain
+    public class AchievementsPersistentSyncClientDomain : TypedPersistentSyncClientDomain<AchievementSnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Achievements", 7);
 
@@ -115,23 +103,16 @@ namespace LmpClient.Systems.PersistentSync
 
         private AchievementSnapshotInfo[] _pendingAchievements;
 
-        public PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
+        protected override PersistentSyncApplyOutcome ApplySnapshot(AchievementSnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
-            try
-            {
-                _pendingAchievements = AchievementSnapshotPayloadSerializer.Deserialize(snapshot.Payload);
-            }
-            catch
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
+            _pendingAchievements = payload ?? new AchievementSnapshotInfo[0];
 
             return FlushPendingState();
         }
 
-        public PersistentSyncApplyOutcome FlushPendingState()
+        public override PersistentSyncApplyOutcome FlushPendingState()
         {
             if (_pendingAchievements == null)
             {
@@ -146,12 +127,12 @@ namespace LmpClient.Systems.PersistentSync
             var rootNode = new ConfigNode();
             try
             {
-                foreach (var achievement in _pendingAchievements.Where(value => value != null && value.NumBytes > 0))
+                foreach (var achievement in _pendingAchievements.Where(value => value != null && value.Data.Length > 0))
                 {
                     // Payload is a ConfigNodeSerializer-serialized node; `new ConfigNode(string)` would
                     // silently store the entire text as the node name with no child values, so the
                     // achievement tree would receive empty nodes. Use the matching deserializer.
-                    var achievementNode = achievement.Data.DeserializeToConfigNode(achievement.NumBytes);
+                    var achievementNode = achievement.Data.DeserializeToConfigNode(achievement.Data.Length);
                     if (achievementNode != null)
                     {
                         rootNode.AddNode(achievementNode);
@@ -181,7 +162,7 @@ namespace LmpClient.Systems.PersistentSync
         }
     }
 
-    public class ScienceSubjectsPersistentSyncClientDomain : IPersistentSyncClientDomain
+    public class ScienceSubjectsPersistentSyncClientDomain : TypedPersistentSyncClientDomain<ScienceSubjectSnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ScienceSubjects", 8);
 
@@ -194,23 +175,16 @@ namespace LmpClient.Systems.PersistentSync
 
         private ScienceSubjectSnapshotInfo[] _pendingSubjects;
 
-        public PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
+        protected override PersistentSyncApplyOutcome ApplySnapshot(ScienceSubjectSnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
-            try
-            {
-                _pendingSubjects = ScienceSubjectSnapshotPayloadSerializer.Deserialize(snapshot.Payload);
-            }
-            catch
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
+            _pendingSubjects = payload ?? new ScienceSubjectSnapshotInfo[0];
 
             return FlushPendingState();
         }
 
-        public PersistentSyncApplyOutcome FlushPendingState()
+        public override PersistentSyncApplyOutcome FlushPendingState()
         {
             if (_pendingSubjects == null)
             {
@@ -225,9 +199,9 @@ namespace LmpClient.Systems.PersistentSync
             var subjects = new Dictionary<string, ScienceSubject>(StringComparer.Ordinal);
             try
             {
-                foreach (var snapshot in _pendingSubjects.Where(value => value != null && value.NumBytes > 0))
+                foreach (var snapshot in _pendingSubjects.Where(value => value != null && value.Data.Length > 0))
                 {
-                    var subject = ShareScienceSubjectMessageHandler.ConvertByteArrayToScienceSubject(snapshot.Data, snapshot.NumBytes);
+                    var subject = ShareScienceSubjectMessageHandler.ConvertByteArrayToScienceSubject(snapshot.Data, snapshot.Data.Length);
                     if (subject == null || string.IsNullOrEmpty(subject.id))
                     {
                         return PersistentSyncApplyOutcome.Rejected;
@@ -256,7 +230,7 @@ namespace LmpClient.Systems.PersistentSync
         }
     }
 
-    public class ExperimentalPartsPersistentSyncClientDomain : IPersistentSyncClientDomain
+    public class ExperimentalPartsPersistentSyncClientDomain : TypedPersistentSyncClientDomain<ExperimentalPartSnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ExperimentalParts", 9);
 
@@ -269,23 +243,16 @@ namespace LmpClient.Systems.PersistentSync
 
         private ExperimentalPartSnapshotInfo[] _pendingParts;
 
-        public PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
+        protected override PersistentSyncApplyOutcome ApplySnapshot(ExperimentalPartSnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
-            try
-            {
-                _pendingParts = ExperimentalPartsSnapshotPayloadSerializer.Deserialize(snapshot.Payload);
-            }
-            catch
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
+            _pendingParts = payload ?? new ExperimentalPartSnapshotInfo[0];
 
             return FlushPendingState();
         }
 
-        public PersistentSyncApplyOutcome FlushPendingState()
+        public override PersistentSyncApplyOutcome FlushPendingState()
         {
             if (_pendingParts == null)
             {
@@ -347,7 +314,7 @@ namespace LmpClient.Systems.PersistentSync
         }
     }
 
-    public class PartPurchasesPersistentSyncClientDomain : IPersistentSyncClientDomain
+    public class PartPurchasesPersistentSyncClientDomain : TypedPersistentSyncClientDomain<PartPurchaseSnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("PartPurchases", 10);
 
@@ -369,21 +336,14 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private Dictionary<string, PartPurchaseSnapshotInfo> _authoritativePurchases;
 
-        public PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
+        protected override PersistentSyncApplyOutcome ApplySnapshot(PartPurchaseSnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
-            try
-            {
-                _pendingPurchases = PartPurchasesSnapshotPayloadSerializer.Deserialize(snapshot.Payload)
-                    .Where(value => value != null && !string.IsNullOrEmpty(value.TechId))
-                    .ToDictionary(value => value.TechId, value => value, StringComparer.Ordinal);
-                _authoritativePurchases = new Dictionary<string, PartPurchaseSnapshotInfo>(_pendingPurchases, StringComparer.Ordinal);
-            }
-            catch
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
+            _pendingPurchases = (payload ?? new PartPurchaseSnapshotInfo[0])
+                .Where(value => value != null && !string.IsNullOrEmpty(value.TechId))
+                .ToDictionary(value => value.TechId, value => value, StringComparer.Ordinal);
+            _authoritativePurchases = new Dictionary<string, PartPurchaseSnapshotInfo>(_pendingPurchases, StringComparer.Ordinal);
 
             return FlushPendingState();
         }
@@ -399,7 +359,7 @@ namespace LmpClient.Systems.PersistentSync
             return true;
         }
 
-        public PersistentSyncApplyOutcome FlushPendingState()
+        public override PersistentSyncApplyOutcome FlushPendingState()
         {
             if (_pendingPurchases == null)
             {
@@ -470,7 +430,7 @@ namespace LmpClient.Systems.PersistentSync
         }
     }
 
-    public class TechnologyPersistentSyncClientDomain : IPersistentSyncClientDomain
+    public class TechnologyPersistentSyncClientDomain : TypedPersistentSyncClientDomain<TechnologySnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Technology", 5);
 
@@ -491,21 +451,14 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private Dictionary<string, TechnologySnapshotInfo> _authoritativeTechnologyById;
 
-        public PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
+        protected override PersistentSyncApplyOutcome ApplySnapshot(TechnologySnapshotInfo[] payload, PersistentSyncBufferedSnapshot snapshot)
         {
-            try
-            {
-                _pendingTechnologyById = TechnologySnapshotPayloadSerializer.Deserialize(snapshot.Payload, snapshot.NumBytes)
-                    .Where(technology => technology != null && !string.IsNullOrEmpty(technology.TechId))
-                    .ToDictionary(technology => technology.TechId, technology => technology, StringComparer.Ordinal);
-                _authoritativeTechnologyById = new Dictionary<string, TechnologySnapshotInfo>(_pendingTechnologyById, StringComparer.Ordinal);
-            }
-            catch
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
+            _pendingTechnologyById = (payload ?? new TechnologySnapshotInfo[0])
+                .Where(technology => technology != null && !string.IsNullOrEmpty(technology.TechId))
+                .ToDictionary(technology => technology.TechId, technology => technology, StringComparer.Ordinal);
+            _authoritativeTechnologyById = new Dictionary<string, TechnologySnapshotInfo>(_pendingTechnologyById, StringComparer.Ordinal);
 
             LunaLog.Log($"[PersistentSync] Technology ApplySnapshot revision={snapshot.Revision} receivedTechCount={_pendingTechnologyById.Count} techIds=[{string.Join(",", _pendingTechnologyById.Keys.OrderBy(k => k))}]");
 
@@ -528,7 +481,7 @@ namespace LmpClient.Systems.PersistentSync
             return true;
         }
 
-        public PersistentSyncApplyOutcome FlushPendingState()
+        public override PersistentSyncApplyOutcome FlushPendingState()
         {
             if (_pendingTechnologyById == null)
             {
@@ -776,13 +729,13 @@ namespace LmpClient.Systems.PersistentSync
             // ConfigNodeSerializer.DeserializeToConfigNode) returns an empty node for that format,
             // which made GetValue("state") always return null and every tech stay Unavailable.
             // Parse the bare key=value lines directly to match the server wire format.
-            if (snapshot?.Data == null || snapshot.NumBytes <= 0)
+            if (snapshot?.Data == null || snapshot.Data.Length <= 0)
             {
                 LunaLog.LogWarning($"[PersistentSync] Technology snapshot for '{snapshot?.TechId}' has no data; retaining default tech state");
                 return;
             }
 
-            var text = System.Text.Encoding.UTF8.GetString(snapshot.Data, 0, snapshot.NumBytes);
+            var text = System.Text.Encoding.UTF8.GetString(snapshot.Data, 0, snapshot.Data.Length);
             string stateValue = null;
             string costValue = null;
             foreach (var rawLine in text.Split('\n'))
@@ -820,3 +773,5 @@ namespace LmpClient.Systems.PersistentSync
         }
     }
 }
+
+

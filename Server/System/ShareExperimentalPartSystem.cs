@@ -17,7 +17,7 @@ namespace Server.System
 
             if (PersistentSyncRegistry.IsPersistentSyncInitialized)
             {
-                var payload = ExperimentalPartsSnapshotPayloadSerializer.Serialize(new[]
+                var payload = PersistentSyncPayloadSerializer.Serialize(new[]
                 {
                     new ExperimentalPartSnapshotInfo
                     {

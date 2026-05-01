@@ -1,4 +1,4 @@
-﻿using LmpClient.Base;
+using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
 using LmpClient.Network;
@@ -34,7 +34,6 @@ namespace LmpClient.Systems.ShareStrategy
                     new StrategySnapshotInfo
                     {
                         Name = strategy.Config.Name,
-                        NumBytes = numBytes,
                         Data = data
                     }
                 }, $"StrategyUpdate:{strategy.Config.Name}");
@@ -73,3 +72,4 @@ namespace LmpClient.Systems.ShareStrategy
 
     }
 }
+

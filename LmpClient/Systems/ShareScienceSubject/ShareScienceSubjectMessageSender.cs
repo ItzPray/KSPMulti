@@ -1,4 +1,4 @@
-﻿using LmpClient.Base;
+using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
 using LmpClient.Network;
@@ -33,7 +33,6 @@ namespace LmpClient.Systems.ShareScienceSubject
                     new ScienceSubjectSnapshotInfo
                     {
                         Id = subject.id,
-                        NumBytes = numBytes,
                         Data = data
                     }
                 }, $"ScienceSubjectUpdate:{subject.id}");
@@ -72,3 +71,4 @@ namespace LmpClient.Systems.ShareScienceSubject
         }
     }
 }
+

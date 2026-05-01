@@ -167,6 +167,27 @@ namespace Server.System.PersistentSync
             return ApplyInternal(null, payload, numBytes, clientKnownRevision, reason, isServerMutation, reducer);
         }
 
+        internal PersistentSyncDomainApplyResult ApplyWithCustomReduce<TPayload>(
+            byte[] payload,
+            int numBytes,
+            long? clientKnownRevision,
+            string reason,
+            bool isServerMutation,
+            Func<TCanonical, TPayload, ReduceResult<TCanonical>> reducer)
+        {
+            if (reducer == null) throw new ArgumentNullException(nameof(reducer));
+            return ApplyInternal(
+                null,
+                payload,
+                numBytes,
+                clientKnownRevision,
+                reason,
+                isServerMutation,
+                (current, rawPayload) => reducer(
+                    current,
+                    PersistentSyncPayloadSerializer.Deserialize<TPayload>(rawPayload, numBytes)));
+        }
+
         private PersistentSyncDomainApplyResult ApplyInternal(ClientStructure client, byte[] payload, int numBytes, long? clientKnownRevision, string reason, bool isServerMutation, Func<TCanonical, byte[], ReduceResult<TCanonical>> customReducer = null)
         {
             lock (_stateLock)
@@ -317,5 +338,38 @@ namespace Server.System.PersistentSync
         /// <paramref name="scenario"/> freely.
         /// </summary>
         protected virtual bool ShouldWriteBackAfterLoad(TCanonical loaded, ConfigNode scenario) => false;
+    }
+
+    public abstract class ScenarioSyncDomainStore<TCanonical, TIntentPayload, TSnapshotPayload> : ScenarioSyncDomainStore<TCanonical>
+        where TCanonical : class
+    {
+        public sealed override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes)
+        {
+            return AuthorizeIntent(client, DecodeIntent(payload, numBytes));
+        }
+
+        protected virtual bool AuthorizeIntent(ClientStructure client, TIntentPayload intent)
+        {
+            return AuthorizeByPolicy(client);
+        }
+
+        protected sealed override ReduceResult<TCanonical> ReduceIntent(ClientStructure client, TCanonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        {
+            return ReduceIntent(client, current, DecodeIntent(payload, numBytes), reason, isServerMutation);
+        }
+
+        protected abstract ReduceResult<TCanonical> ReduceIntent(ClientStructure client, TCanonical current, TIntentPayload intent, string reason, bool isServerMutation);
+
+        protected sealed override byte[] SerializeSnapshot(TCanonical canonical)
+        {
+            return PersistentSyncPayloadSerializer.Serialize(BuildSnapshotPayload(canonical));
+        }
+
+        protected abstract TSnapshotPayload BuildSnapshotPayload(TCanonical canonical);
+
+        private static TIntentPayload DecodeIntent(byte[] payload, int numBytes)
+        {
+            return PersistentSyncPayloadSerializer.Deserialize<TIntentPayload>(payload ?? Array.Empty<byte>(), numBytes);
+        }
     }
 }

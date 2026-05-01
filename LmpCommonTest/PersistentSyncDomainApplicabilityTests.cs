@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;

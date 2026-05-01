@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    public class ContractsPersistentSyncClientDomain : IPersistentSyncClientDomain
+    public class ContractsPersistentSyncClientDomain : TypedPersistentSyncClientDomain<ContractSnapshotPayload>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Contracts", 4);
 
@@ -52,7 +52,7 @@ namespace LmpClient.Systems.PersistentSync
 
         private ContractSnapshotInfo[] _pendingContracts;
 
-        public PersistentSyncDomainId DomainId => Domain.LegacyId;
+        public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
         /// <summary>
         /// True while a Contracts snapshot has been received from the server but has not yet successfully
@@ -73,25 +73,18 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         public bool HasPendingSnapshot => _pendingContracts != null;
 
-        public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
+        protected override PersistentSyncApplyOutcome ApplySnapshot(ContractSnapshotPayload payload, PersistentSyncBufferedSnapshot snapshot)
         {
-            try
-            {
-                _pendingContracts = ContractSnapshotPayloadSerializer.Deserialize(snapshot.Payload, snapshot.NumBytes)
-                    .OrderBy(contract => contract.Order)
-                    .ToArray();
-                LunaLog.Log(
-                    $"[PersistentSync] Contracts snapshot received wireRows={_pendingContracts.Length} payloadBytes={snapshot.NumBytes}");
-            }
-            catch (Exception)
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
+            _pendingContracts = (payload?.Contracts ?? new List<ContractSnapshotInfo>())
+                .OrderBy(contract => contract.Order)
+                .ToArray();
+            LunaLog.Log(
+                $"[PersistentSync] Contracts snapshot received wireRows={_pendingContracts.Length} payloadBytes={snapshot.NumBytes}");
 
             return FlushPendingState();
         }
 
-        public PersistentSyncApplyOutcome FlushPendingState()
+        public override PersistentSyncApplyOutcome FlushPendingState()
         {
             if (_pendingContracts == null)
             {
@@ -630,8 +623,7 @@ namespace LmpClient.Systems.PersistentSync
                 ContractState = serverRow.ContractState,
                 Placement = serverRow.Placement,
                 Order = serverRow.Order,
-                Data = data,
-                NumBytes = data.Length
+                Data = data
             };
             return true;
         }
@@ -909,12 +901,12 @@ namespace LmpClient.Systems.PersistentSync
         /// </summary>
         private static ConfigNode TryParseContractConfigNode(ContractSnapshotInfo contractInfo)
         {
-            if (contractInfo == null || contractInfo.NumBytes <= 0 || contractInfo.Data == null || contractInfo.Data.Length == 0)
+            if (contractInfo == null || contractInfo.Data == null || contractInfo.Data.Length == 0)
             {
                 return null;
             }
 
-            var raw = Encoding.UTF8.GetString(contractInfo.Data, 0, contractInfo.NumBytes);
+            var raw = Encoding.UTF8.GetString(contractInfo.Data, 0, contractInfo.Data.Length);
             var node = DeserializeContractConfigText(raw);
             var resolved = FindFirstConfigNodeWithType(node);
             if (resolved != null)
@@ -975,3 +967,4 @@ namespace LmpClient.Systems.PersistentSync
         }
     }
 }
+

@@ -1,4 +1,4 @@
-﻿using Contracts;
+using Contracts;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
@@ -44,7 +44,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(command.Serialize(), reason);
+            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(command.ToPayload(), reason);
         }
 
         public void SendRequestOfferGeneration(string reason)
@@ -56,7 +56,7 @@ namespace LmpClient.Systems.ShareContracts
             }
 
             var command = ContractCommandIntent.RequestOfferGeneration();
-            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(command.Serialize(), reason);
+            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(command.ToPayload(), reason);
         }
 
         public void SendProducerProposal(ContractIntentPayloadKind kind, Contract contract, string reason)
@@ -102,7 +102,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.Serialize(), reason);
+            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.ToPayload(), reason);
         }
 
         public void SendFullContractReconcile(string reason)
@@ -123,7 +123,7 @@ namespace LmpClient.Systems.ShareContracts
             var knownContracts = canonicalContracts.ToArray();
             _snapshotChangeTracker.Reset(knownContracts);
             var proposal = ContractProducerProposal.FullReconcile(knownContracts);
-            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.Serialize(), reason);
+            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.ToPayload(), reason);
         }
 
         /// <summary>
@@ -334,8 +334,7 @@ namespace LmpClient.Systems.ShareContracts
                     ContractState = contract.ContractState.ToString(),
                     Placement = DeterminePlacement(contract),
                     Order = -1,
-                    Data = data,
-                    NumBytes = data.Length
+                    Data = data
                 });
             }
 
@@ -371,3 +370,4 @@ namespace LmpClient.Systems.ShareContracts
         }
     }
 }
+

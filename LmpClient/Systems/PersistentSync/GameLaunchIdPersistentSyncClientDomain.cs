@@ -3,10 +3,7 @@ using System;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    /// <summary>
-    /// Applies the server's <c>Game.launchID</c> high-water mark after PersistentSync snapshot delivery.
-    /// Uses <see cref="Math.Max"/> with the local counter so a snapshot never regresses a client that already advanced.
-    /// </summary>
+    // Keep Game.launchID monotonic when applying the server's high-water mark.
     public sealed class GameLaunchIdPersistentSyncClientDomain : ScalarPersistentSyncClientDomain<uint>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("GameLaunchId", 11);
@@ -19,11 +16,6 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
-
-        protected override uint DeserializePayload(byte[] payload, int numBytes)
-        {
-            return GameLaunchIdSnapshotPayloadSerializer.Deserialize(payload, numBytes);
-        }
 
         protected override bool CanApplyLiveState()
         {

@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace Server.System.PersistentSync
 {
-    public sealed class ExperimentalPartsPersistentSyncDomainStore : ScenarioSyncDomainStore<ExperimentalPartsPersistentSyncDomainStore.Canonical>
+    public sealed class ExperimentalPartsPersistentSyncDomainStore : ScenarioSyncDomainStore<ExperimentalPartsPersistentSyncDomainStore.Canonical, ExperimentalPartSnapshotInfo[], ExperimentalPartSnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ExperimentalParts", 9);
 
@@ -26,8 +26,6 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
-
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
         protected override Canonical CreateEmpty()
         {
@@ -83,11 +81,10 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, ExperimentalPartSnapshotInfo[] intent, string reason, bool isServerMutation)
         {
-            var records = ExperimentalPartsSnapshotPayloadSerializer.Deserialize(payload) ?? Enumerable.Empty<ExperimentalPartSnapshotInfo>();
             var next = new SortedDictionary<string, int>(current.Counts, StringComparer.Ordinal);
-            foreach (var record in records)
+            foreach (var record in intent ?? Enumerable.Empty<ExperimentalPartSnapshotInfo>())
             {
                 if (record == null || string.IsNullOrEmpty(record.PartName)) continue;
 
@@ -139,11 +136,11 @@ namespace Server.System.PersistentSync
             }
         }
 
-        protected override byte[] SerializeSnapshot(Canonical canonical)
+        protected override ExperimentalPartSnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
         {
-            return ExperimentalPartsSnapshotPayloadSerializer.Serialize(canonical.Counts
+            return canonical.Counts
                 .Select(pair => new ExperimentalPartSnapshotInfo { PartName = pair.Key, Count = pair.Value })
-                .ToArray());
+                .ToArray();
         }
 
         protected override bool AreEquivalent(Canonical a, Canonical b)

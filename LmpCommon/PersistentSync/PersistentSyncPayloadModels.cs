@@ -1,11 +1,37 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
 
 namespace LmpCommon.PersistentSync
 {
+    public sealed class AchievementSnapshotInfo
+    {
+        public string Id = string.Empty;
+        public byte[] Data = new byte[0];
+    }
+
+    public enum ContractIntentPayloadKind : byte
+    {
+        AcceptContract = 0,
+        DeclineContract = 1,
+        CancelContract = 2,
+        RequestOfferGeneration = 3,
+        OfferObserved = 4,
+        ParameterProgressObserved = 5,
+        ContractCompletedObserved = 6,
+        ContractFailedObserved = 7,
+        FullReconcile = 8
+    }
+
+    public sealed class ContractIntentPayload
+    {
+        public ContractIntentPayloadKind Kind;
+        public Guid ContractGuid = Guid.Empty;
+        public ContractSnapshotInfo Contract;
+        public ContractSnapshotInfo[] Contracts = new ContractSnapshotInfo[0];
+    }
+
     public enum ContractSnapshotPayloadMode : byte
     {
         Delta = 0,
@@ -25,8 +51,21 @@ namespace LmpCommon.PersistentSync
         public string ContractState = string.Empty;
         public ContractSnapshotPlacement Placement;
         public int Order;
-        public int NumBytes;
         public byte[] Data = new byte[0];
+    }
+
+    public sealed class ContractSnapshotPayload
+    {
+        public ContractSnapshotPayloadMode Mode = ContractSnapshotPayloadMode.Delta;
+        public List<ContractSnapshotInfo> Contracts = new List<ContractSnapshotInfo>();
+    }
+
+    public sealed class ContractMutationPayload
+    {
+        public ContractIntentPayload Intent;
+        public ContractSnapshotPayload Snapshot;
+
+        public bool IsIntent => Intent != null;
     }
 
     public static class ContractSnapshotInfoComparer
@@ -69,7 +108,6 @@ namespace LmpCommon.PersistentSync
                 ContractState = source.ContractState ?? string.Empty,
                 Placement = source.Placement,
                 Order = source.Order,
-                NumBytes = safeNumBytes,
                 Data = data
             };
         }
@@ -83,12 +121,12 @@ namespace LmpCommon.PersistentSync
 
         private static int GetSafeNumBytes(ContractSnapshotInfo info)
         {
-            if (info == null || info.Data == null || info.NumBytes <= 0)
+            if (info == null || info.Data == null || info.Data.Length <= 0)
             {
                 return 0;
             }
 
-            return Math.Min(info.NumBytes, info.Data.Length);
+            return info.Data.Length;
         }
     }
 
@@ -118,12 +156,6 @@ namespace LmpCommon.PersistentSync
             }
         }
 
-        /// <summary>
-        /// True if the given <paramref name="contractGuid"/> was in the most recently-applied authoritative snapshot
-        /// from the server. Lets client-side stock guards (e.g. <c>Contract.Withdraw</c> Harmony prefix) distinguish
-        /// server-known offers (which must not be unilaterally dropped locally) from locally-generated offers stock
-        /// just minted that the server has not yet seen.
-        /// </summary>
         public bool IsKnown(Guid contractGuid)
         {
             if (contractGuid == Guid.Empty) return false;
@@ -156,95 +188,39 @@ namespace LmpCommon.PersistentSync
         }
     }
 
-    public static class ContractSnapshotPayloadSerializer
+    public sealed class ExperimentalPartSnapshotInfo
     {
-        public static byte[] Serialize(IEnumerable<ContractSnapshotInfo> contracts)
-        {
-            return Serialize(ContractSnapshotPayloadMode.Delta, contracts);
-        }
-
-        public static byte[] Serialize(ContractSnapshotPayloadMode mode, IEnumerable<ContractSnapshotInfo> contracts)
-        {
-            using (var stream = new MemoryStream())
-            using (var writer = new BinaryWriter(stream, Encoding.UTF8))
-            {
-                var orderedContracts = (contracts ?? Enumerable.Empty<ContractSnapshotInfo>()).ToArray();
-                if (mode == ContractSnapshotPayloadMode.Delta)
-                {
-                    writer.Write(orderedContracts.Length);
-                }
-                else
-                {
-                    // Negative sentinel keeps older delta payloads readable while allowing new envelope metadata.
-                    writer.Write(-1);
-                    writer.Write((byte)mode);
-                    writer.Write(orderedContracts.Length);
-                }
-
-                foreach (var contract in orderedContracts)
-                {
-                    writer.Write(contract.ContractGuid.ToByteArray());
-                    writer.Write(contract.ContractState ?? string.Empty);
-                    writer.Write((byte)contract.Placement);
-                    writer.Write(contract.Order);
-                    writer.Write(contract.NumBytes);
-                    writer.Write(contract.Data ?? new byte[0], 0, contract.NumBytes);
-                }
-
-                writer.Flush();
-                return stream.ToArray();
-            }
-        }
-
-        public static List<ContractSnapshotInfo> Deserialize(byte[] payload, int numBytes)
-        {
-            return DeserializeEnvelope(payload, numBytes).Contracts;
-        }
-
-        public static ContractSnapshotPayload DeserializeEnvelope(byte[] payload, int numBytes)
-        {
-            using (var stream = new MemoryStream(payload, 0, numBytes))
-            using (var reader = new BinaryReader(stream, Encoding.UTF8))
-            {
-                var firstInt = reader.ReadInt32();
-                var mode = ContractSnapshotPayloadMode.Delta;
-                var contractCount = firstInt;
-                if (firstInt < 0)
-                {
-                    mode = (ContractSnapshotPayloadMode)reader.ReadByte();
-                    contractCount = reader.ReadInt32();
-                }
-
-                var contracts = new List<ContractSnapshotInfo>(contractCount);
-                for (var i = 0; i < contractCount; i++)
-                {
-                    var dataLength = 0;
-                    var info = new ContractSnapshotInfo
-                    {
-                        ContractGuid = new Guid(reader.ReadBytes(16)),
-                        ContractState = reader.ReadString(),
-                        Placement = (ContractSnapshotPlacement)reader.ReadByte(),
-                        Order = reader.ReadInt32()
-                    };
-
-                    dataLength = reader.ReadInt32();
-                    info.NumBytes = dataLength;
-                    info.Data = dataLength > 0 ? reader.ReadBytes(dataLength) : new byte[0];
-                    contracts.Add(info);
-                }
-
-                return new ContractSnapshotPayload
-                {
-                    Mode = mode,
-                    Contracts = contracts
-                };
-            }
-        }
+        public string PartName = string.Empty;
+        public int Count;
     }
 
-    public sealed class ContractSnapshotPayload
+    public sealed class PartPurchaseSnapshotInfo
     {
-        public ContractSnapshotPayloadMode Mode = ContractSnapshotPayloadMode.Delta;
-        public List<ContractSnapshotInfo> Contracts = new List<ContractSnapshotInfo>();
+        public string TechId = string.Empty;
+        public string[] PartNames = new string[0];
+    }
+
+    public sealed class UpgradeableFacilityLevelPayload
+    {
+        public string FacilityId = string.Empty;
+        public int Level;
+    }
+
+    public sealed class ScienceSubjectSnapshotInfo
+    {
+        public string Id = string.Empty;
+        public byte[] Data = new byte[0];
+    }
+
+    public sealed class StrategySnapshotInfo
+    {
+        public string Name = string.Empty;
+        public byte[] Data = new byte[0];
+    }
+
+    public sealed class TechnologySnapshotInfo
+    {
+        public string TechId = string.Empty;
+        public byte[] Data = new byte[0];
     }
 }

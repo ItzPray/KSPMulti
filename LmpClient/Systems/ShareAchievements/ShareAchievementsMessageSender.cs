@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using LmpClient.Base;
 using LmpClient.Base.Interface;
 using LmpClient.Extensions;
@@ -46,8 +46,7 @@ namespace LmpClient.Systems.ShareAchievements
                         new AchievementSnapshotInfo
                         {
                             Id = foundNode.Id,
-                            Data = configNode.Serialize(),
-                            NumBytes = configNode.Serialize().Length
+                            Data = configNode.Serialize()
                         }
                     }, $"AchievementUpdate:{foundNode.Id}");
                     return;
@@ -79,3 +78,4 @@ namespace LmpClient.Systems.ShareAchievements
         }
     }
 }
+

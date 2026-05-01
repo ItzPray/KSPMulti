@@ -16,11 +16,6 @@ namespace LmpClient.Systems.PersistentSync
 
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
 
-        protected override float DeserializePayload(byte[] payload, int numBytes)
-        {
-            return ReputationSnapshotPayloadSerializer.Deserialize(payload, numBytes);
-        }
-
         protected override bool CanApplyLiveState()
         {
             return Reputation.Instance != null;

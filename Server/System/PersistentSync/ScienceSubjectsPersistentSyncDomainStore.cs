@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Server.System.PersistentSync
 {
-    public sealed class ScienceSubjectsPersistentSyncDomainStore : ScenarioSyncDomainStore<ScienceSubjectsPersistentSyncDomainStore.Canonical>
+    public sealed class ScienceSubjectsPersistentSyncDomainStore : ScenarioSyncDomainStore<ScienceSubjectsPersistentSyncDomainStore.Canonical, ScienceSubjectSnapshotInfo[], ScienceSubjectSnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("ScienceSubjects", 8);
 
@@ -26,8 +26,6 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
-
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
         protected override Canonical CreateEmpty()
         {
@@ -53,11 +51,10 @@ namespace Server.System.PersistentSync
             return new Canonical(map);
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, ScienceSubjectSnapshotInfo[] intent, string reason, bool isServerMutation)
         {
-            var records = ScienceSubjectSnapshotPayloadSerializer.Deserialize(payload) ?? Enumerable.Empty<ScienceSubjectSnapshotInfo>();
             var next = new SortedDictionary<string, ScienceSubjectSnapshotInfo>(current.Subjects, StringComparer.Ordinal);
-            foreach (var record in records)
+            foreach (var record in intent ?? Enumerable.Empty<ScienceSubjectSnapshotInfo>())
             {
                 var normalized = NormalizeSnapshotInfo(record);
                 if (normalized == null) continue;
@@ -75,15 +72,15 @@ namespace Server.System.PersistentSync
 
             foreach (var subject in canonical.Subjects.Values)
             {
-                scenario.AddNode(new ConfigNode(Encoding.UTF8.GetString(subject.Data, 0, subject.NumBytes)) { Name = ScienceNodeName });
+                scenario.AddNode(new ConfigNode(Encoding.UTF8.GetString(subject.Data, 0, subject.Data.Length)) { Name = ScienceNodeName });
             }
 
             return scenario;
         }
 
-        protected override byte[] SerializeSnapshot(Canonical canonical)
+        protected override ScienceSubjectSnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
         {
-            return ScienceSubjectSnapshotPayloadSerializer.Serialize(canonical.Subjects.Values.Select(CloneInfo).ToArray());
+            return canonical.Subjects.Values.Select(CloneInfo).ToArray();
         }
 
         protected override bool AreEquivalent(Canonical a, Canonical b)
@@ -111,19 +108,18 @@ namespace Server.System.PersistentSync
             return NormalizeSnapshotInfo(new ScienceSubjectSnapshotInfo
             {
                 Id = bareNode.GetValue(ScienceIdFieldName)?.Value ?? string.Empty,
-                NumBytes = Encoding.UTF8.GetByteCount(bareNode.ToString()),
                 Data = Encoding.UTF8.GetBytes(bareNode.ToString())
             });
         }
 
         private static ScienceSubjectSnapshotInfo NormalizeSnapshotInfo(ScienceSubjectSnapshotInfo subject)
         {
-            if (subject == null || subject.Data == null || subject.NumBytes <= 0)
+            if (subject == null || subject.Data == null || subject.Data.Length <= 0)
             {
                 return null;
             }
 
-            var node = new ConfigNode(Encoding.UTF8.GetString(subject.Data, 0, subject.NumBytes));
+            var node = new ConfigNode(Encoding.UTF8.GetString(subject.Data, 0, subject.Data.Length));
             var id = node.GetValue(ScienceIdFieldName)?.Value;
             if (string.IsNullOrEmpty(id))
             {
@@ -139,7 +135,6 @@ namespace Server.System.PersistentSync
             return new ScienceSubjectSnapshotInfo
             {
                 Id = id,
-                NumBytes = normalizedBytes.Length,
                 Data = normalizedBytes
             };
         }
@@ -148,17 +143,16 @@ namespace Server.System.PersistentSync
         {
             if (left == null || right == null) return left == right;
             return string.Equals(left.Id, right.Id, StringComparison.Ordinal) &&
-                   string.Equals(Encoding.UTF8.GetString(left.Data, 0, left.NumBytes), Encoding.UTF8.GetString(right.Data, 0, right.NumBytes), StringComparison.Ordinal);
+                   string.Equals(Encoding.UTF8.GetString(left.Data, 0, left.Data.Length), Encoding.UTF8.GetString(right.Data, 0, right.Data.Length), StringComparison.Ordinal);
         }
 
         private static ScienceSubjectSnapshotInfo CloneInfo(ScienceSubjectSnapshotInfo source)
         {
-            var data = new byte[source.NumBytes];
-            Buffer.BlockCopy(source.Data, 0, data, 0, source.NumBytes);
+            var data = new byte[source.Data.Length];
+            Buffer.BlockCopy(source.Data, 0, data, 0, source.Data.Length);
             return new ScienceSubjectSnapshotInfo
             {
                 Id = source.Id,
-                NumBytes = source.NumBytes,
                 Data = data
             };
         }
@@ -172,3 +166,4 @@ namespace Server.System.PersistentSync
         }
     }
 }
+

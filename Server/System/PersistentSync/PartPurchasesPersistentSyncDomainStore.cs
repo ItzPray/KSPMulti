@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using Server.Client;
 
@@ -16,7 +16,7 @@ namespace Server.System.PersistentSync
     /// IPersistentSyncServerDomain directly anymore (enforced by the regression gate
     /// AllServerDomainsInheritTemplateUnlessInProjectionAllowlist).
     /// </summary>
-    public sealed class PartPurchasesPersistentSyncDomainStore : ProjectionSyncDomain<TechnologyPersistentSyncDomainStore>
+    public sealed class PartPurchasesPersistentSyncDomainStore : ProjectionSyncDomain<TechnologyPersistentSyncDomainStore, PartPurchaseSnapshotInfo[], PartPurchaseSnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("PartPurchases", 10);
 
@@ -42,24 +42,20 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         protected override PersistentSyncDomainId OwnerDomainId => PersistentSyncDomainId.Technology;
 
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
-
         protected override PersistentSyncDomainApplyResult ApplyToOwner(
             TechnologyPersistentSyncDomainStore owner,
             ClientStructure client,
-            byte[] payload,
-            int numBytes,
+            PartPurchaseSnapshotInfo[] intent,
             long? clientKnownRevision,
             string reason,
             bool isServerMutation)
         {
-            var records = PartPurchasesSnapshotPayloadSerializer.Deserialize(payload ?? new byte[0]);
-            return owner.ApplyPartPurchasesIntent(records, clientKnownRevision, reason, isServerMutation);
+            return owner.ApplyPartPurchasesIntent(intent, clientKnownRevision, reason, isServerMutation);
         }
 
-        protected override byte[] RenderSnapshotPayload(TechnologyPersistentSyncDomainStore owner)
+        protected override PartPurchaseSnapshotInfo[] BuildSnapshotPayload(TechnologyPersistentSyncDomainStore owner)
         {
-            return owner?.SerializePartPurchasesSnapshot() ?? EmptyPayload();
+            return owner?.BuildPartPurchasesSnapshotPayload() ?? new PartPurchaseSnapshotInfo[0];
         }
     }
 }

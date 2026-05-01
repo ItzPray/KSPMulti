@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
@@ -18,7 +18,7 @@ namespace Server.System.PersistentSync
     /// cref="PartPurchasesPersistentSyncDomainStore"/> projects from this domain's canonical state and routes
     /// its intents here; it does not write the scenario.
     /// </summary>
-    public sealed class TechnologyPersistentSyncDomainStore : ScenarioSyncDomainStore<TechnologyPersistentSyncDomainStore.Canonical>
+    public sealed class TechnologyPersistentSyncDomainStore : ScenarioSyncDomainStore<TechnologyPersistentSyncDomainStore.Canonical, TechnologySnapshotInfo[], TechnologySnapshotInfo[]>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Technology", 5);
 
@@ -38,8 +38,6 @@ namespace Server.System.PersistentSync
         public override PersistentSyncDomainId DomainId => Domain.LegacyId;
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ResearchAndDevelopment";
-
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes) => AuthorizeByPolicy(client);
 
         /// <summary>
         /// Exposes the current canonical state for PartPurchasesPersistentSyncDomainStore to
@@ -101,17 +99,16 @@ namespace Server.System.PersistentSync
             return new Canonical(techStates, partsByTech);
         }
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, TechnologySnapshotInfo[] intent, string reason, bool isServerMutation)
         {
-            var technologies = TechnologySnapshotPayloadSerializer.Deserialize(payload, numBytes) ?? new List<TechnologySnapshotInfo>();
             var nextStates = new SortedDictionary<string, TechStateInfo>(current.TechStates, StringComparer.Ordinal);
 
-            foreach (var technology in technologies)
+            foreach (var technology in intent ?? new TechnologySnapshotInfo[0])
             {
                 var normalized = NormalizeSnapshotInfo(technology);
                 if (normalized == null) continue;
 
-                var parsed = ParseSnapshotNode(normalized.Data, normalized.NumBytes);
+                var parsed = ParseSnapshotNode(normalized.Data, normalized.Data.Length);
                 var techId = normalized.TechId;
                 var state = parsed.GetValue(TechStateFieldName)?.Value ?? string.Empty;
                 var cost = parsed.GetValue(TechCostFieldName)?.Value ?? string.Empty;
@@ -128,18 +125,18 @@ namespace Server.System.PersistentSync
         /// </summary>
         private PersistentSyncDomainApplyResult ApplyPartPurchasesInternal(PartPurchaseSnapshotInfo[] records, long? clientKnownRevision, string reason, bool isServerMutation)
         {
-            var payload = PartPurchasesSnapshotPayloadSerializer.Serialize(records ?? new PartPurchaseSnapshotInfo[0]);
+            var payload = PersistentSyncPayloadSerializer.Serialize(records ?? new PartPurchaseSnapshotInfo[0]);
             var proxyReason = "[PartPurchases] " + (reason ?? string.Empty);
 
             // Route through a thin internal seam that bypasses Technology's ReduceIntent (which interprets
             // payload as Technology wire format) and instead reduces the PartPurchases wire format.
-            return ApplyWithCustomReduce(payload, payload.Length, clientKnownRevision, proxyReason, isServerMutation,
-                (current, decodedPayload) => ReducePartPurchases(current, decodedPayload));
+            return ApplyWithCustomReduce<PartPurchaseSnapshotInfo[]>(payload, payload.Length, clientKnownRevision, proxyReason, isServerMutation,
+                ReducePartPurchases);
         }
 
-        private static ReduceResult<Canonical> ReducePartPurchases(Canonical current, byte[] payload)
+        private static ReduceResult<Canonical> ReducePartPurchases(Canonical current, PartPurchaseSnapshotInfo[] records)
         {
-            var records = PartPurchasesSnapshotPayloadSerializer.Deserialize(payload) ?? new PartPurchaseSnapshotInfo[0];
+            records = records ?? new PartPurchaseSnapshotInfo[0];
             var nextParts = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
             foreach (var existing in current.PartsByTech)
             {
@@ -217,15 +214,14 @@ namespace Server.System.PersistentSync
             return scenario;
         }
 
-        protected override byte[] SerializeSnapshot(Canonical canonical)
+        protected override TechnologySnapshotInfo[] BuildSnapshotPayload(Canonical canonical)
         {
             var records = canonical.TechStates.Values
                 .Select(state => state.ToSnapshotInfo())
                 .Select(CloneInfo)
                 .ToArray();
-            var payload = TechnologySnapshotPayloadSerializer.Serialize(records);
-            LunaLog.Normal($"[PersistentSync] Technology SerializeSnapshot: techCount={canonical.TechStates.Count} payloadBytes={payload.Length}");
-            return payload;
+            LunaLog.Normal($"[PersistentSync] Technology BuildSnapshotPayload: techCount={canonical.TechStates.Count}");
+            return records;
         }
 
         /// <summary>
@@ -233,17 +229,17 @@ namespace Server.System.PersistentSync
         /// current canonical PartsByTech. Kept on this class so the projection
         /// domain does not need to reach into internal canonical types.
         /// </summary>
-        internal byte[] SerializePartPurchasesSnapshot()
+        internal PartPurchaseSnapshotInfo[] BuildPartPurchasesSnapshotPayload()
         {
             var canonical = CurrentForTests ?? CreateEmpty();
-            return PartPurchasesSnapshotPayloadSerializer.Serialize(canonical.PartsByTech
+            return canonical.PartsByTech
                 .Where(value => value.Value != null && value.Value.Count > 0)
                 .Select(value => new PartPurchaseSnapshotInfo
                 {
                     TechId = value.Key,
                     PartNames = value.Value.ToArray()
                 })
-                .ToArray());
+                .ToArray();
         }
 
         protected override bool AreEquivalent(Canonical a, Canonical b)
@@ -324,12 +320,12 @@ namespace Server.System.PersistentSync
 
         private static TechnologySnapshotInfo NormalizeSnapshotInfo(TechnologySnapshotInfo technology)
         {
-            if (technology == null || technology.Data == null || technology.NumBytes <= 0)
+            if (technology == null || technology.Data == null || technology.Data.Length <= 0)
             {
                 return null;
             }
 
-            var node = ParseSnapshotNode(technology.Data, technology.NumBytes);
+            var node = ParseSnapshotNode(technology.Data, technology.Data.Length);
             var techId = node?.GetValue(TechIdFieldName)?.Value;
             if (string.IsNullOrEmpty(techId))
             {
@@ -343,7 +339,6 @@ namespace Server.System.PersistentSync
             return new TechnologySnapshotInfo
             {
                 TechId = techId,
-                NumBytes = normalizedBytes.Length,
                 Data = normalizedBytes
             };
         }
@@ -364,12 +359,11 @@ namespace Server.System.PersistentSync
 
         private static TechnologySnapshotInfo CloneInfo(TechnologySnapshotInfo source)
         {
-            var data = new byte[source.NumBytes];
-            Buffer.BlockCopy(source.Data, 0, data, 0, source.NumBytes);
+            var data = new byte[source.Data.Length];
+            Buffer.BlockCopy(source.Data, 0, data, 0, source.Data.Length);
             return new TechnologySnapshotInfo
             {
                 TechId = source.TechId,
-                NumBytes = source.NumBytes,
                 Data = data
             };
         }
@@ -412,7 +406,6 @@ namespace Server.System.PersistentSync
                 return new TechnologySnapshotInfo
                 {
                     TechId = TechId,
-                    NumBytes = bytes.Length,
                     Data = bytes
                 };
             }
@@ -428,3 +421,4 @@ namespace Server.System.PersistentSync
         }
     }
 }
+

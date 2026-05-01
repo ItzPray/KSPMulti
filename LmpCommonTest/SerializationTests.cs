@@ -1,4 +1,4 @@
-﻿using Lidgren.Network;
+using Lidgren.Network;
 using LmpCommon.Message;
 using LmpCommon.Message.Client;
 using LmpCommon.Message.Data.Chat;

@@ -27,7 +27,7 @@ namespace Server.Command.Command
         private static void SetFunds(double funds)
         {
             var reason = "Server Command";
-            var payload = FundsIntentPayloadSerializer.Serialize(funds, reason);
+            var payload = PersistentSyncPayloadSerializer.Serialize(new PersistentSyncValueWithReason<double>(funds, reason));
             PersistentSyncRegistry.ApplyServerMutation(PersistentSyncDomainId.Funds, payload, payload.Length, reason);
             LunaLog.Debug($"Funds set to {funds} via persistent sync");
         }

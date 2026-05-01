@@ -1,4 +1,4 @@
-﻿using LmpCommon.Enums;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
@@ -14,32 +14,10 @@ using System.Text.RegularExpressions;
 namespace Server.System.PersistentSync
 {
     /// <summary>
-    /// Authoritative server-side contract store. Migrated onto ScenarioSyncDomainStore{TCanonical}
-    /// per the Scenario Sync Domain Contract.
-    ///
-    /// Contracts has mixed authority per intent kind:
-    /// <list type="bullet">
-    /// <item><description>Player commands (Accept/Decline/Cancel/RequestOfferGeneration): any client.</description></item>
-    /// <item><description>Producer-only observations for the offer pool (OfferObserved)
-    /// and FullReconcile: only the current contract lock owner.</description></item>
-    /// <item><description>In-sim Active contract observations (ParameterProgressObserved,
-    /// ContractCompletedObserved, ContractFailedObserved):
-    /// any client; ReduceObservedActive rejects unless the canonical row is Active so offer-pool spam cannot apply.</description></item>
-    /// </list>
-    /// Per-intent dispatch happens in AuthorizeIntent, called by the registry before the reducer
-    /// ever sees the payload. The reducer itself does not perform authority checks; AGENTS.md forbids doing a
-    /// LockQuery check inside ReduceIntent.
-    ///
-    /// WriteCanonical rebuilds the scenario node via the LunaConfigNode graph API (no text
-    /// splicing) by constructing a fresh <c>ScenarioModule</c> node, copying scalar values and non-CONTRACTS
-    /// child nodes from the old scenario, and attaching a freshly-built CONTRACTS node derived from canonical
-    /// state. Every node in the emitted subtree (the scenario wrapper, the CONTRACTS wrapper, each
-    /// CONTRACT leaf, and each nested PARAMETER child) is created via the name-only graph constructor
-    /// (<c>new ConfigNode(name, null)</c>) so no text-backed node survives out of <c>WriteCanonical</c>. This
-    /// sidesteps the LunaConfigNode text cache that previously made <c>RemoveNode</c>/<c>AddNode</c> edits on
-    /// text-backed nodes invisible to <c>ToString()</c>.
+    /// Authoritative server-side contract store. Contracts keeps a custom binary codec for the legacy
+    /// sentinel/envelope wire formats, but reducer code works with typed payload objects.
     /// </summary>
-    public sealed class ContractsPersistentSyncDomainStore : ScenarioSyncDomainStore<ContractsPersistentSyncDomainStore.Canonical>
+    public sealed class ContractsPersistentSyncDomainStore : ScenarioSyncDomainStore<ContractsPersistentSyncDomainStore.Canonical, ContractMutationPayload, ContractSnapshotPayload>
     {
         public static readonly PersistentSyncDomainKey Domain = PersistentSyncDomain.Define("Contracts", 4);
 
@@ -85,11 +63,11 @@ namespace Server.System.PersistentSync
         public override PersistentAuthorityPolicy AuthorityPolicy => PersistentAuthorityPolicy.AnyClientIntent;
         protected override string ScenarioName => "ContractSystem";
 
-        public override bool AuthorizeIntent(ClientStructure client, byte[] payload, int numBytes)
+        protected override bool AuthorizeIntent(ClientStructure client, ContractMutationPayload payload)
         {
-            if (TryDeserializeContractIntentPayload(payload, numBytes, out var intentPayload))
+            if (payload?.Intent != null)
             {
-                switch (intentPayload.Kind)
+                switch (payload.Intent.Kind)
                 {
                     case ContractIntentPayloadKind.AcceptContract:
                     case ContractIntentPayloadKind.DeclineContract:
@@ -170,16 +148,16 @@ namespace Server.System.PersistentSync
         // LoadFromPersistence holds the state lock for the duration of both calls (see ScenarioSyncDomainStore).
         private bool _loadRequiresWriteBack;
 
-        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, byte[] payload, int numBytes, string reason, bool isServerMutation)
+        protected override ReduceResult<Canonical> ReduceIntent(ClientStructure client, Canonical current, ContractMutationPayload payload, string reason, bool isServerMutation)
         {
             // Authority was already enforced by AuthorizeIntent at the registry gate for client intents; server
             // mutations are trusted by construction. The reducer is pure state-transition logic here.
-            if (TryDeserializeContractIntentPayload(payload, numBytes, out var intentPayload))
+            if (payload?.Intent != null)
             {
-                return ReduceTypedIntent(current, intentPayload);
+                return ReduceTypedIntent(current, payload.Intent);
             }
 
-            var envelope = ContractSnapshotPayloadSerializer.DeserializeEnvelope(payload, numBytes);
+            var envelope = payload?.Snapshot ?? new ContractSnapshotPayload();
             return envelope.Mode == ContractSnapshotPayloadMode.FullReplace
                 ? ReduceFullReplace(current, envelope.Contracts)
                 : ReduceRecords(current, envelope.Contracts);
@@ -324,9 +302,9 @@ namespace Server.System.PersistentSync
 
             try
             {
-                var canonBody = Encoding.UTF8.GetString(canonicalExisting.Data, 0, canonicalExisting.NumBytes);
+                var canonBody = Encoding.UTF8.GetString(canonicalExisting.Data, 0, canonicalExisting.Data.Length);
                 var incomingClone = ContractSnapshotInfoComparer.Clone(incoming);
-                var incomingBody = Encoding.UTF8.GetString(incomingClone.Data, 0, incomingClone.NumBytes);
+                var incomingBody = Encoding.UTF8.GetString(incomingClone.Data, 0, incomingClone.Data.Length);
 
                 var canonGraph = BuildContractNodeFromBody(canonBody);
                 var incomingGraph = BuildContractNodeFromBody(incomingBody);
@@ -338,7 +316,6 @@ namespace Server.System.PersistentSync
 
                 var bodyText = StripContractWrapper(incomingGraph.ToString());
                 var bodyBytes = Encoding.UTF8.GetBytes(bodyText);
-                incomingClone.NumBytes = bodyBytes.Length;
                 incomingClone.Data = bodyBytes;
                 return CanonicalizeRecordData(incomingClone);
             }
@@ -616,7 +593,7 @@ namespace Server.System.PersistentSync
             var contractsNode = new ConfigNode(ContractsNodeName, null);
             foreach (var contract in canonical.ContractsByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid))
             {
-                var bodyText = Encoding.UTF8.GetString(contract.Data, 0, contract.NumBytes);
+                var bodyText = Encoding.UTF8.GetString(contract.Data, 0, contract.Data.Length);
                 contractsNode.AddNode(BuildContractNodeFromBody(bodyText));
             }
 
@@ -657,14 +634,18 @@ namespace Server.System.PersistentSync
             return fresh;
         }
 
-        protected override byte[] SerializeSnapshot(Canonical canonical)
+        protected override ContractSnapshotPayload BuildSnapshotPayload(Canonical canonical)
         {
             var orderedContracts = canonical.ContractsByGuid.Values
                 .OrderBy(c => c.Order)
                 .ThenBy(c => c.ContractGuid)
                 .Select(ContractSnapshotInfoComparer.Clone)
-                .ToArray();
-            return ContractSnapshotPayloadSerializer.Serialize(orderedContracts);
+                .ToList();
+            return new ContractSnapshotPayload
+            {
+                Mode = ContractSnapshotPayloadMode.Delta,
+                Contracts = orderedContracts
+            };
         }
 
         protected override bool AreEquivalent(Canonical a, Canonical b)
@@ -745,20 +726,6 @@ namespace Server.System.PersistentSync
             return addedAny;
         }
 
-        private static bool TryDeserializeContractIntentPayload(byte[] payload, int numBytes, out ContractIntentPayload intentPayload)
-        {
-            intentPayload = null;
-            try
-            {
-                intentPayload = ContractIntentPayloadSerializer.Deserialize(payload, numBytes);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private static bool TryGetSingleIntentContract(ContractIntentPayload intentPayload, out ContractSnapshotInfo contract)
         {
             contract = intentPayload?.Contract != null
@@ -805,7 +772,7 @@ namespace Server.System.PersistentSync
                 return null;
             }
 
-            var contractNode = new ConfigNode(Encoding.UTF8.GetString(rewritten.Data, 0, rewritten.NumBytes));
+            var contractNode = new ConfigNode(Encoding.UTF8.GetString(rewritten.Data, 0, rewritten.Data.Length));
             while (contractNode.GetValues(StateFieldName).Any())
             {
                 contractNode.RemoveValue(StateFieldName);
@@ -816,7 +783,6 @@ namespace Server.System.PersistentSync
             rewritten.ContractState = targetState ?? string.Empty;
             rewritten.Placement = placement;
             rewritten.Data = Encoding.UTF8.GetBytes(contractNode.ToString());
-            rewritten.NumBytes = rewritten.Data.Length;
             return CanonicalizeRecordData(rewritten);
         }
 
@@ -973,7 +939,6 @@ namespace Server.System.PersistentSync
                 ContractState = contractNode.GetValue(StateFieldName)?.Value ?? string.Empty,
                 Placement = DeterminePlacement(contractNode.GetValue(StateFieldName)?.Value ?? string.Empty),
                 Order = order,
-                NumBytes = bodyBytes.Length,
                 Data = bodyBytes
             });
         }
@@ -1071,13 +1036,12 @@ namespace Server.System.PersistentSync
 
         private static ContractSnapshotInfo CanonicalizeRecordData(ContractSnapshotInfo info)
         {
-            var text = Encoding.UTF8.GetString(info.Data, 0, info.NumBytes);
+            var text = Encoding.UTF8.GetString(info.Data, 0, info.Data.Length);
             var stripped = StripContractWrapper(text);
             var contractNode = new ConfigNode(stripped);
             var bodyOnly = StripContractWrapper(contractNode.ToString());
             var normalizedData = Encoding.UTF8.GetBytes(bodyOnly);
             info.ContractState = contractNode.GetValue(StateFieldName)?.Value ?? info.ContractState ?? string.Empty;
-            info.NumBytes = normalizedData.Length;
             info.Data = normalizedData;
             return info;
         }
@@ -1169,7 +1133,7 @@ namespace Server.System.PersistentSync
 
             try
             {
-                var text = Encoding.UTF8.GetString(info.Data, 0, info.NumBytes);
+                var text = Encoding.UTF8.GetString(info.Data, 0, info.Data.Length);
                 var contractNode = new ConfigNode(text);
                 var type = contractNode.GetValue(TypeFieldName)?.Value?.Trim()
                            ?? TryReadContractLineValue(text, TypeFieldName);

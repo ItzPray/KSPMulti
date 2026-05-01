@@ -1,4 +1,4 @@
-﻿using LmpCommon.PersistentSync;
+using LmpCommon.PersistentSync;
 
 namespace LmpCommonTest
 {

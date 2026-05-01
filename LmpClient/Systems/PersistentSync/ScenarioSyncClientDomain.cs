@@ -4,21 +4,7 @@ using LmpCommon.PersistentSync;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    /// <summary>
-    /// Canonical base class for every client-side scenario sync domain. Owns the parts every client domain used to
-    /// re-implement (and get subtly wrong): snapshot buffering, <see cref="FlushPendingState"/> retry, and the
-    /// echo-suppression window around the apply path.
-    ///
-    /// Domains expose only:
-    /// <list type="bullet">
-    /// <item><description><see cref="DeserializeSnapshot"/> decodes the wire payload into the typed canonical state.</description></item>
-    /// <item><description><see cref="ReadyToApply"/> is true when the stock game has the instances the apply needs.</description></item>
-    /// <item><description><see cref="ApplyCanonicalToStock"/> writes the canonical state into the stock scenario/UI layer.</description></item>
-    /// <item><description><see cref="PeersToSilence"/> lists Share systems whose KSP GameEvents must be suppressed during apply (echo guard).</description></item>
-    /// </list>
-    ///
-    /// See <c>AGENTS.md</c> &quot;Scenario Sync Domain Contract&quot; for the mandatory rules this base class enforces.
-    /// </summary>
+    // Scenario domains buffer one typed snapshot, retry until stock is ready, then apply with peer Share events silenced.
     public abstract class ScenarioSyncClientDomain<TCanonical> : IPersistentSyncClientDomain
         where TCanonical : class
     {
@@ -114,5 +100,40 @@ namespace LmpClient.Systems.PersistentSync
 
         /// <summary>Optional hook: called after a successful apply. Default: no-op.</summary>
         protected virtual void OnCanonicalApplied(TCanonical canonical) { }
+    }
+
+    public abstract class ScenarioSyncClientDomain<TCanonical, TSnapshotPayload> : ScenarioSyncClientDomain<TCanonical>
+        where TCanonical : class
+    {
+        protected sealed override TCanonical DeserializeSnapshot(byte[] payload, int numBytes)
+        {
+            return ConvertSnapshotPayload(PersistentSyncPayloadSerializer.Deserialize<TSnapshotPayload>(payload, numBytes));
+        }
+
+        protected abstract TCanonical ConvertSnapshotPayload(TSnapshotPayload payload);
+    }
+
+    public abstract class TypedPersistentSyncClientDomain<TSnapshotPayload> : IPersistentSyncClientDomain
+    {
+        public abstract PersistentSyncDomainId DomainId { get; }
+
+        public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
+        {
+            try
+            {
+                var payload = PersistentSyncPayloadSerializer.Deserialize<TSnapshotPayload>(
+                    snapshot.Payload ?? Array.Empty<byte>(),
+                    snapshot.NumBytes);
+                return ApplySnapshot(payload, snapshot);
+            }
+            catch
+            {
+                return PersistentSyncApplyOutcome.Rejected;
+            }
+        }
+
+        protected abstract PersistentSyncApplyOutcome ApplySnapshot(TSnapshotPayload payload, PersistentSyncBufferedSnapshot snapshot);
+
+        public abstract PersistentSyncApplyOutcome FlushPendingState();
     }
 }
