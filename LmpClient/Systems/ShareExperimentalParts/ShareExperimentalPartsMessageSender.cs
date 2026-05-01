@@ -26,24 +26,20 @@ namespace LmpClient.Systems.ShareExperimentalParts
 
         public void SendExperimentalPartMessage(string partName, int count)
         {
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.ExperimentalParts))
+            if (PersistentSyncSystem.IsLiveFor<ExperimentalPartsPersistentSyncClientDomain>())
             {
-                PersistentSyncSystem.Singleton.MessageSender.SendExperimentalPartsIntent(new[]
+                PersistentSyncSystem.SendIntent<ExperimentalPartsPersistentSyncClientDomain, ExperimentalPartsPayload>(new ExperimentalPartsPayload
                 {
-                    new ExperimentalPartSnapshotInfo
+                    Items = new[]
                     {
-                        PartName = partName,
-                        Count = count
+                        new ExperimentalPartSnapshotInfo
+                        {
+                            PartName = partName,
+                            Count = count
+                        }
                     }
                 }, $"ExperimentalPart:{partName}");
-                return;
             }
-
-            var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressExperimentalPartMsgData>();
-            msgData.PartName = partName;
-            msgData.Count = count;
-
-            SendMessage(msgData);
         }
     }
 }

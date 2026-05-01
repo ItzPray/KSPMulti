@@ -10,9 +10,9 @@ namespace LmpCommon.PersistentSync
     public static class PersistentSyncCatalogMerger
     {
         /// <summary>
-        /// Fallback when the server sends no catalog rows (tests / harness); uses local wire assignments unchanged.
+        /// Test/harness fallback that uses local wire assignments unchanged. Runtime joins must use server rows.
         /// </summary>
-        public static bool TryMergeLocalOnly(IReadOnlyList<PersistentSyncDomainDefinition> localDefinitions, out PersistentSyncDomainDefinition[] merged, out string failureReason)
+        public static bool TryMergeLocalOnlyForTests(IReadOnlyList<PersistentSyncDomainDefinition> localDefinitions, out PersistentSyncDomainDefinition[] merged, out string failureReason)
         {
             merged = null;
             failureReason = null;

@@ -39,8 +39,7 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         /// <summary>
-        /// Applies the server-authoritative persistent sync catalog from the settings reply. When rows are empty,
-        /// falls back to locally registered wire ids (test harness / uninitialized server catalog).
+        /// Applies the server-authoritative persistent sync catalog from the settings reply.
         /// </summary>
         public static bool TryApplyPersistentSyncCatalog(byte catalogWireVersion, PersistentSyncCatalogRowWire[] rows, out string failureReason)
         {
@@ -54,11 +53,8 @@ namespace LmpClient.Systems.PersistentSync
             PersistentSyncDomainDefinition[] merged;
             if (rows == null || rows.Length == 0)
             {
-                LunaLog.Log("[PersistentSync] Settings catalog empty; using locally registered wire assignments.");
-                if (!PersistentSyncCatalogMerger.TryMergeLocalOnly(_clientLocalDefinitions, out merged, out failureReason))
-                {
-                    return false;
-                }
+                failureReason = "[KSPMP] Server did not advertise a persistent sync catalog. Update client or server build.";
+                return false;
             }
             else
             {
@@ -375,7 +371,7 @@ namespace LmpClient.Systems.PersistentSync
         public static Dictionary<string, IPersistentSyncClientDomain> CreateRegisteredDomainsForTests(Assembly assembly)
         {
             var dict = CreateRegisteredDomains(assembly, out var defs);
-            if (!PersistentSyncCatalogMerger.TryMergeLocalOnly(defs, out var merged, out var err))
+            if (!PersistentSyncCatalogMerger.TryMergeLocalOnlyForTests(defs, out var merged, out var err))
             {
                 throw new InvalidOperationException(err);
             }

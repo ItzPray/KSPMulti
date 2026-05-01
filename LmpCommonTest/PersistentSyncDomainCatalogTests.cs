@@ -73,18 +73,18 @@ namespace LmpCommonTest
         public void RegistrarRejectsDuplicateDomainNames()
         {
             var registrar = new PersistentSyncClientDomainRegistrar();
-            registrar.Register(new PersistentSyncDomainKey("Duplicate", 100)).WithStockScenarioMetadata("Funding").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey("Duplicate", 101)).WithStockScenarioMetadata("Reputation").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey("Duplicate")).WithStockScenarioMetadata("Funding").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey("Duplicate")).WithStockScenarioMetadata("Reputation").UsesClientDomain<object>();
 
             Assert.ThrowsException<InvalidOperationException>(() => registrar.BuildDefinitions());
         }
 
         [TestMethod]
-        public void RegistrarIgnoresDuplicateLegacyKeyWireIds()
+        public void RegistrarAssignsSessionWireIdsToExplicitNameRegistrations()
         {
             var registrar = new PersistentSyncClientDomainRegistrar();
-            registrar.Register(new PersistentSyncDomainKey("First", 100)).WithStockScenarioMetadata("Funding").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey("Second", 100)).WithStockScenarioMetadata("Reputation").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey("First")).WithStockScenarioMetadata("Funding").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey("Second")).WithStockScenarioMetadata("Reputation").UsesClientDomain<object>();
 
             var definitions = registrar.BuildDefinitions();
 
@@ -109,12 +109,27 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
+        public void ClientRegisterCurrentDoesNotCopyScenarioMetadata()
+        {
+            var registrar = new PersistentSyncClientDomainRegistrar();
+            registrar.WithCurrentDomainType(typeof(ClientAttributedSyncClientDomain), () =>
+                registrar.RegisterCurrent().UsesClientDomain<ClientAttributedSyncClientDomain>());
+
+            var definition = registrar.BuildDefinitions().Single();
+
+            Assert.AreEqual("ClientAttributed", definition.DomainId);
+            Assert.IsNull(definition.ScenarioName);
+            Assert.IsNull(definition.ScalarFieldName);
+            Assert.AreEqual(0, definition.ServerScenarioBypasses.Length);
+        }
+
+        [TestMethod]
         public void UnknownStockScenarioRequiresExplicitMetadata()
         {
             var registrar = new PersistentSyncClientDomainRegistrar();
 
             Assert.ThrowsException<InvalidOperationException>(() =>
-                registrar.Register(new PersistentSyncDomainKey("Unknown", 100)).WithStockScenarioMetadata("SomeFutureScenario"));
+                registrar.Register(new PersistentSyncDomainKey("Unknown")).WithStockScenarioMetadata("SomeFutureScenario"));
         }
 
         private sealed class SessionFirstSyncClientDomain
@@ -122,6 +137,11 @@ namespace LmpCommonTest
         }
 
         private sealed class SessionSecondSyncClientDomain
+        {
+        }
+
+        [PersistentSyncStockScenario("Funding", ScalarField = "funds")]
+        private sealed class ClientAttributedSyncClientDomain
         {
         }
     }

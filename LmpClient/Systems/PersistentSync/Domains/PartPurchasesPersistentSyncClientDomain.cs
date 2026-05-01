@@ -24,7 +24,6 @@ using Strategies;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    [PersistentSyncStockScenario("ResearchAndDevelopment")]
     public class PartPurchasesPersistentSyncClientDomain : SyncClientDomain<PartPurchasesPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)

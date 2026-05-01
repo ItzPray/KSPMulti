@@ -2,10 +2,10 @@ using System;
 
 namespace LmpCommon.PersistentSync
 {
-    /// <summary>Domain registration key: human-readable name plus optional legacy caller-supplied wire id metadata.</summary>
+    /// <summary>Stable domain registration key. Runtime wire ids live only on PersistentSyncDomainDefinition.</summary>
     public struct PersistentSyncDomainKey : IEquatable<PersistentSyncDomainKey>
     {
-        public PersistentSyncDomainKey(string name, ushort wireId)
+        public PersistentSyncDomainKey(string name)
         {
             if (string.IsNullOrEmpty(name))
             {
@@ -13,14 +13,12 @@ namespace LmpCommon.PersistentSync
             }
 
             Name = name;
-            WireId = wireId;
         }
 
         public string Name { get; }
-        public ushort WireId { get; }
         public bool Equals(PersistentSyncDomainKey other)
         {
-            return WireId == other.WireId && string.Equals(Name, other.Name, StringComparison.Ordinal);
+            return string.Equals(Name, other.Name, StringComparison.Ordinal);
         }
 
         public override bool Equals(object obj)
@@ -30,15 +28,12 @@ namespace LmpCommon.PersistentSync
 
         public override int GetHashCode()
         {
-            unchecked
-            {
-                return ((Name != null ? StringComparer.Ordinal.GetHashCode(Name) : 0) * 397) ^ WireId.GetHashCode();
-            }
+            return Name != null ? StringComparer.Ordinal.GetHashCode(Name) : 0;
         }
 
         public override string ToString()
         {
-            return $"{Name}({WireId})";
+            return Name;
         }
     }
 

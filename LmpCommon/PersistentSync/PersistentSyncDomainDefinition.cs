@@ -75,7 +75,7 @@ namespace LmpCommon.PersistentSync
             }
 
             return new PersistentSyncDomainDefinition(
-                new PersistentSyncDomainKey(Key.Name, row.WireId),
+                new PersistentSyncDomainKey(Key.Name),
                 (GameMode)row.InitialSyncGameModes,
                 (PersistentSyncCapabilityFlags)row.RequiredCapabilities,
                 (PersistentSyncCapabilityFlags)row.ProducerRequiredCapabilities,

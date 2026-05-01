@@ -32,7 +32,7 @@ function Test-GitGrepEmpty {
     }
     # Force array: a single-line git grep would otherwise yield a [string] and break downstream Count/pipeline behavior.
     $lines = @(Get-Content $outFile -ErrorAction SilentlyContinue)
-    return , @(@($lines | Where-Object { $_ -and $_.Trim().Length -gt 0 }))
+    return @($lines | Where-Object { $_ -and $_.Trim().Length -gt 0 })
 }
 
 $failures = New-Object System.Collections.Generic.List[string]
@@ -44,10 +44,52 @@ if ($hits.Length -gt 0) { $failures.Add("SyncDomainStore<T[]> is forbidden (use 
 $hits = @(Test-GitGrepEmpty 'SyncClientDomain<[^>]*\[\]')
 if ($hits.Length -gt 0) { $failures.Add("SyncClientDomain<T[]> is forbidden (use envelope payload):`n  $($hits -join "`n  ")") }
 
+$hits = @(Test-GitGrepEmpty 'ScalarPersistentSyncDomainStore|ScenarioSyncDomainStore|TypedPersistentSyncClientDomain|ScalarPersistentSyncClientDomain')
+if ($hits.Length -gt 0) { $failures.Add("Old persistent-sync authoring base names are forbidden:`n  $($hits -join "`n  ")") }
+
+$hits = @(Test-GitGrepEmpty 'PersistentSyncDomainKey\([^)]*,')
+if ($hits.Length -gt 0) { $failures.Add("PersistentSyncDomainKey is name-only; wire ids belong on PersistentSyncDomainDefinition/catalog rows:`n  $($hits -join "`n  ")") }
+
 # Production domains must not subclass the reducer base directly; use SyncDomainStore<TPayload>.
 # Pattern avoids a leading ':' for git grep (':' can be parsed as a revision magic prefix).
 $hits = @(Test-GitGrepEmpty '[[:space:]]:[[:space:]]*SyncDomainStoreBase' @('Server/System/PersistentSync/Domains/'))
 if ($hits.Length -gt 0) { $failures.Add("Server Domains must not inherit SyncDomainStoreBase<TCanonical> (use SyncDomainStore<TPayload> instead):`n  $($hits -join "`n  ")") }
+
+$hits = @(Test-GitGrepEmpty '\[PersistentSync(Stock|Owned)Scenario' @('LmpClient/Systems/PersistentSync/Domains/'))
+if ($hits.Length -gt 0) { $failures.Add("Client persistent-sync domains must not declare scenario ownership metadata; the server catalog owns it:`n  $($hits -join "`n  ")") }
+
+$domainRawPayloadPaths = @(
+    'Server/System/PersistentSync/Domains/',
+    'LmpClient/Systems/PersistentSync/Domains/'
+)
+$hits = @(Test-GitGrepEmpty 'byte\[\][[:space:]]+payload,[[:space:]]*int[[:space:]]+numBytes' $domainRawPayloadPaths)
+if ($hits.Length -gt 0) { $failures.Add("Normal persistent-sync domains must not expose byte[] payload + numBytes reducer/apply signatures:`n  $($hits -join "`n  ")") }
+
+$persistentShareSenderPaths = @(
+    Get-ChildItem -Path @(
+        'LmpClient/Systems/ShareAchievements',
+        'LmpClient/Systems/ShareContracts',
+        'LmpClient/Systems/ShareExperimentalParts',
+        'LmpClient/Systems/ShareFunds',
+        'LmpClient/Systems/SharePurchaseParts',
+        'LmpClient/Systems/ShareReputation',
+        'LmpClient/Systems/ShareScience',
+        'LmpClient/Systems/ShareScienceSubject',
+        'LmpClient/Systems/ShareStrategy',
+        'LmpClient/Systems/ShareTechnology',
+        'LmpClient/Systems/ShareUpgradeableFacilities'
+    ) -Filter '*MessageSender.cs' -Recurse |
+        ForEach-Object { (Resolve-Path -Relative $_.FullName).TrimStart('.', '\').Replace('\', '/') }
+)
+
+$hits = @(Test-GitGrepEmpty '\.NumBytes[[:space:]]*=' $persistentShareSenderPaths)
+if ($hits.Length -gt 0) { $failures.Add("Persistent-sync share senders must not maintain NumBytes manually; send typed payloads through PersistentSyncSystem:`n  $($hits -join "`n  ")") }
+
+$hits = @(Test-GitGrepEmpty 'PersistentSyncSystem\.Singleton\.MessageSender\.Send[A-Za-z]+Intent|SendIntent\(PersistentSyncDomainNames' $persistentShareSenderPaths)
+if ($hits.Length -gt 0) { $failures.Add("Persistent-sync share senders must use typed PersistentSyncSystem.SendIntent<TDomain, TPayload> helpers:`n  $($hits -join "`n  ")") }
+
+$hits = @(Test-GitGrepEmpty 'PersistentSyncSystem\.IsLiveForDomain\(PersistentSyncDomainNames\.' $persistentShareSenderPaths)
+if ($hits.Length -gt 0) { $failures.Add("Persistent-sync share senders must use IsLiveFor<TDomain>() instead of domain-name live checks:`n  $($hits -join "`n  ")") }
 
 $replyPath = Join-Path $repoRoot 'LmpCommon\Message\Data\Settings\SetingsReplyMsgData.cs'
 if (Test-Path $replyPath) {

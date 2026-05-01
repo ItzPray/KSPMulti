@@ -13,7 +13,7 @@ namespace LmpCommon.Message.Data.Settings
 
         public override SettingsMessageType SettingsMessageType => SettingsMessageType.PersistentSyncCatalog;
 
-        /// <summary>0 = empty rows / registry not ready (client uses local wire map).</summary>
+        /// <summary>Persistent-sync catalog wire schema version. Empty rows are a runtime join failure.</summary>
         public byte PersistentSyncCatalogWireVersion;
 
         public PersistentSyncCatalogRowWire[] PersistentSyncCatalogRows = System.Array.Empty<PersistentSyncCatalogRowWire>();

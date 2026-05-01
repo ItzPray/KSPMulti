@@ -4,7 +4,6 @@ using System;
 namespace LmpClient.Systems.PersistentSync
 {
     // Keep Game.launchID monotonic when applying the server's high-water mark.
-    [PersistentSyncOwnedScenario("LmpGameLaunchId", ScalarField = "launchId")]
     public sealed class GameLaunchIdPersistentSyncClientDomain : SyncClientDomain<uint>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)

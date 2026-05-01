@@ -27,7 +27,7 @@ namespace LmpClient.Systems.SharePurchaseParts
 
         public void SendPartPurchasedMessage(string techId, string partName)
         {
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.PartPurchases))
+            if (PersistentSyncSystem.IsLiveFor<PartPurchasesPersistentSyncClientDomain>())
             {
                 var techState = ResearchAndDevelopment.Instance?.GetTechState(techId);
                 if (techState == null)
@@ -35,22 +35,18 @@ namespace LmpClient.Systems.SharePurchaseParts
                     return;
                 }
 
-                PersistentSyncSystem.Singleton.MessageSender.SendPartPurchasesIntent(new[]
+                PersistentSyncSystem.SendIntent<PartPurchasesPersistentSyncClientDomain, PartPurchasesPayload>(new PartPurchasesPayload
                 {
-                    new PartPurchaseSnapshotInfo
+                    Items = new[]
                     {
-                        TechId = techId,
-                        PartNames = techState.partsPurchased.Where(part => part != null).Select(part => part.name).Distinct().ToArray()
+                        new PartPurchaseSnapshotInfo
+                        {
+                            TechId = techId,
+                            PartNames = techState.partsPurchased.Where(part => part != null).Select(part => part.name).Distinct().ToArray()
+                        }
                     }
                 }, $"PartPurchase:{techId}:{partName}");
-                return;
             }
-
-            var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressPartPurchaseMsgData>();
-            msgData.PartName = partName;
-            msgData.TechId = techId;
-
-            SendMessage(msgData);
         }
     }
 }

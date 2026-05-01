@@ -47,25 +47,20 @@ namespace LmpClient.Systems.ShareAchievements
                 var configNode = ConvertAchievementToConfigNode(foundNode);
                 if (configNode == null) return;
 
-                if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Achievements))
+                if (PersistentSyncSystem.IsLiveFor<AchievementsPersistentSyncClientDomain>())
                 {
-                    PersistentSyncSystem.Singleton.MessageSender.SendAchievementsIntent(new[]
+                    PersistentSyncSystem.SendIntent<AchievementsPersistentSyncClientDomain, AchievementsPayload>(new AchievementsPayload
                     {
-                        new AchievementSnapshotInfo
+                        Items = new[]
                         {
-                            Id = foundNode.Id,
-                            Data = configNode.Serialize()
+                            new AchievementSnapshotInfo
+                            {
+                                Id = foundNode.Id,
+                                Data = configNode.Serialize()
+                            }
                         }
                     }, $"AchievementUpdate:{foundNode.Id}");
-                    return;
                 }
-
-                //Build the packet and send it.
-                var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressAchievementsMsgData>();
-                msgData.Id = foundNode.Id;
-                msgData.Data = configNode.Serialize();
-                msgData.NumBytes = msgData.Data.Length;
-                System.MessageSender.SendMessage(msgData);
             }
         }
 

@@ -23,7 +23,6 @@ using UnityEngine;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    [PersistentSyncStockScenario("ContractSystem")]
     public class ContractsPersistentSyncClientDomain : SyncClientDomain<ContractsPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)

@@ -20,7 +20,6 @@ using Upgradeables;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    [PersistentSyncStockScenario("ScenarioUpgradeableFacilities")]
     public class UpgradeableFacilitiesPersistentSyncClientDomain : SyncClientDomain<UpgradeableFacilitiesPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)

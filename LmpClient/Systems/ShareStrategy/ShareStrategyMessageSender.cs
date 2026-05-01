@@ -33,31 +33,21 @@ namespace LmpClient.Systems.ShareStrategy
             if (configNode == null) return;
 
             var data = configNode.Serialize();
-            var numBytes = data.Length;
 
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Strategy))
+            if (PersistentSyncSystem.IsLiveFor<StrategyPersistentSyncClientDomain>())
             {
-                PersistentSyncSystem.Singleton.MessageSender.SendStrategyIntent(new[]
+                PersistentSyncSystem.SendIntent<StrategyPersistentSyncClientDomain, StrategyPayload>(new StrategyPayload
                 {
-                    new StrategySnapshotInfo
+                    Items = new[]
                     {
-                        Name = strategy.Config.Name,
-                        Data = data
+                        new StrategySnapshotInfo
+                        {
+                            Name = strategy.Config.Name,
+                            Data = data
+                        }
                     }
                 }, $"StrategyUpdate:{strategy.Config.Name}");
-                return;
             }
-
-            var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressStrategyMsgData>();
-            msgData.Strategy.Name = strategy.Config.Name;
-
-            msgData.Strategy.NumBytes = numBytes;
-            if (msgData.Strategy.Data.Length < numBytes)
-                msgData.Strategy.Data = new byte[numBytes];
-
-            Array.Copy(data, msgData.Strategy.Data, numBytes);
-
-            SendMessage(msgData);
         }
 
         private static ConfigNode ConvertStrategyToConfigNode(Strategy strategy)

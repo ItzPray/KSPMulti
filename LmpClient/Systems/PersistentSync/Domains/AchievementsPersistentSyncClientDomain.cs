@@ -24,7 +24,6 @@ using Strategies;
 
 namespace LmpClient.Systems.PersistentSync
 {
-    [PersistentSyncStockScenario("ProgressTracking")]
     public class AchievementsPersistentSyncClientDomain : SyncClientDomain<AchievementsPayload>
     {
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)

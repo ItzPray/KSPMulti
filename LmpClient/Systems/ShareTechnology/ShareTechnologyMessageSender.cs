@@ -33,7 +33,7 @@ namespace LmpClient.Systems.ShareTechnology
 
         public void SendTechnologyMessage(RDTech tech)
         {
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Technology))
+            if (PersistentSyncSystem.IsLiveFor<TechnologyPersistentSyncClientDomain>())
             {
                 // Do not call UnlockProtoTechNode here: OnTechnologyResearched already ran after stock applied
                 // the unlock. Re-invoking stock unlock can reset or corrupt local tech state on some KSP builds,
@@ -55,7 +55,9 @@ namespace LmpClient.Systems.ShareTechnology
                     }
 
                     var reason = $"TechnologyUnlock:{tech.techID}";
-                    PersistentSyncSystem.Singleton.MessageSender.SendTechnologyIntent(technologies.ToArray(), reason);
+                    PersistentSyncSystem.SendIntent<TechnologyPersistentSyncClientDomain, TechnologyPayload>(
+                        new TechnologyPayload { Technologies = technologies.ToArray() },
+                        reason);
                     SendPartPurchasesIntentForUnlockedTech(tech?.techID, reason);
                 }
                 finally
@@ -98,22 +100,7 @@ namespace LmpClient.Systems.ShareTechnology
                 return;
             }
 
-            var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressTechnologyMsgData>();
-            msgData.TechNode.Id = tech.techID;
-
-            var configNode = ConvertTechNodeToConfigNode(tech);
-            if (configNode == null) return;
-
-            var data = configNode.Serialize();
-            var numBytes = data.Length;
-
-            msgData.TechNode.NumBytes = numBytes;
-            if (msgData.TechNode.Data.Length < numBytes)
-                msgData.TechNode.Data = new byte[numBytes];
-
-            Array.Copy(data, msgData.TechNode.Data, numBytes);
-
-            SendMessage(msgData);
+            return;
         }
 
         private static ConfigNode ConvertTechNodeToConfigNode(RDTech techNode)
@@ -269,7 +256,7 @@ namespace LmpClient.Systems.ShareTechnology
 
         private static void SendPartPurchasesIntentForUnlockedTech(string techId, string technologyReason)
         {
-            if (string.IsNullOrEmpty(techId) || !PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.PartPurchases))
+            if (string.IsNullOrEmpty(techId) || !PersistentSyncSystem.IsLiveFor<PartPurchasesPersistentSyncClientDomain>())
             {
                 return;
             }
@@ -313,12 +300,15 @@ namespace LmpClient.Systems.ShareTechnology
                 return;
             }
 
-            PersistentSyncSystem.Singleton.MessageSender.SendPartPurchasesIntent(new[]
+            PersistentSyncSystem.SendIntent<PartPurchasesPersistentSyncClientDomain, PartPurchasesPayload>(new PartPurchasesPayload
             {
-                new PartPurchaseSnapshotInfo
+                Items = new[]
                 {
-                    TechId = techId,
-                    PartNames = names
+                    new PartPurchaseSnapshotInfo
+                    {
+                        TechId = techId,
+                        PartNames = names
+                    }
                 }
             }, $"{technologyReason}:parts");
         }

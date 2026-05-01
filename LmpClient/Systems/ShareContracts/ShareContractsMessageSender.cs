@@ -40,7 +40,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
+            if (!PersistentSyncSystem.IsLiveFor<ContractsPersistentSyncClientDomain>())
             {
                 LogPersistentSyncUnavailableSkip(nameof(SendContractCommand), reason);
                 return;
@@ -52,19 +52,19 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(command.ToPayload(), reason);
+            PersistentSyncSystem.SendIntent<ContractsPersistentSyncClientDomain, ContractsPayload>(new ContractsPayload { Intent = command.ToPayload() }, reason);
         }
 
         public void SendRequestOfferGeneration(string reason)
         {
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
+            if (!PersistentSyncSystem.IsLiveFor<ContractsPersistentSyncClientDomain>())
             {
                 LogPersistentSyncUnavailableSkip(nameof(SendRequestOfferGeneration), reason);
                 return;
             }
 
             var command = ContractCommandIntent.RequestOfferGeneration();
-            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(command.ToPayload(), reason);
+            PersistentSyncSystem.SendIntent<ContractsPersistentSyncClientDomain, ContractsPayload>(new ContractsPayload { Intent = command.ToPayload() }, reason);
         }
 
         public void SendProducerProposal(ContractIntentPayloadKind kind, Contract contract, string reason)
@@ -98,7 +98,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
+            if (!PersistentSyncSystem.IsLiveFor<ContractsPersistentSyncClientDomain>())
             {
                 LogPersistentSyncUnavailableSkip(nameof(SendProducerProposal), reason);
                 return;
@@ -110,7 +110,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.ToPayload(), reason);
+            PersistentSyncSystem.SendIntent<ContractsPersistentSyncClientDomain, ContractsPayload>(new ContractsPayload { Intent = proposal.ToPayload() }, reason);
         }
 
         public void SendFullContractReconcile(string reason)
@@ -120,7 +120,7 @@ namespace LmpClient.Systems.ShareContracts
                 return;
             }
 
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Contracts))
+            if (!PersistentSyncSystem.IsLiveFor<ContractsPersistentSyncClientDomain>())
             {
                 LogPersistentSyncUnavailableSkip(nameof(SendFullContractReconcile), reason);
                 return;
@@ -131,7 +131,7 @@ namespace LmpClient.Systems.ShareContracts
             var knownContracts = canonicalContracts.ToArray();
             _snapshotChangeTracker.Reset(knownContracts);
             var proposal = ContractProducerProposal.FullReconcile(knownContracts);
-            PersistentSyncSystem.Singleton.MessageSender.SendContractsIntentPayload(proposal.ToPayload(), reason);
+            PersistentSyncSystem.SendIntent<ContractsPersistentSyncClientDomain, ContractsPayload>(new ContractsPayload { Intent = proposal.ToPayload() }, reason);
         }
 
         /// <summary>

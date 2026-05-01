@@ -101,7 +101,7 @@ namespace LmpCommonTest
             var local = new[]
             {
                 new PersistentSyncDomainDefinition(
-                    new PersistentSyncDomainKey("A", 99),
+                    new PersistentSyncDomainKey("A"),
                     GameMode.Career,
                     PersistentSyncCapabilityFlags.None,
                     PersistentSyncCapabilityFlags.None,
@@ -113,7 +113,7 @@ namespace LmpCommonTest
                     "S1",
                     null),
                 new PersistentSyncDomainDefinition(
-                    new PersistentSyncDomainKey("B", 98),
+                    new PersistentSyncDomainKey("B"),
                     GameMode.Career,
                     PersistentSyncCapabilityFlags.Funding,
                     PersistentSyncCapabilityFlags.None,
@@ -164,7 +164,7 @@ namespace LmpCommonTest
             var local = new[]
             {
                 new PersistentSyncDomainDefinition(
-                    new PersistentSyncDomainKey("Only", 0),
+                    new PersistentSyncDomainKey("Only"),
                     GameMode.Career,
                     PersistentSyncCapabilityFlags.None,
                     PersistentSyncCapabilityFlags.None,
@@ -187,12 +187,35 @@ namespace LmpCommonTest
         }
 
         [TestMethod]
+        public void PersistentSyncCatalogMerger_FailsOnEmptyServerCatalog()
+        {
+            var local = new[]
+            {
+                new PersistentSyncDomainDefinition(
+                    new PersistentSyncDomainKey("Only"),
+                    GameMode.Career,
+                    PersistentSyncCapabilityFlags.None,
+                    PersistentSyncCapabilityFlags.None,
+                    PersistentSyncMaterializationSlot.None,
+                    typeof(object),
+                    Array.Empty<string>(),
+                    Array.Empty<string>(),
+                    0,
+                    "S",
+                    null)
+            };
+
+            Assert.IsFalse(PersistentSyncCatalogMerger.TryMerge(local, Array.Empty<PersistentSyncCatalogRowWire>(), out _, out var fail));
+            StringAssert.Contains(fail, "empty persistent sync catalog");
+        }
+
+        [TestMethod]
         public void PersistentSyncCatalogMerger_FailsOnNonContiguousWireIds()
         {
             var local = new[]
             {
-                new PersistentSyncDomainDefinition(new PersistentSyncDomainKey("A", 0), GameMode.Career, PersistentSyncCapabilityFlags.None, PersistentSyncCapabilityFlags.None, PersistentSyncMaterializationSlot.None, typeof(object), Array.Empty<string>(), Array.Empty<string>(), 0, "S", null),
-                new PersistentSyncDomainDefinition(new PersistentSyncDomainKey("B", 0), GameMode.Career, PersistentSyncCapabilityFlags.None, PersistentSyncCapabilityFlags.None, PersistentSyncMaterializationSlot.None, typeof(object), Array.Empty<string>(), Array.Empty<string>(), 0, "S", null)
+                new PersistentSyncDomainDefinition(new PersistentSyncDomainKey("A"), GameMode.Career, PersistentSyncCapabilityFlags.None, PersistentSyncCapabilityFlags.None, PersistentSyncMaterializationSlot.None, typeof(object), Array.Empty<string>(), Array.Empty<string>(), 0, "S", null),
+                new PersistentSyncDomainDefinition(new PersistentSyncDomainKey("B"), GameMode.Career, PersistentSyncCapabilityFlags.None, PersistentSyncCapabilityFlags.None, PersistentSyncMaterializationSlot.None, typeof(object), Array.Empty<string>(), Array.Empty<string>(), 0, "S", null)
             };
 
             var serverRows = new[]

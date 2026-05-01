@@ -10,7 +10,7 @@ namespace LmpClient.Systems.ShareReputation
     {
         public void SendMessage(IMessageData msg)
         {
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Reputation))
+            if (!PersistentSyncSystem.IsLiveFor<ReputationPersistentSyncClientDomain>())
             {
                 return;
             }
@@ -20,12 +20,12 @@ namespace LmpClient.Systems.ShareReputation
 
         public void SendReputationMsg(float reputation, string reason)
         {
-            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Reputation))
+            if (!PersistentSyncSystem.IsLiveFor<ReputationPersistentSyncClientDomain>())
             {
                 return;
             }
 
-            PersistentSyncSystem.Singleton.MessageSender.SendReputationIntent(reputation, reason);
+            PersistentSyncSystem.SendIntent<ReputationPersistentSyncClientDomain, float>(reputation, reason);
         }
     }
 }

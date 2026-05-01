@@ -30,8 +30,17 @@ namespace LmpCommon.PersistentSync
             }
 
             var domainName = PersistentSyncDomainNaming.InferDomainName(_currentDomainType);
-            var key = new PersistentSyncDomainKey(domainName, 0);
+            var key = new PersistentSyncDomainKey(domainName);
             var builder = Register(key);
+            ConfigureCurrentDomainMetadata(builder, key);
+
+            return builder;
+        }
+
+        protected virtual void ConfigureCurrentDomainMetadata(
+            PersistentSyncDomainRegistrationBuilder builder,
+            PersistentSyncDomainKey key)
+        {
             var stockScenario = (PersistentSyncStockScenarioAttribute)Attribute.GetCustomAttribute(
                 _currentDomainType,
                 typeof(PersistentSyncStockScenarioAttribute));
@@ -51,8 +60,6 @@ namespace LmpCommon.PersistentSync
             {
                 builder.WithStockScenarioMetadata(knownScenario);
             }
-
-            return builder;
         }
 
         private static bool TryGetKnownScenarioForDomain(string domainName, out string scenarioName)
@@ -188,7 +195,15 @@ namespace LmpCommon.PersistentSync
     }
 
     /// <summary>Client-side registrar carrying the declaring domain type from Harmony entry attributes.</summary>
-    public sealed class PersistentSyncClientDomainRegistrar : PersistentSyncDomainRegistrar { }
+    public sealed class PersistentSyncClientDomainRegistrar : PersistentSyncDomainRegistrar
+    {
+        protected override void ConfigureCurrentDomainMetadata(
+            PersistentSyncDomainRegistrationBuilder builder,
+            PersistentSyncDomainKey key)
+        {
+            builder.ForGameModes(GameMode.Sandbox | GameMode.Career | GameMode.Science);
+        }
+    }
 
     /// <summary>Server-side registrar carrying the declaring domain type from registration entry types.</summary>
     public sealed class PersistentSyncServerDomainRegistrar : PersistentSyncDomainRegistrar { }

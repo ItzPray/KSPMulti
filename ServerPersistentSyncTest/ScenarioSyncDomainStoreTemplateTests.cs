@@ -209,7 +209,7 @@ namespace ServerPersistentSyncTest
         }
 
         [TestMethod]
-        public void ServerRegistryIgnoresDuplicateLegacyKeyWireIds()
+        public void ServerRegistryAssignsSessionWireIdsToExplicitNameRegistrations()
         {
             PersistentSyncRegistry.CreateRegisteredDomainsForTests(
                 typeof(DuplicateFundsDomainA),
@@ -357,7 +357,7 @@ namespace ServerPersistentSyncTest
         {
             public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
             {
-                registrar.Register(new PersistentSyncDomainKey("DuplicateA", 240))
+                registrar.Register(new PersistentSyncDomainKey("DuplicateA"))
                     .WithStockScenarioMetadata("Funding")
                     .UsesServerDomain<DuplicateFundsDomainA>();
             }
@@ -367,7 +367,7 @@ namespace ServerPersistentSyncTest
         {
             public static void RegisterPersistentSyncDomain(PersistentSyncServerDomainRegistrar registrar)
             {
-                registrar.Register(new PersistentSyncDomainKey("DuplicateB", 240))
+                registrar.Register(new PersistentSyncDomainKey("DuplicateB"))
                     .WithStockScenarioMetadata("Funding")
                     .UsesServerDomain<DuplicateFundsDomainB>();
             }

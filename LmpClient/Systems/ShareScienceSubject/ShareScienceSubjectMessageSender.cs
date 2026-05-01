@@ -32,34 +32,22 @@ namespace LmpClient.Systems.ShareScienceSubject
             if (configNode == null) return;
 
             var data = configNode.Serialize();
-            var numBytes = data.Length;
 
-            if (PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.ScienceSubjects))
+            if (PersistentSyncSystem.IsLiveFor<ScienceSubjectsPersistentSyncClientDomain>())
             {
-                PersistentSyncSystem.Singleton.MessageSender.SendScienceSubjectsIntent(new[]
+                PersistentSyncSystem.SendIntent<ScienceSubjectsPersistentSyncClientDomain, ScienceSubjectsPayload>(new ScienceSubjectsPayload
                 {
-                    new ScienceSubjectSnapshotInfo
+                    Items = new[]
                     {
-                        Id = subject.id,
-                        Data = data
+                        new ScienceSubjectSnapshotInfo
+                        {
+                            Id = subject.id,
+                            Data = data
+                        }
                     }
                 }, $"ScienceSubjectUpdate:{subject.id}");
                 LunaLog.Log($"Science experiment \"{subject.id}\" sent as persistent sync intent");
-                return;
             }
-
-            var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<ShareProgressScienceSubjectMsgData>();
-            msgData.ScienceSubject.Id = subject.id;
-
-            msgData.ScienceSubject.NumBytes = numBytes;
-            if (msgData.ScienceSubject.Data.Length < numBytes)
-                msgData.ScienceSubject.Data = new byte[numBytes];
-
-            Array.Copy(data, msgData.ScienceSubject.Data, numBytes);
-
-            SendMessage(msgData);
-
-            LunaLog.Log($"Science experiment \"{subject.id}\" sent");
         }
 
         private static ConfigNode ConvertScienceSubjectToConfigNode(ScienceSubject subject)

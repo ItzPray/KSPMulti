@@ -11,22 +11,22 @@ namespace LmpCommonTest
         {
             var registrar = new PersistentSyncClientDomainRegistrar();
 
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Funds, 0)).WithStockScenarioMetadata("Funding").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Science, 1)).WithStockScenarioMetadata("ResearchAndDevelopment").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Reputation, 2)).WithStockScenarioMetadata("Reputation").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.UpgradeableFacilities, 3)).WithStockScenarioMetadata("ScenarioUpgradeableFacilities").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Contracts, 4)).WithStockScenarioMetadata("ContractSystem").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Technology, 5)).WithStockScenarioMetadata("ResearchAndDevelopment").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Strategy, 6)).WithStockScenarioMetadata("StrategySystem").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Achievements, 7)).WithStockScenarioMetadata("ProgressTracking").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.ScienceSubjects, 8)).WithStockScenarioMetadata("ResearchAndDevelopment").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.ExperimentalParts, 9)).WithStockScenarioMetadata("ResearchAndDevelopment").UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.PartPurchases, 10))
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Funds)).WithStockScenarioMetadata("Funding").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Science)).WithStockScenarioMetadata("ResearchAndDevelopment").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Reputation)).WithStockScenarioMetadata("Reputation").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.UpgradeableFacilities)).WithStockScenarioMetadata("ScenarioUpgradeableFacilities").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Contracts)).WithStockScenarioMetadata("ContractSystem").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Technology)).WithStockScenarioMetadata("ResearchAndDevelopment").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Strategy)).WithStockScenarioMetadata("StrategySystem").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.Achievements)).WithStockScenarioMetadata("ProgressTracking").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.ScienceSubjects)).WithStockScenarioMetadata("ResearchAndDevelopment").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.ExperimentalParts)).WithStockScenarioMetadata("ResearchAndDevelopment").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.PartPurchases))
                 .WithStockScenarioMetadata("ResearchAndDevelopment")
                 .ProducerRequiresPartPurchaseMechanism()
                 .ProjectsFrom(PersistentSyncDomainNames.Technology)
                 .UsesClientDomain<object>();
-            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.GameLaunchId, 11)).WithStockScenarioMetadata("LmpGameLaunchId").UsesClientDomain<object>();
+            registrar.Register(new PersistentSyncDomainKey(PersistentSyncDomainNames.GameLaunchId)).WithStockScenarioMetadata("LmpGameLaunchId").UsesClientDomain<object>();
 
             PersistentSyncDomainCatalog.Configure(registrar.BuildDefinitions());
         }
