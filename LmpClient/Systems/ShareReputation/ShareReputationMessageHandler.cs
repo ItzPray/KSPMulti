@@ -30,7 +30,21 @@ namespace LmpClient.Systems.ShareReputation
 
         private static void ReputationUpdate(float reputation)
         {
-            System.SetReputationWithoutTriggeringEvent(reputation);
+            if (Reputation.Instance == null)
+            {
+                return;
+            }
+
+            System.StartIgnoringEvents();
+            try
+            {
+                Reputation.Instance.SetReputation(reputation, TransactionReasons.None);
+            }
+            finally
+            {
+                System.StopIgnoringEvents();
+            }
+
             LunaLog.Log($"ReputationUpdate received - reputation changed to: {reputation}");
         }
     }

@@ -17,15 +17,5 @@ namespace LmpClient.Systems.ShareReputation
 
             PersistentSyncSystem.Singleton.MessageSender.SendMessage(msg);
         }
-
-        public void SendReputationMsg(float reputation, string reason)
-        {
-            if (!PersistentSyncSystem.IsLiveFor<ReputationPersistentSyncClientDomain>())
-            {
-                return;
-            }
-
-            PersistentSyncSystem.SendIntent<ReputationPersistentSyncClientDomain, float>(reputation, reason);
-        }
     }
 }

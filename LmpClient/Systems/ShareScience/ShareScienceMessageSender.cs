@@ -17,16 +17,5 @@ namespace LmpClient.Systems.ShareScience
 
             PersistentSyncSystem.Singleton.MessageSender.SendMessage(msg);
         }
-
-        public void SendScienceMessage(float science, string reason)
-        {
-            if (!PersistentSyncSystem.IsLiveFor<SciencePersistentSyncClientDomain>())
-            {
-                return;
-            }
-
-            PersistentSyncSystem.SendIntent<SciencePersistentSyncClientDomain, float>(science, reason);
-            LunaLog.Log($"Science changed to: {science} with reason: {reason}");
-        }
     }
 }

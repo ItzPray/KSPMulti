@@ -1,31 +1,14 @@
-using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
-using LmpCommon.PersistentSync.Payloads.Technology;
-using LmpCommon.PersistentSync.Payloads.Strategy;
-using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
-using LmpCommon.PersistentSync.Payloads.PartPurchases;
-using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
-using LmpCommon.PersistentSync.Payloads.Contracts;
-using LmpCommon.PersistentSync.Payloads.Achievements;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using KSP.UI.Screens;
-using LmpClient.Extensions;
-using LmpClient.Systems.ShareAchievements;
-using LmpClient.Systems.ShareExperimentalParts;
-using LmpClient.Systems.SharePurchaseParts;
-using LmpClient.Systems.ShareScience;
-using LmpClient.Systems.ShareContracts;
-using LmpClient.Systems.ShareScienceSubject;
-using LmpClient.Systems.ShareStrategy;
-using LmpClient.Systems.ShareTechnology;
+using LmpClient.Events;
 using LmpCommon.PersistentSync;
-using Strategies;
 
 namespace LmpClient.Systems.PersistentSync
 {
     public class SciencePersistentSyncClientDomain : SyncClientDomain<float>
     {
+        private float _lastScience;
+
+        public bool Reverting { get; private set; }
+
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
             registrar.RegisterCurrent()
@@ -39,7 +22,77 @@ namespace LmpClient.Systems.PersistentSync
 
         protected override void ApplyLiveState(float value)
         {
-            ShareScienceSystem.Singleton.SetScienceWithoutTriggeringEvent(value);
+            ApplyLiveStateWithLocalSuppression(() =>
+                ResearchAndDevelopment.Instance.SetScience(value, TransactionReasons.None));
+        }
+
+        protected override void OnDomainEnabled()
+        {
+            GameEvents.OnScienceChanged.Add(OnScienceChanged);
+            RevertEvent.onRevertingToLaunch.Add(OnReverting);
+            RevertEvent.onReturningToEditor.Add(OnReturningToEditor);
+            GameEvents.onLevelWasLoadedGUIReady.Add(OnLevelLoaded);
+        }
+
+        protected override void OnDomainDisabled()
+        {
+            GameEvents.OnScienceChanged.Remove(OnScienceChanged);
+            RevertEvent.onRevertingToLaunch.Remove(OnReverting);
+            RevertEvent.onReturningToEditor.Remove(OnReturningToEditor);
+            GameEvents.onLevelWasLoadedGUIReady.Remove(OnLevelLoaded);
+
+            _lastScience = 0;
+            Reverting = false;
+        }
+
+        protected override void SaveLocalState()
+        {
+            if (ResearchAndDevelopment.Instance != null)
+            {
+                _lastScience = ResearchAndDevelopment.Instance.Science;
+            }
+        }
+
+        protected override void RestoreLocalState()
+        {
+            if (ResearchAndDevelopment.Instance != null)
+            {
+                ResearchAndDevelopment.Instance.SetScience(_lastScience, TransactionReasons.None);
+            }
+        }
+
+        private void OnScienceChanged(float science, TransactionReasons reason)
+        {
+            if (IgnoreLocalEvents)
+            {
+                return;
+            }
+
+            SendScenarioScalar(science, reason.ToString());
+            LunaLog.Log($"Science changed to: {science} with reason: {reason}");
+        }
+
+        private void OnReverting()
+        {
+            Reverting = true;
+            StartIgnoringLocalEvents();
+        }
+
+        private void OnReturningToEditor(EditorFacility data)
+        {
+            Reverting = true;
+            StartIgnoringLocalEvents();
+        }
+
+        private void OnLevelLoaded(GameScenes data)
+        {
+            if (!Reverting)
+            {
+                return;
+            }
+
+            Reverting = false;
+            StopIgnoringLocalEvents(true);
         }
     }
 }

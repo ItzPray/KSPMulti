@@ -36,3 +36,5 @@ Scripts/SetKspmpReleaseVersion.ps1
 /appveyor_discord.ps1
 Scripts/StartLmpUpstreamDraftPr.ps1
 Scripts/PrepareLmpUpstreamCommit.ps1
+Scripts/RunLmpCommonTest.ps1
+Scripts/VerifyPersistentSyncAuthoring.ps1

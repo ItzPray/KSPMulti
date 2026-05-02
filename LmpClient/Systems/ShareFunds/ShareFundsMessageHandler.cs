@@ -30,7 +30,21 @@ namespace LmpClient.Systems.ShareFunds
 
         private static void FundsUpdate(double funds)
         {
-            System.SetFundsWithoutTriggeringEvent(funds);
+            if (Funding.Instance == null)
+            {
+                return;
+            }
+
+            System.StartIgnoringEvents();
+            try
+            {
+                Funding.Instance.SetFunds(funds, TransactionReasons.None);
+            }
+            finally
+            {
+                System.StopIgnoringEvents();
+            }
+
             LunaLog.Log($"FundsUpdate received - funds changed to: {funds}");
         }
     }

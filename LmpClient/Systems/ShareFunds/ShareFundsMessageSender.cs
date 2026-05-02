@@ -17,15 +17,5 @@ namespace LmpClient.Systems.ShareFunds
 
             PersistentSyncSystem.Singleton.MessageSender.SendMessage(msg);
         }
-
-        public void SendFundsMessage(double funds, string reason)
-        {
-            if (!PersistentSyncSystem.IsLiveFor<FundsPersistentSyncClientDomain>())
-            {
-                return;
-            }
-
-            PersistentSyncSystem.SendIntent<FundsPersistentSyncClientDomain, double>(funds, reason);
-        }
     }
 }

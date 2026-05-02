@@ -12,5 +12,14 @@ namespace LmpClient.Systems.PersistentSync
         /// Returns <see cref="PersistentSyncApplyOutcome.Applied"/> only when pending work was committed this call.
         /// </summary>
         PersistentSyncApplyOutcome FlushPendingState();
+
+        /// <summary>Activates local event producers and domain-owned lifecycle state for this session.</summary>
+        void EnableDomainLifecycle();
+
+        /// <summary>Stops local event producers and clears domain-owned lifecycle state for this session.</summary>
+        void DisableDomainLifecycle();
+
+        /// <summary>Runs queued local actions that are waiting for live KSP state to become ready.</summary>
+        void FlushQueuedDomainActions();
     }
 }

@@ -1,5 +1,5 @@
-# No KSP/Unity Managed DLLs required: builds Server + LmpCommon (shared) and runs ServerTest only.
-# Use this for README/branch status. Full client (LmpClient) builds still use local or AppVeyor+KSPLibraries.7z.
+# No KSP/Unity Managed DLLs: builds/runs LmpCommonTest (MSBuild + vstest) + Server + ServerTest.
+# Use this for README/branch status. Full client (LmpClient) builds use local or AppVeyor+KSPLibraries.7z.
 
 name: CI
 
@@ -29,6 +29,10 @@ jobs:
       - name: Persistent Sync authoring gate
         shell: pwsh
         run: ./Scripts/VerifyPersistentSyncAuthoring.ps1
+
+      - name: Test (LmpCommon MSBuild / vstest)
+        shell: pwsh
+        run: ./Scripts/RunLmpCommonTest.ps1 -Configuration Release
 
       - name: Test (ServerPersistentSync)
         run: dotnet test ServerPersistentSyncTest/ServerPersistentSyncTest.csproj -c Release

@@ -91,6 +91,21 @@ if ($hits.Length -gt 0) { $failures.Add("Persistent-sync share senders must use 
 $hits = @(Test-GitGrepEmpty 'PersistentSyncSystem\.IsLiveForDomain\(PersistentSyncDomainNames\.' $persistentShareSenderPaths)
 if ($hits.Length -gt 0) { $failures.Add("Persistent-sync share senders must use IsLiveFor<TDomain>() instead of domain-name live checks:`n  $($hits -join "`n  ")") }
 
+$scalarSharePaths = @(
+    'LmpClient/Systems/ShareFunds/',
+    'LmpClient/Systems/ShareScience/',
+    'LmpClient/Systems/ShareReputation/'
+)
+
+$hits = @(Test-GitGrepEmpty 'PersistentSyncSystem\.SendIntent' $scalarSharePaths)
+if ($hits.Length -gt 0) { $failures.Add("Scalar persistent-sync producers must live in their SyncClientDomain, not Share* systems/senders:`n  $($hits -join "`n  ")") }
+
+$hits = @(Test-GitGrepEmpty 'GameEvents\.On(Funds|Science|Reputation)Changed\.Add' $scalarSharePaths)
+if ($hits.Length -gt 0) { $failures.Add("Scalar KSP event subscriptions must live in the matching SyncClientDomain OnDomainEnabled hook:`n  $($hits -join "`n  ")") }
+
+$hits = @(Test-GitGrepEmpty 'Set(Funds|Science|Reputation)WithoutTriggeringEvent' @('LmpClient/Systems/'))
+if ($hits.Length -gt 0) { $failures.Add("Scalar live apply helpers named Set*WithoutTriggeringEvent are no longer authoring APIs; use SyncClientDomain suppression hooks:`n  $($hits -join "`n  ")") }
+
 $replyPath = Join-Path $repoRoot 'LmpCommon\Message\Data\Settings\SetingsReplyMsgData.cs'
 if (Test-Path $replyPath) {
     $catalogInReply = Select-String -Path $replyPath -Pattern 'PersistentSyncCatalog' -SimpleMatch -Quiet

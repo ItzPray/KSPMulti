@@ -87,6 +87,7 @@ namespace LmpClient.Systems.PersistentSync
             SetupRoutine(new RoutineDefinition(1000, RoutineExecution.Update, FlushPendingState));
             GameEvents.onLevelWasLoadedGUIReady.Add(OnSceneReady);
             GameEvents.onGUIRnDComplexSpawn.Add(OnRnDComplexSpawn);
+            EnableDomainLifecycles();
         }
 
         /// <summary>
@@ -107,11 +108,13 @@ namespace LmpClient.Systems.PersistentSync
             return singleton != null
                    && singleton.Enabled
                    && singleton.Domains != null
-                   && singleton.Domains.ContainsKey(domainId);
+                   && singleton.Domains.ContainsKey(domainId)
+                   && PersistentSyncDomainCatalog.TryGet(domainId, out _);
         }
 
         protected override void OnDisabled()
         {
+            DisableDomainLifecycles();
             base.OnDisabled();
             GameEvents.onLevelWasLoadedGUIReady.Remove(OnSceneReady);
             GameEvents.onGUIRnDComplexSpawn.Remove(OnRnDComplexSpawn);
@@ -237,6 +240,7 @@ namespace LmpClient.Systems.PersistentSync
             NetworkSystem.BumpPersistentSyncJoinActivity();
             Reconciler.RetryDeferredSnapshots();
             Reconciler.FlushPendingState();
+            FlushDomainQueues();
         }
 
         /// <summary>
@@ -365,6 +369,37 @@ namespace LmpClient.Systems.PersistentSync
             if (flushNeeded)
             {
                 Reconciler.FlushPendingState();
+            }
+        }
+
+        private void EnableDomainLifecycles()
+        {
+            var caps = PersistentSyncSessionCapabilitiesFactory.CreateForCurrentSession();
+            foreach (var domain in Domains.Values)
+            {
+                if (PersistentSyncDomainApplicability.IsDomainApplicableForShareProducer(
+                        domain.DomainId,
+                        SettingsSystem.ServerSettings.GameMode,
+                        in caps))
+                {
+                    domain.EnableDomainLifecycle();
+                }
+            }
+        }
+
+        private void DisableDomainLifecycles()
+        {
+            foreach (var domain in Domains.Values)
+            {
+                domain.DisableDomainLifecycle();
+            }
+        }
+
+        private void FlushDomainQueues()
+        {
+            foreach (var domain in Domains.Values)
+            {
+                domain.FlushQueuedDomainActions();
             }
         }
 
