@@ -9,10 +9,7 @@ using LmpCommon.PersistentSync.Payloads.Achievements;
 using KSP.UI.Screens;
 using LmpClient.Events;
 using LmpClient.Systems.PersistentSync;
-using LmpClient.Systems.ShareFunds;
 using LmpClient.Systems.ShareProgress;
-using LmpClient.Systems.ShareReputation;
-using LmpClient.Systems.ShareScience;
 using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
@@ -110,48 +107,53 @@ namespace LmpClient.Systems.ShareStrategy
             var incomingStrategyIsActive = bool.Parse(incomingStrategyNode.GetValue("isActive"));
 
             StartIgnoringEvents();
-            ShareFundsSystem.Singleton.StartIgnoringEvents();
-            ShareScienceSystem.Singleton.StartIgnoringEvents();
-            ShareReputationSystem.Singleton.StartIgnoringEvents();
             try
             {
-                var strategyIndex = StrategySystem.Instance.Strategies.FindIndex(s => s.Config.Name == strategyInfo.Name);
-                if (strategyIndex == -1)
+                using (PersistentSyncDomainSuppressionScope.Begin(
+                    PersistentSyncEventSuppressorRegistry.Resolve(
+                        PersistentSyncDomainNames.Funds,
+                        PersistentSyncDomainNames.Science,
+                        PersistentSyncDomainNames.Reputation),
+                    restoreOldValueOnDispose: true))
                 {
-                    return false;
+                    var strategyIndex = StrategySystem.Instance.Strategies.FindIndex(s => s.Config.Name == strategyInfo.Name);
+                    if (strategyIndex == -1)
+                    {
+                        return false;
+                    }
+
+                    try
+                    {
+                        StrategySystem.Instance.Strategies[strategyIndex].Factor = incomingStrategyFactor;
+                        if (incomingStrategyIsActive)
+                        {
+                            StrategySystem.Instance.Strategies[strategyIndex].Activate();
+                            LunaLog.Log($"Strategy snapshot applied from {source}: strategy activated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
+                        }
+                        else
+                        {
+                            StrategySystem.Instance.Strategies[strategyIndex].Deactivate();
+                            LunaLog.Log($"Strategy snapshot applied from {source}: strategy deactivated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        LunaLog.LogError($"[KSPMP]: Error while applying strategy snapshot {strategyInfo.Name} from {source}: {e}");
+                        return false;
+                    }
                 }
 
-                StrategySystem.Instance.Strategies[strategyIndex].Factor = incomingStrategyFactor;
-                if (incomingStrategyIsActive)
+                if (refreshUi)
                 {
-                    StrategySystem.Instance.Strategies[strategyIndex].Activate();
-                    LunaLog.Log($"Strategy snapshot applied from {source}: strategy activated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
+                    RefreshStrategyUiAdapters(source);
                 }
-                else
-                {
-                    StrategySystem.Instance.Strategies[strategyIndex].Deactivate();
-                    LunaLog.Log($"Strategy snapshot applied from {source}: strategy deactivated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
-                }
-            }
-            catch (Exception e)
-            {
-                LunaLog.LogError($"[KSPMP]: Error while applying strategy snapshot {strategyInfo.Name} from {source}: {e}");
-                return false;
+
+                return true;
             }
             finally
             {
-                ShareFundsSystem.Singleton.StopIgnoringEvents(true);
-                ShareScienceSystem.Singleton.StopIgnoringEvents(true);
-                ShareReputationSystem.Singleton.StopIgnoringEvents(true);
                 StopIgnoringEvents();
             }
-
-            if (refreshUi)
-            {
-                RefreshStrategyUiAdapters(source);
-            }
-
-            return true;
         }
     }
 }

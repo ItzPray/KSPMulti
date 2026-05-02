@@ -442,9 +442,13 @@ namespace LmpClient.Systems.PersistentSync
                 throw new InvalidOperationException("Persistent sync client domains missing self-registration: " + string.Join(", ", unregisteredTypes));
             }
 
-            return definitionsList
+            var dict = definitionsList
                 .Select(d => CreateClientDomain(d.DomainType))
                 .ToDictionary(d => d.DomainId);
+
+            PersistentSyncEventSuppressorRegistry.ReplaceAllFromClientDomains(dict);
+
+            return dict;
         }
 
         private static void InvokeDomainRegistration(Type domainType, PersistentSyncClientDomainRegistrar registrar)

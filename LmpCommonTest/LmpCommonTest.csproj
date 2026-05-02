@@ -73,6 +73,7 @@
     <Compile Include="PersistentSyncMaterializationDomainMapTests.cs" />
     <Compile Include="PersistentSyncReconcilerStateTests.cs" />
     <Compile Include="PersistentSyncSerializationTests.cs" />
+    <Compile Include="PersistentSyncDomainSuppressionScopeTests.cs" />
     <Compile Include="ScenarioSyncApplyScopeTests.cs" />
     <Compile Include="ReentrantEventSuppressorTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
