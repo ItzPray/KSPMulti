@@ -1,26 +1,10 @@
-using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
-using LmpCommon.PersistentSync.Payloads.Technology;
-using LmpCommon.PersistentSync.Payloads.Strategy;
-using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
-using LmpCommon.PersistentSync.Payloads.PartPurchases;
+using LmpClient.Events;
+using LmpClient.Systems.ShareExperimentalParts;
+using LmpCommon.PersistentSync;
 using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
-using LmpCommon.PersistentSync.Payloads.Contracts;
-using LmpCommon.PersistentSync.Payloads.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using KSP.UI.Screens;
-using LmpClient.Extensions;
-using LmpClient.Systems.ShareAchievements;
-using LmpClient.Systems.ShareExperimentalParts;
-using LmpClient.Systems.SharePurchaseParts;
-using LmpClient.Systems.ShareScience;
-using LmpClient.Systems.ShareContracts;
-using LmpClient.Systems.ShareScienceSubject;
-using LmpClient.Systems.ShareStrategy;
-using LmpClient.Systems.ShareTechnology;
-using LmpCommon.PersistentSync;
-using Strategies;
 
 namespace LmpClient.Systems.PersistentSync
 {
@@ -33,6 +17,57 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         private ExperimentalPartSnapshotInfo[] _pendingParts;
+
+        protected override void OnDomainEnabled()
+        {
+            ExperimentalPartEvent.onExperimentalPartRemoved.Add(OnExperimentalPartRemoved);
+            ExperimentalPartEvent.onExperimentalPartAdded.Add(OnExperimentalPartAdded);
+        }
+
+        protected override void OnDomainDisabled()
+        {
+            ExperimentalPartEvent.onExperimentalPartRemoved.Remove(OnExperimentalPartRemoved);
+            ExperimentalPartEvent.onExperimentalPartAdded.Remove(OnExperimentalPartAdded);
+        }
+
+        private void OnExperimentalPartRemoved(AvailablePart part, int count)
+        {
+            if (IgnoreLocalEvents)
+            {
+                return;
+            }
+
+            LunaLog.Log($"Relaying experimental part removed: part: {part.name} count: {count}");
+            SendExperimentalPartIntent(part.name, count);
+        }
+
+        private void OnExperimentalPartAdded(AvailablePart part, int count)
+        {
+            if (IgnoreLocalEvents)
+            {
+                return;
+            }
+
+            LunaLog.Log($"Relaying experimental part added: part: {part.name} count: {count}");
+            SendExperimentalPartIntent(part.name, count);
+        }
+
+        private void SendExperimentalPartIntent(string partName, int count)
+        {
+            SendLocalPayload(
+                new ExperimentalPartsPayload
+                {
+                    Items = new[]
+                    {
+                        new ExperimentalPartSnapshotInfo
+                        {
+                            PartName = partName,
+                            Count = count
+                        }
+                    }
+                },
+                $"ExperimentalPart:{partName}");
+        }
 
         protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, ExperimentalPartsPayload payload)
         {
@@ -70,14 +105,11 @@ namespace LmpClient.Systems.PersistentSync
                 return PersistentSyncApplyOutcome.Rejected;
             }
 
-            ShareExperimentalPartsSystem.Singleton.StartIgnoringEvents();
-            try
+            using (PersistentSyncDomainSuppressionScope.Begin(
+                PersistentSyncEventSuppressorRegistry.Resolve(PersistentSyncDomainNames.ExperimentalParts),
+                restoreOldValueOnDispose: false))
             {
                 ShareExperimentalPartsSystem.Singleton.ReplaceExperimentalPartsStock(stock, "PersistentSyncSnapshotApply");
-            }
-            finally
-            {
-                ShareExperimentalPartsSystem.Singleton.StopIgnoringEvents();
             }
 
             _pendingParts = null;

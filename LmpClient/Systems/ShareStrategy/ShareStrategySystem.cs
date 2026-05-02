@@ -25,9 +25,6 @@ namespace LmpClient.Systems.ShareStrategy
     {
         public override string SystemName { get; } = nameof(ShareStrategySystem);
 
-        private ShareStrategyEvents ShareStrategiesEvents { get; } = new ShareStrategyEvents();
-
-        //BailoutGrand - Exchange funds for reputation; researchIPsellout - Exchange funds for science;
         public readonly string[] OneTimeStrategies = { "BailoutGrant", "researchIPsellout" };
 
         protected override bool ShareSystemReady => StrategySystem.Instance != null && StrategySystem.Instance.Strategies.Count != 0 && Funding.Instance != null && ResearchAndDevelopment.Instance != null &&
@@ -49,18 +46,12 @@ namespace LmpClient.Systems.ShareStrategy
         protected override void OnEnabled()
         {
             base.OnEnabled();
-
-            StrategyEvent.onStrategyActivated.Add(ShareStrategiesEvents.StrategyActivated);
-            StrategyEvent.onStrategyDeactivated.Add(ShareStrategiesEvents.StrategyDeactivated);
+            // Strategy activation: StrategyPersistentSyncClientDomain
         }
 
         protected override void OnDisabled()
         {
             base.OnDisabled();
-
-            //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
-            StrategyEvent.onStrategyActivated.Remove(ShareStrategiesEvents.StrategyActivated);
-            StrategyEvent.onStrategyDeactivated.Remove(ShareStrategiesEvents.StrategyDeactivated);
         }
 
         public void RefreshStrategyUiAdapters(string source)
@@ -99,16 +90,52 @@ namespace LmpClient.Systems.ShareStrategy
             }
         }
 
-        public bool ApplyStrategySnapshot(StrategySnapshotInfo strategyInfo, string source, bool refreshUi)
+        public bool TryApplyStrategySnapshotMutation(StrategySnapshotInfo strategyInfo, string source)
         {
             var incomingStrategyNode = ShareStrategyMessageHandler.ConvertByteArrayToConfigNode(strategyInfo.Data, strategyInfo.Data.Length);
-            if (incomingStrategyNode == null) return false;
+            if (incomingStrategyNode == null)
+            {
+                return false;
+            }
+
             var incomingStrategyFactor = float.Parse(incomingStrategyNode.GetValue("factor"), CultureInfo.InvariantCulture);
             var incomingStrategyIsActive = bool.Parse(incomingStrategyNode.GetValue("isActive"));
 
+            try
+            {
+                var strategyIndex = StrategySystem.Instance.Strategies.FindIndex(s => s.Config.Name == strategyInfo.Name);
+                if (strategyIndex == -1)
+                {
+                    return false;
+                }
+
+                StrategySystem.Instance.Strategies[strategyIndex].Factor = incomingStrategyFactor;
+                if (incomingStrategyIsActive)
+                {
+                    StrategySystem.Instance.Strategies[strategyIndex].Activate();
+                    LunaLog.Log($"Strategy snapshot applied from {source}: strategy activated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
+                }
+                else
+                {
+                    StrategySystem.Instance.Strategies[strategyIndex].Deactivate();
+                    LunaLog.Log($"Strategy snapshot applied from {source}: strategy deactivated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
+                }
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[KSPMP]: Error while applying strategy snapshot {strategyInfo.Name} from {source}: {e}");
+                return false;
+            }
+        }
+
+        public bool ApplyStrategySnapshot(StrategySnapshotInfo strategyInfo, string source, bool refreshUi)
+        {
             StartIgnoringEvents();
             try
             {
+                bool ok;
                 using (PersistentSyncDomainSuppressionScope.Begin(
                     PersistentSyncEventSuppressorRegistry.Resolve(
                         PersistentSyncDomainNames.Funds,
@@ -116,39 +143,15 @@ namespace LmpClient.Systems.ShareStrategy
                         PersistentSyncDomainNames.Reputation),
                     restoreOldValueOnDispose: true))
                 {
-                    var strategyIndex = StrategySystem.Instance.Strategies.FindIndex(s => s.Config.Name == strategyInfo.Name);
-                    if (strategyIndex == -1)
-                    {
-                        return false;
-                    }
-
-                    try
-                    {
-                        StrategySystem.Instance.Strategies[strategyIndex].Factor = incomingStrategyFactor;
-                        if (incomingStrategyIsActive)
-                        {
-                            StrategySystem.Instance.Strategies[strategyIndex].Activate();
-                            LunaLog.Log($"Strategy snapshot applied from {source}: strategy activated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
-                        }
-                        else
-                        {
-                            StrategySystem.Instance.Strategies[strategyIndex].Deactivate();
-                            LunaLog.Log($"Strategy snapshot applied from {source}: strategy deactivated: {strategyInfo.Name} - with factor: {incomingStrategyFactor}");
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        LunaLog.LogError($"[KSPMP]: Error while applying strategy snapshot {strategyInfo.Name} from {source}: {e}");
-                        return false;
-                    }
+                    ok = TryApplyStrategySnapshotMutation(strategyInfo, source);
                 }
 
-                if (refreshUi)
+                if (ok && refreshUi)
                 {
                     RefreshStrategyUiAdapters(source);
                 }
 
-                return true;
+                return ok;
             }
             finally
             {

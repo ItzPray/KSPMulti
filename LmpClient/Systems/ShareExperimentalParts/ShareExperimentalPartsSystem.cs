@@ -14,8 +14,6 @@ namespace LmpClient.Systems.ShareExperimentalParts
     {
         public override string SystemName { get; } = nameof(ShareExperimentalPartsSystem);
 
-        private ShareExperimentalPartsEvents ShareExperimentalPartsEvents { get; } = new ShareExperimentalPartsEvents();
-
         //This queue system is not used because we use one big queue in ShareCareerSystem for this system.
         protected override bool ShareSystemReady => true;
 
@@ -35,18 +33,12 @@ namespace LmpClient.Systems.ShareExperimentalParts
         protected override void OnEnabled()
         {
             base.OnEnabled();
-
-            ExperimentalPartEvent.onExperimentalPartRemoved.Add(ShareExperimentalPartsEvents.ExperimentalPartRemoved);
-            ExperimentalPartEvent.onExperimentalPartAdded.Add(ShareExperimentalPartsEvents.ExperimentalPartAdded);
+            // Producer events: ExperimentalPartsPersistentSyncClientDomain.OnDomainEnabled
         }
 
         protected override void OnDisabled()
         {
             base.OnDisabled();
-
-            //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
-            ExperimentalPartEvent.onExperimentalPartRemoved.Remove(ShareExperimentalPartsEvents.ExperimentalPartRemoved);
-            ExperimentalPartEvent.onExperimentalPartAdded.Remove(ShareExperimentalPartsEvents.ExperimentalPartAdded);
         }
 
         public void ReplaceExperimentalPartsStock(Dictionary<AvailablePart, int> stock, string source)

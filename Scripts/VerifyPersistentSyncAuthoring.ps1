@@ -106,6 +106,18 @@ if ($hits.Length -gt 0) { $failures.Add("Scalar KSP event subscriptions must liv
 $hits = @(Test-GitGrepEmpty 'Set(Funds|Science|Reputation)WithoutTriggeringEvent' @('LmpClient/Systems/'))
 if ($hits.Length -gt 0) { $failures.Add("Scalar live apply helpers named Set*WithoutTriggeringEvent are no longer authoring APIs; use SyncClientDomain suppression hooks:`n  $($hits -join "`n  ")") }
 
+$stage2ComplexShareSenderPaths = @(
+    'LmpClient/Systems/ShareUpgradeableFacilities/ShareUpgradeableFacilitiesMessageSender.cs',
+    'LmpClient/Systems/ShareExperimentalParts/ShareExperimentalPartsMessageSender.cs',
+    'LmpClient/Systems/SharePurchaseParts/SharePurchasePartsMessageSender.cs',
+    'LmpClient/Systems/ShareScienceSubject/ShareScienceSubjectMessageSender.cs',
+    'LmpClient/Systems/ShareAchievements/ShareAchievementsMessageSender.cs',
+    'LmpClient/Systems/ShareStrategy/ShareStrategyMessageSender.cs'
+)
+
+$hits = @(Test-GitGrepEmpty 'PersistentSyncSystem\.SendIntent' $stage2ComplexShareSenderPaths)
+if ($hits.Length -gt 0) { $failures.Add("Stage 2 complex-domain Share senders must not call PersistentSyncSystem.SendIntent (publish from SyncClientDomain):`n  $($hits -join "`n  ")") }
+
 $replyPath = Join-Path $repoRoot 'LmpCommon\Message\Data\Settings\SetingsReplyMsgData.cs'
 if (Test-Path $replyPath) {
     $catalogInReply = Select-String -Path $replyPath -Pattern 'PersistentSyncCatalog' -SimpleMatch -Quiet

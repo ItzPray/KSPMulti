@@ -1,5 +1,4 @@
 using HarmonyLib;
-using LmpClient.Events;
 using LmpClient.Systems.PersistentSync;
 using LmpClient.Systems.ShareProgress;
 using LmpClient.Systems.SettingsSys;
@@ -12,8 +11,6 @@ namespace LmpClient.Systems.ShareScienceSubject
     public class ShareScienceSubjectSystem : ShareProgressBaseSystem<ShareScienceSubjectSystem, ShareScienceSubjectMessageSender, ShareScienceSubjectMessageHandler>
     {
         public override string SystemName { get; } = nameof(ShareScienceSubjectSystem);
-
-        private ShareScienceSubjectEvents ShareScienceSubjectEvents { get; } = new ShareScienceSubjectEvents();
 
         private Dictionary<string, ScienceSubject> _lastScienceSubjects = new Dictionary<string, ScienceSubject>();
 
@@ -51,25 +48,12 @@ namespace LmpClient.Systems.ShareScienceSubject
         protected override void OnEnabled()
         {
             base.OnEnabled();
-
-            GameEvents.OnScienceRecieved.Add(ShareScienceSubjectEvents.ScienceRecieved);
-
-            RevertEvent.onRevertingToLaunch.Add(ShareScienceSubjectEvents.RevertingDetected);
-            RevertEvent.onReturningToEditor.Add(ShareScienceSubjectEvents.RevertingToEditorDetected);
-            GameEvents.onLevelWasLoadedGUIReady.Add(ShareScienceSubjectEvents.LevelLoaded);
-
+            // Science/recieved + revert hooks: ScienceSubjectsPersistentSyncClientDomain
         }
 
         protected override void OnDisabled()
         {
             base.OnDisabled();
-
-            //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
-            GameEvents.OnScienceRecieved.Remove(ShareScienceSubjectEvents.ScienceRecieved);
-
-            RevertEvent.onRevertingToLaunch.Remove(ShareScienceSubjectEvents.RevertingDetected);
-            RevertEvent.onReturningToEditor.Remove(ShareScienceSubjectEvents.RevertingToEditorDetected);
-            GameEvents.onLevelWasLoadedGUIReady.Remove(ShareScienceSubjectEvents.LevelLoaded);
 
             Reverting = false;
             _lastScienceSubjects.Clear();

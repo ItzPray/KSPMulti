@@ -1,26 +1,10 @@
-using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
-using LmpCommon.PersistentSync.Payloads.Technology;
-using LmpCommon.PersistentSync.Payloads.Strategy;
-using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
 using LmpCommon.PersistentSync.Payloads.PartPurchases;
-using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
-using LmpCommon.PersistentSync.Payloads.Contracts;
-using LmpCommon.PersistentSync.Payloads.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using KSP.UI.Screens;
-using LmpClient.Extensions;
-using LmpClient.Systems.ShareAchievements;
-using LmpClient.Systems.ShareExperimentalParts;
 using LmpClient.Systems.SharePurchaseParts;
-using LmpClient.Systems.ShareScience;
-using LmpClient.Systems.ShareContracts;
-using LmpClient.Systems.ShareScienceSubject;
-using LmpClient.Systems.ShareStrategy;
 using LmpClient.Systems.ShareTechnology;
 using LmpCommon.PersistentSync;
-using Strategies;
 
 namespace LmpClient.Systems.PersistentSync
 {
@@ -42,6 +26,45 @@ namespace LmpClient.Systems.PersistentSync
         /// purchased parts ride along with techStates, so we must re-stage both together.
         /// </summary>
         private Dictionary<string, PartPurchaseSnapshotInfo> _authoritativePurchases;
+
+        protected override void OnDomainEnabled()
+        {
+            GameEvents.OnPartPurchased.Add(OnPartPurchased);
+        }
+
+        protected override void OnDomainDisabled()
+        {
+            GameEvents.OnPartPurchased.Remove(OnPartPurchased);
+        }
+
+        private void OnPartPurchased(AvailablePart part)
+        {
+            if (IgnoreLocalEvents)
+            {
+                return;
+            }
+
+            var techState = ResearchAndDevelopment.Instance?.GetTechState(part.TechRequired);
+            if (techState == null)
+            {
+                return;
+            }
+
+            LunaLog.Log($"Relaying part purchased on tech: {techState.techID}; part: {part.name}");
+            SendLocalPayload(
+                new PartPurchasesPayload
+                {
+                    Items = new[]
+                    {
+                        new PartPurchaseSnapshotInfo
+                        {
+                            TechId = techState.techID,
+                            PartNames = techState.partsPurchased.Where(p => p != null).Select(p => p.name).Distinct().ToArray()
+                        }
+                    }
+                },
+                $"PartPurchase:{techState.techID}:{part.name}");
+        }
 
         protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, PartPurchasesPayload payload)
         {
@@ -74,42 +97,39 @@ namespace LmpClient.Systems.PersistentSync
                 return PersistentSyncApplyOutcome.Deferred;
             }
 
-            SharePurchasePartsSystem.Singleton.StartIgnoringEvents();
-            try
+            using (PersistentSyncDomainSuppressionScope.Begin(
+                PersistentSyncEventSuppressorRegistry.Resolve(PersistentSyncDomainNames.PartPurchases),
+                restoreOldValueOnDispose: false))
             {
-                foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(node => node != null))
+                try
                 {
-                    var techState = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
-                    if (techState == null)
+                    foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(node => node != null))
                     {
-                        continue;
+                        var techState = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
+                        if (techState == null)
+                        {
+                            continue;
+                        }
+
+                        if (!_pendingPurchases.TryGetValue(tech.techID, out var purchase))
+                        {
+                            continue;
+                        }
+
+                        techState.partsPurchased = (purchase.PartNames ?? new string[0]).Select(ResolvePart).Where(part => part != null).Distinct().ToList();
+                        ResearchAndDevelopment.Instance.SetTechState(tech.techID, techState);
                     }
 
-                    // Sparse snapshot: only techs the server tracks as purchased are present. Do not clear
-                    // partsPurchased for omitted techs; Available+empty is normalized afterward by
-                    // EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded (legacy LMP: full tech ownership).
-                    if (!_pendingPurchases.TryGetValue(tech.techID, out var purchase))
-                    {
-                        continue;
-                    }
+                    // Stage 3: move Technology producer + R&amp;D UI ownership; keep coalesced refresh here.
+                    ShareTechnologySystem.Singleton.SchedulePersistentSyncRnDUiCoalescedRefresh(false);
 
-                    techState.partsPurchased = (purchase.PartNames ?? new string[0]).Select(ResolvePart).Where(part => part != null).Distinct().ToList();
-                    ResearchAndDevelopment.Instance.SetTechState(tech.techID, techState);
+                    TechnologyPersistentSyncClientDomain.SyncRnDTechTreeFromResearchInstance();
+                    TechnologyPersistentSyncClientDomain.EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded("PartPurchasesFlush");
                 }
-
-                // R&D UI refresh is coalesced with Technology flush (same reconciler pass); see ShareTechnologySystem.SchedulePersistentSyncRnDUiCoalescedRefresh.
-                ShareTechnologySystem.Singleton.SchedulePersistentSyncRnDUiCoalescedRefresh(false);
-
-                TechnologyPersistentSyncClientDomain.SyncRnDTechTreeFromResearchInstance();
-                TechnologyPersistentSyncClientDomain.EnsureImplicitPurchasedPartsForAvailableTechsIfNeeded("PartPurchasesFlush");
-            }
-            catch
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
-            finally
-            {
-                SharePurchasePartsSystem.Singleton.StopIgnoringEvents();
+                catch
+                {
+                    return PersistentSyncApplyOutcome.Rejected;
+                }
             }
 
             _pendingPurchases = null;

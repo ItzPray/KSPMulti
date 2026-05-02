@@ -10,8 +10,6 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
     {
         public override string SystemName { get; } = nameof(ShareUpgradeableFacilitiesSystem);
 
-        private ShareUpgradeableFacilitiesEvents ShareUpgradeableFacilitiesEvents { get; } = new ShareUpgradeableFacilitiesEvents();
-
         //This queue system is not used because we use one big queue in ShareCareerSystem for this system.
         protected override bool ShareSystemReady => true;
 
@@ -31,18 +29,12 @@ namespace LmpClient.Systems.ShareUpgradeableFacilities
         protected override void OnEnabled()
         {
             base.OnEnabled();
-
-            // Upgrading fires before the facility's level is committed; intents then match the old server
-            // level and are dropped as no-ops. Upgraded carries the final FacilityLevel we must persist.
-            GameEvents.OnKSCFacilityUpgraded.Add(ShareUpgradeableFacilitiesEvents.FacilityUpgraded);
+            // Persistent-sync producer: UpgradeableFacilitiesPersistentSyncClientDomain.OnDomainEnabled
         }
 
         protected override void OnDisabled()
         {
             base.OnDisabled();
-
-            //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
-            GameEvents.OnKSCFacilityUpgraded.Remove(ShareUpgradeableFacilitiesEvents.FacilityUpgraded);
         }
     }
 }

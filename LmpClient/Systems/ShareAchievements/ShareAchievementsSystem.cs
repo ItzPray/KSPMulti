@@ -1,10 +1,6 @@
 using HarmonyLib;
-using LmpClient.Events;
 using LmpClient.Systems.PersistentSync;
-using LmpClient.Systems.ShareFunds;
 using LmpClient.Systems.ShareProgress;
-using LmpClient.Systems.ShareReputation;
-using LmpClient.Systems.ShareScience;
 using LmpClient.Systems.SettingsSys;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
@@ -16,7 +12,7 @@ namespace LmpClient.Systems.ShareAchievements
     {
         public override string SystemName { get; } = nameof(ShareAchievementsSystem);
 
-        private ShareAchievementsEvents ShareAchievementsEvents { get; } = new ShareAchievementsEvents();
+        private ConfigNode _lastAchievements;
 
         protected override bool ShareSystemReady => ProgressTracking.Instance != null;
 
@@ -36,35 +32,17 @@ namespace LmpClient.Systems.ShareAchievements
                 in caps);
         }
 
-        private ConfigNode _lastAchievements;
-
         public bool Reverting { get; set; }
 
         protected override void OnEnabled()
         {
             base.OnEnabled();
-
-            GameEvents.OnProgressReached.Add(ShareAchievementsEvents.AchievementReached);
-            GameEvents.OnProgressComplete.Add(ShareAchievementsEvents.AchievementCompleted);
-            GameEvents.OnProgressAchieved.Add(ShareAchievementsEvents.AchievementAchieved);
-
-            RevertEvent.onRevertingToLaunch.Add(ShareAchievementsEvents.RevertingDetected);
-            RevertEvent.onReturningToEditor.Add(ShareAchievementsEvents.RevertingToEditorDetected);
-            GameEvents.onLevelWasLoadedGUIReady.Add(ShareAchievementsEvents.LevelLoaded);
+            // Achievement progress + revert: AchievementsPersistentSyncClientDomain
         }
 
         protected override void OnDisabled()
         {
             base.OnDisabled();
-
-            //Always try to remove the event, as when we disconnect from a server the server settings will get the default values
-            GameEvents.OnProgressReached.Remove(ShareAchievementsEvents.AchievementReached);
-            GameEvents.OnProgressComplete.Remove(ShareAchievementsEvents.AchievementCompleted);
-            GameEvents.OnProgressAchieved.Remove(ShareAchievementsEvents.AchievementAchieved);
-
-            RevertEvent.onRevertingToLaunch.Remove(ShareAchievementsEvents.RevertingDetected);
-            RevertEvent.onReturningToEditor.Remove(ShareAchievementsEvents.RevertingToEditorDetected);
-            GameEvents.onLevelWasLoadedGUIReady.Remove(ShareAchievementsEvents.LevelLoaded);
 
             _lastAchievements = null;
             Reverting = false;
@@ -109,21 +87,16 @@ namespace LmpClient.Systems.ShareAchievements
                 return;
             }
 
-            StartIgnoringEvents();
-            ShareFundsSystem.Singleton.StartIgnoringEvents();
-            ShareScienceSystem.Singleton.StartIgnoringEvents();
-            ShareReputationSystem.Singleton.StartIgnoringEvents();
-            try
+            using (PersistentSyncDomainSuppressionScope.Begin(
+                PersistentSyncEventSuppressorRegistry.Resolve(
+                    PersistentSyncDomainNames.Funds,
+                    PersistentSyncDomainNames.Science,
+                    PersistentSyncDomainNames.Reputation,
+                    PersistentSyncDomainNames.Achievements),
+                restoreOldValueOnDispose: true))
             {
                 ProgressTracking.Instance.achievementTree.Load(snapshotTree);
                 LunaLog.Log($"Achievements snapshot applied from {source}");
-            }
-            finally
-            {
-                ShareFundsSystem.Singleton.StopIgnoringEvents(true);
-                ShareScienceSystem.Singleton.StopIgnoringEvents(true);
-                ShareReputationSystem.Singleton.StopIgnoringEvents(true);
-                StopIgnoringEvents();
             }
         }
     }

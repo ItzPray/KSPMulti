@@ -1,15 +1,7 @@
-using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
-using LmpCommon.PersistentSync.Payloads.Technology;
-using LmpCommon.PersistentSync.Payloads.Strategy;
-using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
-using LmpCommon.PersistentSync.Payloads.PartPurchases;
-using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
-using LmpCommon.PersistentSync.Payloads.Contracts;
-using LmpCommon.PersistentSync.Payloads.Achievements;
 using LmpClient;
 using LmpClient.Systems.KscScene;
-using LmpClient.Systems.ShareUpgradeableFacilities;
 using LmpCommon.PersistentSync;
+using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -41,6 +33,41 @@ namespace LmpClient.Systems.PersistentSync
         /// so stopping ignore immediately produces a burst of redundant PersistentSync intents (server no-ops).
         /// </summary>
         private Coroutine _delayedStopIgnoringFacilityEventsCoroutine;
+
+        protected override void OnDomainEnabled()
+        {
+            GameEvents.OnKSCFacilityUpgraded.Add(OnKscFacilityUpgraded);
+        }
+
+        protected override void OnDomainDisabled()
+        {
+            GameEvents.OnKSCFacilityUpgraded.Remove(OnKscFacilityUpgraded);
+        }
+
+        private void OnKscFacilityUpgraded(UpgradeableFacility facility, int levelEventArg)
+        {
+            if (IgnoreLocalEvents)
+            {
+                return;
+            }
+
+            var level = facility.FacilityLevel;
+            LunaLog.Log(
+                $"Facility {facility.id} upgraded eventArg={levelEventArg} FacilityLevel={level} norm={facility.GetNormLevel()} (sending PersistentSync intent)");
+            SendLocalPayload(
+                new UpgradeableFacilitiesPayload
+                {
+                    Items = new[]
+                    {
+                        new UpgradeableFacilityLevelPayload
+                        {
+                            FacilityId = facility.id,
+                            Level = level
+                        }
+                    }
+                },
+                $"Facility upgrade {facility.id} -> level {level}");
+        }
 
         protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, UpgradeableFacilitiesPayload payload)
         {
@@ -88,7 +115,7 @@ namespace LmpClient.Systems.PersistentSync
             }
 
             var postSetLevels = new Dictionary<string, int>(StringComparer.Ordinal);
-            ShareUpgradeableFacilitiesSystem.Singleton.StartIgnoringEvents();
+            StartIgnoringLocalEvents();
             try
             {
                 foreach (var facilityLevel in _pendingFacilityLevels.OrderBy(kvp => kvp.Key))
@@ -201,7 +228,7 @@ namespace LmpClient.Systems.PersistentSync
             var host = MainSystem.Singleton;
             if (host == null)
             {
-                ShareUpgradeableFacilitiesSystem.Singleton.StopIgnoringEvents();
+                StopIgnoringLocalEvents();
                 return;
             }
 
@@ -218,7 +245,7 @@ namespace LmpClient.Systems.PersistentSync
         {
             yield return null;
             yield return null;
-            ShareUpgradeableFacilitiesSystem.Singleton.StopIgnoringEvents();
+            StopIgnoringLocalEvents();
             _delayedStopIgnoringFacilityEventsCoroutine = null;
         }
 

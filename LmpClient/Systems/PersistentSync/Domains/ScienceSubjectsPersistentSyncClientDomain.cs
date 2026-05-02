@@ -1,26 +1,11 @@
-using LmpCommon.PersistentSync.Payloads.UpgradeableFacilities;
-using LmpCommon.PersistentSync.Payloads.Technology;
-using LmpCommon.PersistentSync.Payloads.Strategy;
+using LmpClient.Events;
+using LmpClient.Extensions;
+using LmpClient.Systems.ShareScienceSubject;
+using LmpCommon.PersistentSync;
 using LmpCommon.PersistentSync.Payloads.ScienceSubjects;
-using LmpCommon.PersistentSync.Payloads.PartPurchases;
-using LmpCommon.PersistentSync.Payloads.ExperimentalParts;
-using LmpCommon.PersistentSync.Payloads.Contracts;
-using LmpCommon.PersistentSync.Payloads.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using KSP.UI.Screens;
-using LmpClient.Extensions;
-using LmpClient.Systems.ShareAchievements;
-using LmpClient.Systems.ShareExperimentalParts;
-using LmpClient.Systems.SharePurchaseParts;
-using LmpClient.Systems.ShareScience;
-using LmpClient.Systems.ShareContracts;
-using LmpClient.Systems.ShareScienceSubject;
-using LmpClient.Systems.ShareStrategy;
-using LmpClient.Systems.ShareTechnology;
-using LmpCommon.PersistentSync;
-using Strategies;
 
 namespace LmpClient.Systems.PersistentSync
 {
@@ -33,6 +18,95 @@ namespace LmpClient.Systems.PersistentSync
         }
 
         private ScienceSubjectSnapshotInfo[] _pendingSubjects;
+
+        private bool _reverting;
+
+        protected override void OnDomainEnabled()
+        {
+            GameEvents.OnScienceRecieved.Add(OnScienceReceived);
+            RevertEvent.onRevertingToLaunch.Add(OnRevertingToLaunch);
+            RevertEvent.onReturningToEditor.Add(OnReturningToEditor);
+            GameEvents.onLevelWasLoadedGUIReady.Add(OnLevelWasLoadedGuiReady);
+        }
+
+        protected override void OnDomainDisabled()
+        {
+            GameEvents.OnScienceRecieved.Remove(OnScienceReceived);
+            RevertEvent.onRevertingToLaunch.Remove(OnRevertingToLaunch);
+            RevertEvent.onReturningToEditor.Remove(OnReturningToEditor);
+            GameEvents.onLevelWasLoadedGUIReady.Remove(OnLevelWasLoadedGuiReady);
+
+            _reverting = false;
+        }
+
+        private void OnScienceReceived(float dataAmount, ScienceSubject subject, ProtoVessel source, bool reverseEngineered)
+        {
+            if (IgnoreLocalEvents)
+            {
+                return;
+            }
+
+            var configNode = ConvertScienceSubjectToConfigNode(subject);
+            if (configNode == null)
+            {
+                return;
+            }
+
+            var data = configNode.Serialize();
+            SendLocalPayload(
+                new ScienceSubjectsPayload
+                {
+                    Items = new[]
+                    {
+                        new ScienceSubjectSnapshotInfo
+                        {
+                            Id = subject.id,
+                            Data = data
+                        }
+                    }
+                },
+                $"ScienceSubjectUpdate:{subject.id}");
+            LunaLog.Log($"Science experiment \"{subject.id}\" sent as persistent sync intent");
+        }
+
+        private void OnRevertingToLaunch()
+        {
+            _reverting = true;
+            StartIgnoringLocalEvents();
+        }
+
+        private void OnReturningToEditor(EditorFacility data)
+        {
+            _reverting = true;
+            StartIgnoringLocalEvents();
+        }
+
+        private void OnLevelWasLoadedGuiReady(GameScenes data)
+        {
+            if (!_reverting)
+            {
+                return;
+            }
+
+            _reverting = false;
+            StopIgnoringLocalEvents(true);
+        }
+
+        private static ConfigNode ConvertScienceSubjectToConfigNode(ScienceSubject subject)
+        {
+            var configNode = new ConfigNode();
+            try
+            {
+                subject.Save(configNode);
+            }
+            catch (Exception e)
+            {
+                LunaLog.LogError($"[KSPMP]: Error while saving science subject: {e}");
+                return null;
+            }
+
+            return configNode;
+        }
 
         protected override void OnPayloadBuffered(PersistentSyncBufferedSnapshot snapshot, ScienceSubjectsPayload payload)
         {
@@ -70,14 +144,11 @@ namespace LmpClient.Systems.PersistentSync
                 return PersistentSyncApplyOutcome.Rejected;
             }
 
-            ShareScienceSubjectSystem.Singleton.StartIgnoringEvents();
-            try
+            using (PersistentSyncDomainSuppressionScope.Begin(
+                PersistentSyncEventSuppressorRegistry.Resolve(PersistentSyncDomainNames.ScienceSubjects),
+                restoreOldValueOnDispose: false))
             {
                 ShareScienceSubjectSystem.Singleton.ReplaceScienceSubjects(subjects, "PersistentSyncSnapshotApply");
-            }
-            finally
-            {
-                ShareScienceSubjectSystem.Singleton.StopIgnoringEvents();
             }
 
             _pendingSubjects = null;
