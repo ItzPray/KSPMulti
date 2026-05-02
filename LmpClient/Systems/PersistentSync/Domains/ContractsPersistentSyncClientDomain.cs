@@ -14,6 +14,8 @@ using LmpClient.Systems.ShareExperimentalParts;
 using LmpClient.Systems.ShareFunds;
 using LmpClient.Systems.ShareReputation;
 using LmpClient.Systems.ShareScience;
+using LmpClient.Utilities;
+using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using System;
 using System.Linq;
@@ -49,6 +51,18 @@ namespace LmpClient.Systems.PersistentSync
         private static string _activeReuseMismatchLogSampleTitle = string.Empty;
 
         /// <summary>
+        /// Live contract-completion updates often arrive as a burst of adjacent contract revisions while scalar
+        /// rewards and achievements settle. Coalesce those live revisions for one frame so the client applies only
+        /// the latest contract snapshot instead of repeatedly rebuilding ContractSystem, mirroring the scenario
+        /// proto, and refreshing UI in the same render frame. Initial join snapshots still apply immediately.
+        /// </summary>
+        private const int LiveContractSnapshotCoalesceFrames = 1;
+
+        private int _deferLiveSnapshotApplyUntilFrame = -1;
+
+        private bool _liveSnapshotApplyFlushScheduled;
+
+        /// <summary>
         /// Contracts whose snapshot row was merged with live <see cref="ContractParameter"/> completion before
         /// <see cref="Contract.Load"/>; after snapshot apply we emit <see cref="ContractIntentPayloadKind.ParameterProgressObserved"/>
         /// so the server catches up when stock had advanced locally but the canonical row still lagged.
@@ -81,6 +95,7 @@ namespace LmpClient.Systems.PersistentSync
             _pendingContracts = (payload?.Snapshot?.Contracts ?? new List<ContractSnapshotInfo>())
                 .OrderBy(contract => contract.Order)
                 .ToArray();
+            StageLiveSnapshotCoalesceIfApplicable();
             LunaLog.Log(
                 $"[PersistentSync] Contracts snapshot received wireRows={_pendingContracts.Length} payloadBytes={snapshot.NumBytes}");
         }
@@ -94,6 +109,12 @@ namespace LmpClient.Systems.PersistentSync
 
             if (ContractSystem.Instance == null)
             {
+                return PersistentSyncApplyOutcome.Deferred;
+            }
+
+            if (ShouldDeferForLiveSnapshotCoalesce())
+            {
+                ScheduleLiveSnapshotCoalescedFlush();
                 return PersistentSyncApplyOutcome.Deferred;
             }
 
@@ -213,6 +234,48 @@ namespace LmpClient.Systems.PersistentSync
             // completed so the HasPendingSnapshot gate opens before we invoke ReplenishStockOffers. See the
             // comment at that clear site for the full rationale.
             return PersistentSyncApplyOutcome.Applied;
+        }
+
+        private void StageLiveSnapshotCoalesceIfApplicable()
+        {
+            if (MainSystem.NetworkState < ClientState.PersistentStateSynced)
+            {
+                _deferLiveSnapshotApplyUntilFrame = -1;
+                return;
+            }
+
+            var ps = PersistentSyncSystem.Singleton;
+            if (ps == null || !ps.Enabled || !ps.Reconciler.State.HasInitialSnapshot(DomainId))
+            {
+                _deferLiveSnapshotApplyUntilFrame = -1;
+                return;
+            }
+
+            _deferLiveSnapshotApplyUntilFrame = Time.frameCount + LiveContractSnapshotCoalesceFrames;
+        }
+
+        private bool ShouldDeferForLiveSnapshotCoalesce()
+        {
+            return _deferLiveSnapshotApplyUntilFrame >= 0 &&
+                   Time.frameCount < _deferLiveSnapshotApplyUntilFrame;
+        }
+
+        private void ScheduleLiveSnapshotCoalescedFlush()
+        {
+            if (_liveSnapshotApplyFlushScheduled)
+            {
+                return;
+            }
+
+            _liveSnapshotApplyFlushScheduled = true;
+            CoroutineUtil.StartFrameDelayedRoutine(
+                "PersistentSync.Contracts.CoalescedLiveSnapshotFlush",
+                () =>
+                {
+                    _liveSnapshotApplyFlushScheduled = false;
+                    PersistentSyncSystem.Singleton?.Reconciler.FlushPendingState();
+                },
+                LiveContractSnapshotCoalesceFrames);
         }
 
         /// <summary>

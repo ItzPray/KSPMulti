@@ -151,6 +151,13 @@ namespace LmpClient.Systems.PersistentSync
                 return;
             }
 
+            // Stock scenario singletons may still hold defaults during join/load until ApplyLiveState runs.
+            // Publishing before then sends bogus intents that the server accepts and rebroadcasts (scalar domains).
+            if (!system.Reconciler.State.HasInitialSnapshot(DomainId))
+            {
+                return;
+            }
+
             PersistentSyncSystem.SendIntent(DomainId, system.GetKnownRevision(DomainId), payload, reason);
         }
 
