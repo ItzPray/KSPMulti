@@ -38,3 +38,7 @@ Scripts/StartLmpUpstreamDraftPr.ps1
 Scripts/PrepareLmpUpstreamCommit.ps1
 Scripts/RunLmpCommonTest.ps1
 Scripts/VerifyPersistentSyncAuthoring.ps1
+Scripts/BuildAndDeployFreshStack.bat
+Scripts/LaunchDualKspTestInstances.bat
+Scripts/LaunchDualKspTestInstances.ps1
+Scripts/Stop-TestStackProcesses.ps1
