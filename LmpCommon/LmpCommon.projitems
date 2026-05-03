@@ -149,6 +149,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PersistentSync\PersistentSyncIntentMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PersistentSync\PersistentSyncRequestMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PersistentSync\PersistentSyncSnapshotMsgData.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PersistentSync\PersistentSyncProducerOfferGenerationNudgeMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PlayerConnection\PlayerConnectionBaseMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PlayerConnection\PlayerConnectionJoinMsgData.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Message\Data\PlayerConnection\PlayerConnectionLeaveMsgData.cs" />

@@ -475,15 +475,13 @@ namespace Server.System.PersistentSync
         /// <summary>
         /// Canonical invariant: the server's contract store must mirror the stock KSP contract state machine.
         /// Legitimate transitions are one-way: Offered to Active or Finished, Active to Finished; Finished is terminal.
-        /// A producer's <c>FullReconcile</c> is an upsert, not a wipe: we preserve every canonical row whose
-        /// incoming counterpart is missing or regresses state, regardless of placement (Offered, Active, or Finished).
-        /// This protects player-committed work (accepted missions, completed history) AND the server-authoritative
-        /// offer pool against producers whose local <c>ContractSystem</c> has transiently pruned rows, for example
-        /// a reconnecting client whose stock <c>Contract.Update()</c> has withdrawn offers for expired deadlines
-        /// immediately after the server snapshot applied, or a client whose per-tier offer caps locally truncated
-        /// the list before the producer reconcile ran. Offers are retired by state transition
-        /// (Offered to Withdrawn, Declined, etc. via the explicit command intents or a producer-proposed forward
-        /// transition in the incoming set), never by omission from a producer reconcile.
+        /// A producer's <c>FullReconcile</c> is an upsert, not a wipe: implementation clones full canonical state first,
+        /// then merges each incoming row only when <see cref="IsForwardContractStateTransition"/> allows it.
+        /// Rows omitted from the incoming list remain (producer omission does not delete). Regressive incoming rows are
+        /// skipped. If <see cref="ApplyCanonicalRecord"/> rejects an incoming row (e.g.
+        /// <c>ShouldRejectIncomingOfferedDuplicateOfCompleted</c> for regen spam), the cloned canonical row for that
+        /// GUID is retained — the old two-step merge could drop a valid offer when a forward Offered→Offered hand-off
+        /// was rejected. Offers are retired by explicit state transition in the incoming set, not by omission.
         /// </summary>
         private static SyncChangeResult<Canonical> ApplyFullReplace(Canonical current, IEnumerable<ContractSnapshotInfo> incoming)
         {
@@ -494,53 +492,33 @@ namespace Server.System.PersistentSync
                 incomingByGuid[rec.ContractGuid] = rec;
             }
 
-            var nextMap = new Dictionary<Guid, ContractSnapshotInfo>();
-            var nextOrder = 0;
-            var preservedActive = 0;
-            var preservedFinished = 0;
-            var preservedOffered = 0;
-            var rejectedRegressions = 0;
+            // Start from a full clone of canonical state. The previous two-pass algorithm skipped copying a row in
+            // step 1 whenever an incoming forward transition existed (e.g. Offered→Offered refresh), then applied
+            // the incoming row in step 2. If ApplyCanonicalRecord rejected that incoming row (duplicate-of-completed
+            // defense-in-depth), the GUID never landed in nextMap — silently deleting a valid server-side offer and
+            // collapsing Mission Control "Available" after producer reconcile (see ApplyCanonicalRecord rejects).
+            var nextMap = current.ContractsByGuid.ToDictionary(kv => kv.Key, kv => ContractSnapshotInfoComparer.Clone(kv.Value));
+            var nextOrder = nextMap.Count > 0 ? nextMap.Values.Max(c => c.Order) + 1 : 0;
 
-            // Step 1: walk canonical rows in Order so preserved state keeps stable ordering. Preserve every canonical
-            // row unless the incoming record for that GUID represents a legitimate forward state transition; forward
-            // transitions fall through and are applied from the incoming set below.
-            foreach (var canonicalRec in current.ContractsByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid))
+            var skippedRegressiveIncoming = 0;
+
+            foreach (var incomingRec in incomingByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid))
             {
-                var isActive = IsActiveContract(canonicalRec);
-                var isFinished = IsFinishedContract(canonicalRec);
-                var isOffered = !isActive && !isFinished;
-
-                if (incomingByGuid.TryGetValue(canonicalRec.ContractGuid, out var incomingRec) &&
-                    IsForwardContractStateTransition(canonicalRec, incomingRec))
+                if (nextMap.TryGetValue(incomingRec.ContractGuid, out var existingCanon) &&
+                    !IsForwardContractStateTransition(existingCanon, incomingRec))
                 {
+                    skippedRegressiveIncoming++;
                     continue;
                 }
 
-                if (incomingByGuid.Remove(canonicalRec.ContractGuid))
-                {
-                    rejectedRegressions++;
-                }
-
-                ApplyCanonicalRecord(nextMap, canonicalRec, ref nextOrder);
-                if (isFinished) preservedFinished++;
-                else if (isActive) preservedActive++;
-                else if (isOffered) preservedOffered++;
-            }
-
-            // Step 2: apply remaining incoming records. These are genuinely new rows the producer has just observed
-            // (freshly generated offers) or forward-transitioned rows the producer legitimately advanced.
-            foreach (var incomingRec in incomingByGuid.Values.OrderBy(c => c.Order).ThenBy(c => c.ContractGuid))
-            {
                 ApplyCanonicalRecord(nextMap, incomingRec, ref nextOrder);
             }
 
-            if (preservedActive > 0 || preservedFinished > 0 || preservedOffered > 0 || rejectedRegressions > 0)
+            if (skippedRegressiveIncoming > 0)
             {
                 LunaLog.Debug(
-                    $"[PersistentSync] Contracts FullReplace merge preservedActive={preservedActive} " +
-                    $"preservedFinished={preservedFinished} preservedOffered={preservedOffered} " +
-                    $"rejectedRegressions={rejectedRegressions} canonicalRowsBefore={current.ContractsByGuid.Count} " +
-                    $"finalRows={nextMap.Count}");
+                    $"[PersistentSync] Contracts FullReplace merge skippedRegressiveIncoming={skippedRegressiveIncoming} " +
+                    $"canonicalRowsBefore={current.ContractsByGuid.Count} finalRows={nextMap.Count}");
             }
 
             return SyncChangeResult<Canonical>.Accept(new Canonical(nextMap));

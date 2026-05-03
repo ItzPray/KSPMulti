@@ -1,5 +1,6 @@
 using LmpClient.Base;
 using LmpClient.Base.Interface;
+using LmpClient.Systems.ShareContracts;
 using LmpCommon.Message.Data.PersistentSync;
 using LmpCommon.Message.Interface;
 using LmpCommon.Message.Types;
@@ -13,10 +14,31 @@ namespace LmpClient.Systems.PersistentSync
 
         public void HandleMessage(IServerMessageBase msg)
         {
-            if (!(msg.Data is PersistentSyncBaseMsgData msgData)) return;
-            if (msgData.PersistentSyncMessageType != PersistentSyncMessageType.Snapshot) return;
+            if (!(msg.Data is PersistentSyncBaseMsgData msgData))
+            {
+                return;
+            }
 
-            System.Reconciler.HandleSnapshot((PersistentSyncSnapshotMsgData)msg.Data);
+            switch (msgData.PersistentSyncMessageType)
+            {
+                case PersistentSyncMessageType.Snapshot:
+                    System.Reconciler.HandleSnapshot((PersistentSyncSnapshotMsgData)msg.Data);
+                    break;
+
+                case PersistentSyncMessageType.ProducerOfferGenerationNudge:
+                    // Nudge can arrive in the same network batch as a contracts snapshot. Replenish consults
+                    // ContractsPersistentSyncClientDomain.HasPendingSnapshot — if we run before the reconciler flush
+                    // applies/clears that snapshot, Replenish defers and the retry can lose to ordering.
+                    // Flush first so the producer runs RefreshContracts against settled ContractSystem + open gates.
+                    if (System.Enabled)
+                    {
+                        System.FlushLivePendingPersistentSyncState("ProducerOfferGenerationNudge");
+                    }
+
+                    ShareContractsSystem.Singleton?.ReplenishStockOffersAfterPersistentSnapshotApply(
+                        "PersistentSyncProducerOfferGenerationNudge");
+                    break;
+            }
         }
     }
 }

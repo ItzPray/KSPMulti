@@ -292,8 +292,14 @@ namespace Server.System.PersistentSync
                     var producerClient = FindClientByPlayerName(producerName);
                     if (producerClient != null)
                     {
-                        LunaLog.Debug($"[PersistentSync] snapshot broadcast target=producer client={producerName} domain={data.DomainId} revision={result.Snapshot.Revision} reason=OfferGenerationRequest");
-                        MessageQueuer.SendToClient<PersistentSyncSrvMsg>(producerClient, CreateSnapshotMessage(result.Snapshot));
+                        // RequestOfferGeneration is a no-op on canonical state (revision unchanged). Re-sending the same
+                        // snapshot revision is dropped client-side as stale after MarkApplied — the producer never woke to
+                        // run ReplenishStockOffers. Send an explicit nudge instead.
+                        LunaLog.Debug(
+                            $"[PersistentSync] producer offer-generation nudge target=producer client={producerName} domain={data.DomainId} revision={result.Snapshot.Revision}");
+                        MessageQueuer.SendToClient<PersistentSyncSrvMsg>(
+                            producerClient,
+                            CreateProducerOfferGenerationNudgeMessage());
                     }
                 }
             }
@@ -498,6 +504,11 @@ namespace Server.System.PersistentSync
             data.NumBytes = snapshot.NumBytes;
             data.Payload = snapshot.Payload;
             return data;
+        }
+
+        private static PersistentSyncProducerOfferGenerationNudgeMsgData CreateProducerOfferGenerationNudgeMessage()
+        {
+            return ServerContext.ServerMessageFactory.CreateNewMessageData<PersistentSyncProducerOfferGenerationNudgeMsgData>();
         }
     }
 }

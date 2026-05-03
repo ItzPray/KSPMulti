@@ -16,7 +16,9 @@ namespace LmpCommon.Message.Server
 
         protected override Dictionary<ushort, Type> SubTypeDictionary { get; } = new Dictionary<ushort, Type>
         {
-            [(ushort)PersistentSyncMessageType.Snapshot] = typeof(PersistentSyncSnapshotMsgData)
+            [(ushort)PersistentSyncMessageType.Snapshot] = typeof(PersistentSyncSnapshotMsgData),
+            [(ushort)PersistentSyncMessageType.ProducerOfferGenerationNudge] =
+                typeof(PersistentSyncProducerOfferGenerationNudgeMsgData)
         };
 
         public override ServerMessageType MessageType => ServerMessageType.PersistentSync;

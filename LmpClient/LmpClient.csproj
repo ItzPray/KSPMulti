@@ -341,7 +341,6 @@
     <Compile Include="Systems\ShareReputation\ShareReputationMessageHandler.cs" />
     <Compile Include="Systems\ShareReputation\ShareReputationMessageSender.cs" />
     <Compile Include="Systems\ShareReputation\ShareReputationSystem.cs" />
-    <Compile Include="Systems\ShareScienceSubject\ShareScienceSubjectEvents.cs" />
     <Compile Include="Systems\ShareScienceSubject\ShareScienceSubjectMessageHandler.cs" />
     <Compile Include="Systems\ShareScienceSubject\ShareScienceSubjectMessageSender.cs" />
     <Compile Include="Systems\ShareScienceSubject\ShareScienceSubjectSystem.cs" />

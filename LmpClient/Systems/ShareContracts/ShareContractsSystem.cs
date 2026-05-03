@@ -921,8 +921,15 @@ namespace LmpClient.Systems.ShareContracts
 
             if (!LockSystem.LockQuery.ContractLockBelongsToPlayer(SettingsSystem.CurrentSettings.PlayerName))
             {
-                var owner = LockSystem.LockQuery.ContractLockOwner();
-                return $"contract-lock-owned-by:{(string.IsNullOrEmpty(owner) ? "none" : owner)}";
+                // Without the contract lock we must not run TryRunPostTransientStockRefresh's legacy branch
+                // (unconditional stock RefreshContracts). When PersistentSync already applied the contracts snapshot,
+                // that method only runs ReplenishStockOffers (no-op without lock) + RefreshContractUiAdapters — safe for
+                // every client. Without this exception, non-holders wait forever while another player owns the lock.
+                if (!HasPersistentSyncAuthoritativeContractsSnapshot())
+                {
+                    var owner = LockSystem.LockQuery.ContractLockOwner();
+                    return $"contract-lock-owned-by:{(string.IsNullOrEmpty(owner) ? "none" : owner)}";
+                }
             }
 
             if (WarpSystem.Singleton == null)

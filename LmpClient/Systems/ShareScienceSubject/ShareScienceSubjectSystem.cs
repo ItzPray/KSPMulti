@@ -43,8 +43,6 @@ namespace LmpClient.Systems.ShareScienceSubject
                 in caps);
         }
 
-        public bool Reverting { get; set; }
-
         protected override void OnEnabled()
         {
             base.OnEnabled();
@@ -55,7 +53,6 @@ namespace LmpClient.Systems.ShareScienceSubject
         {
             base.OnDisabled();
 
-            Reverting = false;
             _lastScienceSubjects.Clear();
             _scienceSubjects = null;
         }

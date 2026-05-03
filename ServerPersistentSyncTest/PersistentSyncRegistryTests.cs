@@ -468,6 +468,77 @@ CONTRACTS
         }
 
         [TestMethod]
+        public void ContractsDomainFullReplacePreservesCanonicalOfferWhenIncomingOfferRejectedAsDuplicateOfCompleted()
+        {
+            // Producer FullReplace can include an Offered refresh for an existing GUID whose bytes now look like a
+            // duplicate of a Completed row (tutorial regen). ApplyCanonicalRecord rejects that incoming row.
+            // FullReplace must not have dropped the canonical Offered during the forward-transition hand-off.
+            var moonOfferGuid = Guid.Parse("99999999-9999-9999-9999-999999999991");
+            var orbitFinishedGuid = Guid.Parse("99999999-9999-9999-9999-999999999992");
+
+            var canonicalMoonOffer = CreateContractSnapshotInfoWithTitle(
+                moonOfferGuid,
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                0,
+                "ExplorationContract",
+                "Fly by the Mun!");
+            var orbitKerbinCompleted = CreateContractSnapshotInfoWithTitle(
+                orbitFinishedGuid,
+                "Completed",
+                ContractSnapshotPlacement.Finished,
+                1,
+                "ExplorationContract",
+                "Orbit Kerbin!");
+
+            var incomingSpamOfferSameGuid = CreateContractSnapshotInfoWithTitle(
+                moonOfferGuid,
+                "Offered",
+                ContractSnapshotPlacement.Current,
+                0,
+                "ExplorationContract",
+                "Orbit Kerbin!");
+
+            ScenarioStoreSystem.CurrentScenarios["ContractSystem"] =
+                CreateContractSystemScenario(canonicalMoonOffer, orbitKerbinCompleted);
+            var store = new ContractsPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var fullReplacePayload = PersistentSyncPayloadSerializer.Serialize(new ContractsPayload
+            {
+                Snapshot = new ContractSnapshotPayload
+                {
+                    Mode = ContractSnapshotPayloadMode.FullReplace,
+                    Contracts = new[] { incomingSpamOfferSameGuid, orbitKerbinCompleted }.ToList()
+                }
+            });
+            LockSystem.AcquireLock(new LockDefinition(LockType.Contract, "ContractOwner"), false, out _);
+            var result = store.ApplyClientIntent(
+                CreateClient("ContractOwner"),
+                CreateIntent(PersistentSyncDomainNames.Contracts, fullReplacePayload, "ContractInventoryFull:DuplicateOfferRejected"));
+
+            Assert.IsTrue(result.Accepted);
+
+            var snapshot = PersistentSyncPayloadSerializer.Deserialize<ContractsPayload>(
+                    result.Snapshot.Payload,
+                    result.Snapshot.NumBytes)
+                .Snapshot.Contracts;
+            var moonRow = snapshot.SingleOrDefault(c => c.ContractGuid == moonOfferGuid);
+            Assert.IsNotNull(moonRow, "Canonical Mun offer must survive when incoming duplicate Offer is rejected.");
+            Assert.AreEqual("Fly by the Mun!", ExtractContractTitleFromSnapshotData(moonRow));
+
+            Assert.IsTrue(snapshot.Any(c => c.ContractGuid == orbitFinishedGuid));
+            Assert.AreEqual(2, snapshot.Count);
+        }
+
+        private static string ExtractContractTitleFromSnapshotData(ContractSnapshotInfo row)
+        {
+            var text = Encoding.UTF8.GetString(row.Data, 0, row.Data.Length);
+            var node = new ConfigNode(text);
+            return node.GetValue("title")?.Value ?? string.Empty;
+        }
+
+        [TestMethod]
         public void ContractsDomainNoRevisionIncrementOnEquivalentMutation()
         {
             var contract = CreateContractSnapshotInfo(
@@ -1071,7 +1142,7 @@ Tech
         {
             // Gate: non-producer issues RequestOfferGeneration against canonical state with no offer-pool rows.
             // Server must not mutate revision (signal-only) and must mark ReplyToProducerClient so the registry
-            // routes the canonical snapshot to the current contract lock owner.
+            // notifies the current contract lock owner (explicit nudge — same-revision snapshot replay is stale-dropped client-side).
             var activeContract = CreateContractSnapshotInfo(
                 Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01"),
                 "Active",

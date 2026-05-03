@@ -17,6 +17,7 @@ using LmpClient.Systems.ShareScience;
 using LmpClient.Utilities;
 using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
+using LmpClient.Systems.PersistentSync.Domains;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -30,6 +31,9 @@ namespace LmpClient.Systems.PersistentSync
         public static void RegisterPersistentSyncDomain(PersistentSyncClientDomainRegistrar registrar)
         {
             registrar.RegisterCurrent()
+                // Contract offer generation keys off ProgressTracking; ensure achievement tree is applied before
+                // contracts snapshot materialize in the same FlushPendingState pass.
+                .After(PersistentSyncDomainNames.Achievements)
                 .UsesClientDomain<ContractsPersistentSyncClientDomain>();
         }
 
@@ -171,6 +175,7 @@ namespace LmpClient.Systems.PersistentSync
                 // dateExpire happens to still be ahead of UT.
                 ShareContractsSystem.Singleton.MessageSender.ResetKnownContractSnapshots(_pendingContracts);
                 ReplaceContractsFromSnapshot(_pendingContracts);
+                TryReconcileStockTutorialGatesAfterContractsSnapshotReplace();
                 // Stock RefreshContracts reloads from HighLogic.CurrentGame.scenarios ContractSystem proto. We mutate
                 // ContractSystem.Instance lists only — without mirroring here, a later RefreshContracts (subspace lock,
                 // Mission Control, etc.) rebuilds from stale proto and wipes offers while keeping ContractsFinished.
@@ -311,6 +316,25 @@ namespace LmpClient.Systems.PersistentSync
                     contract,
                     $"PersistentSyncSnapshotApply:MergedLiveParamProgress:{guid:N}");
             }
+        }
+
+        /// <summary>
+        /// After contracts replace, align stock ProgressTracking tutorial gates with completed rows in
+        /// <see cref="ContractSystem.ContractsFinished"/> before controlled replenish mints offers — see
+        /// <see cref="ShareAchievements.ShareAchievementsSystem.ReconcileStockTutorialGatesFromFinishedContracts"/>.
+        /// </summary>
+        private static void TryReconcileStockTutorialGatesAfterContractsSnapshotReplace()
+        {
+            var ps = PersistentSyncSystem.Singleton;
+            if (ps?.Domains == null ||
+                !ps.Domains.TryGetValue(PersistentSyncDomainNames.Achievements, out var domainObj) ||
+                !(domainObj is AchievementsPersistentSyncClientDomain achievementsDomain))
+            {
+                return;
+            }
+
+            achievementsDomain.ReconcileStockTutorialGatesFromFinishedContractsAfterContractsSnapshot(
+                "PersistentSyncSnapshotApply:AfterContractsReplace");
         }
 
         private static Contract FindContractByGuidInRuntimeLists(Guid guid)

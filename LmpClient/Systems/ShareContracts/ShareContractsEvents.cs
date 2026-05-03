@@ -257,8 +257,9 @@ namespace LmpClient.Systems.ShareContracts
 
         /// <summary>
         /// Stock sometimes offers the same mission title again (new GUID). Keep the first offered row and drop the new one
-        /// so we never sync duplicate titles to the server. Also matches the archive list so completed tutorials are not
-        /// re-offered after reconnect when ProgressTracking has not caught up yet.
+        /// so we never sync duplicate titles to the server. For <see cref="ContractSystem.Instance.ContractsFinished"/>,
+        /// only rows whose runtime state is <see cref="Contract.State.Completed"/> suppress the incoming offer — matching the
+        /// server duplicate-offer guard — so Declined/Failed/Withdrawn archives do not block legitimate stock re-offers.
         /// </summary>
         private static bool TrySuppressDuplicateOfferByTitle(Contract contract)
         {
@@ -276,6 +277,16 @@ namespace LmpClient.Systems.ShareContracts
             foreach (var other in ContractSystem.Instance.ContractsFinished.ToArray())
             {
                 if (other == null || ReferenceEquals(other, contract))
+                {
+                    continue;
+                }
+
+                // Mirror Server ContractsPersistentSyncDomainStore.ShouldRejectIncomingOfferedDuplicateOfCompleted:
+                // only a *Completed* finished row blocks the same template from appearing as a fresh Offered row.
+                // Declined / Failed / Withdrawn / DeadlineExpired archives still allow stock to legitimately re-offer
+                // the same career template; suppressing those was starving Mission Control when stock regenerated
+                // tutorial-tier missions the player had declined or failed while ProgressTracking still advanced.
+                if (other.ContractState != Contract.State.Completed)
                 {
                     continue;
                 }

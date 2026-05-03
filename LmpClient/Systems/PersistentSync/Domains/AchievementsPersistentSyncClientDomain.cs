@@ -45,6 +45,12 @@ namespace LmpClient.Systems.PersistentSync.Domains
             _reverting = false;
         }
 
+        public void ReconcileStockTutorialGatesFromFinishedContractsAfterContractsSnapshot(string source)
+        {
+            ApplyLiveStateWithLocalSuppression(() =>
+                ShareAchievementsSystem.Singleton.ReconcileStockTutorialGatesFromFinishedContracts(source));
+        }
+
         private void OnProgressReached(ProgressNode progressNode)
         {
             if (IgnoreLocalEvents)
@@ -172,28 +178,22 @@ namespace LmpClient.Systems.PersistentSync.Domains
                 return PersistentSyncApplyOutcome.Deferred;
             }
 
-            var rootNode = new ConfigNode();
-            try
-            {
-                foreach (var achievement in _pendingAchievements.Where(value => value != null && value.Data.Length > 0))
-                {
-                    var achievementNode = achievement.Data.DeserializeToConfigNode(achievement.Data.Length);
-                    if (achievementNode != null)
-                    {
-                        rootNode.AddNode(achievementNode);
-                    }
-                }
-            }
-            catch
-            {
-                return PersistentSyncApplyOutcome.Rejected;
-            }
-
-            ShareAchievementsSystem.Singleton.ApplyAchievementSnapshotTree(rootNode, "PersistentSyncSnapshotApply");
+            ShareAchievementsSystem.Singleton.ApplyAchievementSnapshotItems(
+                _pendingAchievements.Where(value => value != null && value.Data.Length > 0),
+                "PersistentSyncSnapshotApply");
             _pendingAchievements = null;
 
-            ShareContractsSystem.Singleton?.RequestControlledStockContractRefresh(
-                "PersistentSyncSnapshotApply:AfterAchievementsFlush");
+            // Progression offer mint keys off ProgressTracking/achievement state. Same ordering concern as
+            // ShareContractsEvents.ContractOffered: if contracts Replenish ran before this snapshot, stock may have
+            // missed newly-unlocked tiers. Mirror ShareContractsEvents.LockAcquire: queue deferred refresh, sync
+            // generateContractIterations policy, then run controlled Replenish immediately when gates allow.
+            var share = ShareContractsSystem.Singleton;
+            if (share != null)
+            {
+                share.RequestControlledStockContractRefresh("PersistentSyncSnapshotApply:AfterAchievementsFlush");
+                share.ApplyStockContractMutationPolicy("PersistentSyncSnapshotApply:AfterAchievementsFlush");
+                share.ReplenishStockOffersAfterPersistentSnapshotApply("PersistentSyncSnapshotApply:AfterAchievementsFlush");
+            }
 
             return PersistentSyncApplyOutcome.Applied;
         }

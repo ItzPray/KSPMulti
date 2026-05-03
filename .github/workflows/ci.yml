@@ -30,9 +30,27 @@ jobs:
         shell: pwsh
         run: ./Scripts/VerifyPersistentSyncAuthoring.ps1
 
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # Inline build + vstest so CI does not depend on Scripts/RunLmpCommonTest.ps1 being tracked.
       - name: Test (LmpCommon MSBuild / vstest)
         shell: pwsh
-        run: ./Scripts/RunLmpCommonTest.ps1 -Configuration Release
+        run: |
+          $ErrorActionPreference = 'Stop'
+          msbuild LmpCommonTest\LmpCommonTest.csproj /t:Build /p:Configuration=Release /p:Platform=AnyCPU /v:m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $dll = Join-Path $PWD 'LmpCommonTest\bin\Release\LmpCommonTest.dll'
+          if (-not (Test-Path -LiteralPath $dll)) { throw "Missing test assembly after build: $dll" }
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path -LiteralPath $vswhere)) { throw "vswhere.exe not found: $vswhere" }
+          $vstest = & $vswhere -latest -find '**\vstest.console.exe' | Select-Object -First 1
+          if (-not $vstest -or -not (Test-Path -LiteralPath $vstest)) {
+            throw 'vstest.console.exe not found via vswhere (install VS Test Tools or ensure VS is present).'
+          }
+          Write-Host "vstest=$vstest"
+          & $vstest $dll
+          exit $LASTEXITCODE
 
       - name: Test (ServerPersistentSync)
         run: dotnet test ServerPersistentSyncTest/ServerPersistentSyncTest.csproj -c Release
