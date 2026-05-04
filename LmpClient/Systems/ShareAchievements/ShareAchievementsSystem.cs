@@ -9,6 +9,7 @@ using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LmpCommon.PersistentSync.Payloads.Achievements;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -33,6 +34,76 @@ namespace LmpClient.Systems.ShareAchievements
                 ["Contracts.ExplorationContract\u001fEscape the atmosphere!"] = new[] { "ReachSpace" },
                 ["Contracts.ExplorationContract\u001fOrbit Kerbin!"] = new[] { "Orbit" },
             };
+
+        /// <summary>
+        /// Stock career gates (tutorial + first orbit) used for <see cref="ReconcileStockTutorialGatesFromFinishedContracts"/>
+        /// and for publishing catch-up intents so the server <c>ProgressTracking</c> scenario matches the client.
+        /// </summary>
+        public static readonly string[] StockTutorialGateNodeIdsForCatchup =
+        {
+            "FirstLaunch",
+            "ReachSpace",
+            "Orbit",
+        };
+
+        /// <summary>
+        /// When the persistent-sync achievements snapshot omits stock tutorial/orbit gates that are already satisfied
+        /// locally (e.g. migrated universe + server canonical map never received those rows), we must publish catch-up
+        /// intents even though <see cref="ApplyAchievementSnapshotItems"/> did not call <c>Reach</c>/<c>Complete</c>.
+        /// Compares only <b>presence</b> of ids in the snapshot (not serialized bytes) so steady-state broadcasts do
+        /// not re-open the client↔server feedback loop.
+        /// </summary>
+        internal bool StockTutorialGateProgressMissingFromAppliedSnapshot(IEnumerable<AchievementSnapshotInfo> appliedItems)
+        {
+            if (ProgressTracking.Instance == null)
+            {
+                return false;
+            }
+
+            var idsPresent = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in appliedItems ?? Enumerable.Empty<AchievementSnapshotInfo>())
+            {
+                if (item?.Data == null || item.Data.Length <= 0)
+                {
+                    continue;
+                }
+
+                var id = item.Id;
+                try
+                {
+                    var achievementCfg = item.Data.DeserializeToConfigNode(item.Data.Length);
+                    if (achievementCfg != null && !string.IsNullOrEmpty(achievementCfg.name))
+                    {
+                        id = achievementCfg.name;
+                    }
+                }
+                catch
+                {
+                    // keep wire id
+                }
+
+                if (!string.IsNullOrEmpty(id))
+                {
+                    idsPresent.Add(id);
+                }
+            }
+
+            foreach (var gateId in StockTutorialGateNodeIdsForCatchup)
+            {
+                var node = TryResolveStockTutorialGateNode(gateId);
+                if (node == null || (!node.IsReached && !node.IsComplete))
+                {
+                    continue;
+                }
+
+                if (!idsPresent.Contains(gateId))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         public override string SystemName { get; } = nameof(ShareAchievementsSystem);
 
@@ -110,13 +181,20 @@ namespace LmpClient.Systems.ShareAchievements
         /// <see cref="ShareAchievementsMessageHandler"/> / <c>ProgressNode.Load</c>). A bare
         /// <see cref="ProgressTree.Load(ConfigNode)"/> on a synthetic root is unreliable for sparse/partial payloads
         /// and can leave progression gates like <c>FirstLaunch</c> out of sync with stock contract generation.
+        /// Merges are <b>monotonic</b> for <see cref="ProgressNode.IsReached"/> / <see cref="ProgressNode.IsComplete"/> on
+        /// existing nodes so a stale server row cannot erase milestones the client (or contracts finished) already
+        /// satisfied — that regression gates stock to early-tier contract types (surveys, part tests) regardless of rep.
         /// </summary>
-        public void ApplyAchievementSnapshotItems(IEnumerable<AchievementSnapshotInfo> items, string source)
+        /// <returns><see langword="true"/> when local progress was repaired (monotonic merge or contract reconcile);
+        /// callers should push tutorial gate catch-up intents only in that case to avoid snapshot↔intent feedback loops.</returns>
+        public bool ApplyAchievementSnapshotItems(IEnumerable<AchievementSnapshotInfo> items, string source)
         {
             if (items == null || ProgressTracking.Instance == null)
             {
-                return;
+                return false;
             }
+
+            var mergeRepaired = false;
 
             using (PersistentSyncDomainSuppressionScope.Begin(
                 PersistentSyncEventSuppressorRegistry.Resolve(
@@ -175,23 +253,32 @@ namespace LmpClient.Systems.ShareAchievements
                     {
                         if (achievementIndex != -1)
                         {
-                            // Mirror ShareAchievementsMessageHandler.AchievementUpdate: build a fresh node from the
-                            // snapshot bytes so IsReached/IsComplete reflect the payload, then merge into the live node.
-                            // In-place ProgressNode.Load on an existing tree entry does not reliably advance gate flags
-                            // (e.g. FirstLaunch), which lets stock keep spawning tutorial offers we then suppress as
-                            // duplicates of CONTRACT_FINISHED rows.
+                            // Build a fresh node from the snapshot bytes so IsReached/IsComplete reflect the payload,
+                            // then merge into the live node (same idea as ShareAchievementsMessageHandler.AchievementUpdate).
+                            //
+                            // Monotonic rule: never let a stale server row regress local milestones. live.Load(cfg) can
+                            // clear IsReached/IsComplete when the server ProgressTracking payload lags behind what the
+                            // player already achieved (or behind CONTRACT_FINISHED). Stock contract generation keys off
+                            // these gates — regressing them leaves the offer pool stuck on surveys / part tests even
+                            // with high reputation.
                             var incomingTemplate = new ProgressNode(id, false);
                             incomingTemplate.Load(achievementCfg);
                             var live = tree[achievementIndex];
+                            var wasReached = live.IsReached;
+                            var wasComplete = live.IsComplete;
                             live.Load(achievementCfg);
-                            if (!live.IsReached && incomingTemplate.IsReached)
+                            var needReach = (wasReached || incomingTemplate.IsReached) && !live.IsReached;
+                            var needComplete = (wasComplete || incomingTemplate.IsComplete) && !live.IsComplete;
+                            if (needReach)
                             {
                                 live.Reach();
+                                mergeRepaired = true;
                             }
 
-                            if (!live.IsComplete && incomingTemplate.IsComplete)
+                            if (needComplete)
                             {
                                 live.Complete();
+                                mergeRepaired = true;
                             }
                         }
                         else
@@ -207,12 +294,17 @@ namespace LmpClient.Systems.ShareAchievements
                     }
                 }
 
+                // Re-apply known stock tutorial gates from CONTRACT_FINISHED after every merge so orbit/launch flags
+                // stay aligned with authoritative contracts even when achievement rows were missing or stale above.
+                var reconcileChanged = ReconcileStockTutorialGatesFromFinishedContracts(source + ":PostAchievementMerge");
+
                 var firstLaunch = ProgressTracking.Instance.FindNode("FirstLaunch");
                 var firstLaunchDiag = firstLaunch == null
                     ? "FirstLaunch missing"
                     : $"FirstLaunch reached={firstLaunch.IsReached} complete={firstLaunch.IsComplete}";
 
                 LunaLog.Log($"Achievements snapshot applied from {source}; {firstLaunchDiag}");
+                return mergeRepaired || reconcileChanged;
             }
         }
 
@@ -223,18 +315,19 @@ namespace LmpClient.Systems.ShareAchievements
         /// Must run while authoritative contracts are already in <see cref="ContractSystem"/> — typically immediately
         /// after <c>ReplaceContractsFromSnapshot</c>, before controlled stock replenish.
         /// </summary>
-        public void ReconcileStockTutorialGatesFromFinishedContracts(string source)
+        public bool ReconcileStockTutorialGatesFromFinishedContracts(string source)
         {
             if (ContractSystem.Instance == null || ProgressTracking.Instance == null)
             {
-                return;
+                return false;
             }
 
             if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Achievements))
             {
-                return;
+                return false;
             }
 
+            var any = false;
             foreach (var contract in ContractSystem.Instance.ContractsFinished.ToArray())
             {
                 if (contract == null || contract.ContractState != Contract.State.Completed)
@@ -249,9 +342,14 @@ namespace LmpClient.Systems.ShareAchievements
 
                 foreach (var id in nodeIds)
                 {
-                    EnsureProgressNodeReachedAndComplete(id);
+                    if (EnsureProgressNodeReachedAndComplete(id))
+                    {
+                        any = true;
+                    }
                 }
             }
+
+            return any;
         }
 
         private static bool TryGetStockTutorialProgressNodeIds(Contract contract, out string[] nodeIds)
@@ -274,27 +372,162 @@ namespace LmpClient.Systems.ShareAchievements
         }
 
         /// <summary>Best-effort: missing <paramref name="nodeId"/> is ignored (wrong id for this KSP version).</summary>
-        private static void EnsureProgressNodeReachedAndComplete(string nodeId)
+        /// <returns><see langword="true"/> if <see cref="ProgressNode.Reach"/> or <see cref="ProgressNode.Complete"/> ran.</returns>
+        private static bool EnsureProgressNodeReachedAndComplete(string nodeId)
         {
             if (string.IsNullOrEmpty(nodeId) || ProgressTracking.Instance == null)
             {
-                return;
+                return false;
             }
 
-            var node = ProgressTracking.Instance.FindNode(nodeId);
+            var node = TryResolveStockTutorialGateNode(nodeId);
             if (node == null)
             {
-                return;
+                return false;
             }
 
+            var changed = false;
             if (!node.IsReached)
             {
                 node.Reach();
+                changed = true;
             }
 
             if (!node.IsComplete)
             {
                 node.Complete();
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// Resolves a stock <see cref="ProgressNode"/> by id. Orbit-style milestones often live under the home
+        /// body's subtree, where <see cref="ProgressTracking.FindNode(string)"/> does not find them — stock contract
+        /// generation still consults those nodes, so we must reach them for reconcile/catch-up.
+        /// </summary>
+        internal static ProgressNode TryResolveStockTutorialGateNode(string targetId)
+        {
+            if (ProgressTracking.Instance == null || string.IsNullOrEmpty(targetId))
+            {
+                return null;
+            }
+
+            var direct = ProgressTracking.Instance.FindNode(targetId);
+            if (direct != null)
+            {
+                return direct;
+            }
+
+            var home = FetchHomeBodySafe();
+            if (home == null)
+            {
+                return null;
+            }
+
+            // KSP ProgressTracking.FindNode is string-keyed (body name), not CelestialBody-overloaded in this target.
+            var bodyRoot = ProgressTracking.Instance.FindNode(home.name)
+                           ?? ProgressTracking.Instance.FindNode("Kerbin");
+            if (bodyRoot == null)
+            {
+                return null;
+            }
+
+            return FindDescendantProgressNodeById(bodyRoot, targetId);
+        }
+
+        private static CelestialBody FetchHomeBodySafe()
+        {
+            try
+            {
+                var b = FlightGlobals.GetHomeBody();
+                if (b != null)
+                {
+                    return b;
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return null;
+        }
+
+        private static ProgressNode FindDescendantProgressNodeById(ProgressNode root, string targetId)
+        {
+            if (root == null || string.IsNullOrEmpty(targetId))
+            {
+                return null;
+            }
+
+            if (string.Equals(root.Id, targetId, StringComparison.OrdinalIgnoreCase))
+            {
+                return root;
+            }
+
+            foreach (var child in EnumerateChildProgressNodes(root))
+            {
+                var hit = FindDescendantProgressNodeById(child, targetId);
+                if (hit != null)
+                {
+                    return hit;
+                }
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<ProgressNode> EnumerateChildProgressNodes(ProgressNode parent)
+        {
+            if (parent == null)
+            {
+                yield break;
+            }
+
+            foreach (var fieldName in new[] { "children", "_children", "childNodes", "nodes" })
+            {
+                object value;
+                try
+                {
+                    value = Traverse.Create(parent).Field(fieldName).GetValue();
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (value == null)
+                {
+                    continue;
+                }
+
+                if (value is ProgressNode[] arr)
+                {
+                    foreach (var c in arr)
+                    {
+                        if (c != null)
+                        {
+                            yield return c;
+                        }
+                    }
+
+                    yield break;
+                }
+
+                if (value is IList list)
+                {
+                    foreach (var item in list)
+                    {
+                        if (item is ProgressNode pn)
+                        {
+                            yield return pn;
+                        }
+                    }
+
+                    yield break;
+                }
             }
         }
     }

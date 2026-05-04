@@ -47,8 +47,68 @@ namespace LmpClient.Systems.PersistentSync.Domains
 
         public void ReconcileStockTutorialGatesFromFinishedContractsAfterContractsSnapshot(string source)
         {
+            var reconcileChanged = false;
             ApplyLiveStateWithLocalSuppression(() =>
-                ShareAchievementsSystem.Singleton.ReconcileStockTutorialGatesFromFinishedContracts(source));
+            {
+                reconcileChanged = ShareAchievementsSystem.Singleton.ReconcileStockTutorialGatesFromFinishedContracts(source);
+            });
+            // Reconcile ran under local suppression (no intents). Push gate nodes only when we actually advanced stock
+            // progress — unconditional catch-up after every contracts snapshot caused Achievements intent/snapshot churn.
+            if (reconcileChanged)
+            {
+                PublishTutorialGateProgressCatchup($"{source}:CatchUp");
+            }
+        }
+
+        /// <summary>
+        /// Sends current serialized state for stock tutorial/orbit gate nodes so the server canonical achievements
+        /// domain converges with the lock holder after reconcile or snapshot apply.
+        /// </summary>
+        internal void PublishTutorialGateProgressCatchup(string reasonPrefix)
+        {
+            if (ProgressTracking.Instance == null || !PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Achievements))
+            {
+                return;
+            }
+
+            foreach (var id in ShareAchievementsSystem.StockTutorialGateNodeIdsForCatchup)
+            {
+                var node = ShareAchievementsSystem.TryResolveStockTutorialGateNode(id);
+                if (node == null || (!node.IsReached && !node.IsComplete))
+                {
+                    continue;
+                }
+
+                TrySendAchievementPayloadForResolvedNode(node, $"{reasonPrefix}:{id}");
+            }
+        }
+
+        private void TrySendAchievementPayloadForResolvedNode(ProgressNode foundNode, string reason)
+        {
+            if (foundNode == null)
+            {
+                return;
+            }
+
+            var configNode = ConvertAchievementToConfigNode(foundNode);
+            if (configNode == null)
+            {
+                return;
+            }
+
+            SendLocalPayload(
+                new AchievementsPayload
+                {
+                    Items = new[]
+                    {
+                        new AchievementSnapshotInfo
+                        {
+                            Id = foundNode.Id,
+                            Data = configNode.Serialize()
+                        }
+                    }
+                },
+                reason);
         }
 
         private void OnProgressReached(ProgressNode progressNode)
@@ -178,10 +238,19 @@ namespace LmpClient.Systems.PersistentSync.Domains
                 return PersistentSyncApplyOutcome.Deferred;
             }
 
-            ShareAchievementsSystem.Singleton.ApplyAchievementSnapshotItems(
-                _pendingAchievements.Where(value => value != null && value.Data.Length > 0),
-                "PersistentSyncSnapshotApply");
+            var achievementItems = _pendingAchievements.Where(value => value != null && value.Data.Length > 0).ToArray();
             _pendingAchievements = null;
+
+            var needCatchupFromMutation = ShareAchievementsSystem.Singleton.ApplyAchievementSnapshotItems(
+                achievementItems,
+                "PersistentSyncSnapshotApply");
+            var needCatchupFromSparseSnapshot = ShareAchievementsSystem.Singleton
+                .StockTutorialGateProgressMissingFromAppliedSnapshot(achievementItems);
+
+            if (needCatchupFromMutation || needCatchupFromSparseSnapshot)
+            {
+                PublishTutorialGateProgressCatchup("PersistentSyncSnapshotApply:PostAchievementMerge");
+            }
 
             // Progression offer mint keys off ProgressTracking/achievement state. Same ordering concern as
             // ShareContractsEvents.ContractOffered: if contracts Replenish ran before this snapshot, stock may have
