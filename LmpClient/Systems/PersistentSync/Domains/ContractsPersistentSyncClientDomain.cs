@@ -1053,6 +1053,19 @@ namespace LmpClient.Systems.PersistentSync
 
             return null;
         }
+
+        protected override bool TryBuildLocalAuditPayload(out ContractsPayload payload, out string unavailableReason)
+        {
+            payload = ShareContractsMessageSender.TryBuildLocalAuditContractsPayload();
+            if (payload == null)
+            {
+                unavailableReason = "ContractSystem.Instance is null";
+                return false;
+            }
+
+            unavailableReason = null;
+            return true;
+        }
     }
 }
 

@@ -148,5 +148,36 @@ namespace LmpClient.Systems.PersistentSync
             _pendingStrategies = null;
             return PersistentSyncApplyOutcome.Applied;
         }
+
+        protected override bool TryBuildLocalAuditPayload(out StrategyPayload payload, out string unavailableReason)
+        {
+            payload = new StrategyPayload { Items = Array.Empty<StrategySnapshotInfo>() };
+            if (StrategySystem.Instance == null)
+            {
+                unavailableReason = "StrategySystem.Instance is null";
+                return false;
+            }
+
+            var items = new System.Collections.Generic.List<StrategySnapshotInfo>();
+            foreach (var strategy in StrategySystem.Instance.Strategies.Where(s => s != null))
+            {
+                var cn = ConvertStrategyToConfigNode(strategy);
+                if (cn == null)
+                {
+                    continue;
+                }
+
+                items.Add(new StrategySnapshotInfo
+                {
+                    Name = strategy.Config.Name,
+                    Data = cn.Serialize()
+                });
+            }
+
+            items.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+            payload.Items = items.ToArray();
+            unavailableReason = null;
+            return true;
+        }
     }
 }

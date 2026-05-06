@@ -28,5 +28,19 @@ namespace LmpClient.Systems.PersistentSync
 
             HighLogic.CurrentGame.launchID = merged;
         }
+
+        protected override bool TryBuildLocalAuditPayload(out uint payload, out string unavailableReason)
+        {
+            if (HighLogic.CurrentGame == null)
+            {
+                payload = default;
+                unavailableReason = "HighLogic.CurrentGame is null";
+                return false;
+            }
+
+            payload = HighLogic.CurrentGame.launchID;
+            unavailableReason = null;
+            return true;
+        }
     }
 }

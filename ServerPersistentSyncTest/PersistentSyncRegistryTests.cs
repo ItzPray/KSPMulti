@@ -23,6 +23,10 @@ using System.Globalization;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Linq;
+using System.Collections.Concurrent;
+using System.Reflection;
+using LmpCommon.Message.Interface;
+using LmpCommon.Message.Server;
 
 namespace ServerPersistentSyncTest
 {
@@ -125,6 +129,57 @@ namespace ServerPersistentSyncTest
             Assert.AreEqual(333d, PersistentSyncPayloadSerializer.Deserialize<double>(snapshots[0].Payload, snapshots[0].NumBytes));
             Assert.AreEqual(PersistentSyncDomainNames.Reputation, snapshots[1].DomainId);
             Assert.AreEqual(55f, PersistentSyncPayloadSerializer.Deserialize<float>(snapshots[1].Payload, snapshots[1].NumBytes));
+        }
+
+        [TestMethod]
+        public void HandleAuditRequest_DoesNotChangeFundsRevision_AndEnqueuesAuditSnapshot()
+        {
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "888");
+            PersistentSyncRegistry.Initialize(false);
+            var funds = PersistentSyncRegistry.GetRegisteredDomain(PersistentSyncDomainNames.Funds);
+            var revBefore = funds.GetCurrentSnapshot().Revision;
+            var snapBefore = funds.GetCurrentSnapshot();
+
+            var client = CreateMessagingClient("AuditUser");
+            var req = ClientMessageFactory.CreateNewMessageData<PersistentSyncAuditRequestMsgData>();
+            req.CorrelationId = 4242;
+            req.Domains = new[] { PersistentSyncDomainNames.Funds };
+
+            PersistentSyncRegistry.HandleAuditRequest(client, req);
+
+            Assert.AreEqual(revBefore, funds.GetCurrentSnapshot().Revision);
+
+            Assert.AreEqual(1, client.SendMessageQueue.Count);
+            Assert.IsTrue(client.SendMessageQueue.TryDequeue(out var msg));
+            Assert.IsInstanceOfType(msg, typeof(PersistentSyncSrvMsg));
+            var audit = (PersistentSyncAuditSnapshotMsgData)msg.Data;
+            Assert.AreEqual(4242, audit.CorrelationId);
+            Assert.AreEqual(snapBefore.Revision, audit.Revision);
+            Assert.AreEqual(snapBefore.NumBytes, audit.NumBytes);
+            var expected = new byte[snapBefore.NumBytes];
+            Array.Copy(snapBefore.Payload, expected, snapBefore.NumBytes);
+            var actual = new byte[audit.NumBytes];
+            Array.Copy(audit.Payload, actual, audit.NumBytes);
+            CollectionAssert.AreEqual(expected, actual);
+        }
+
+        [TestMethod]
+        public void HandleAuditRequest_DoesNotEnqueueToOtherClient()
+        {
+            ScenarioStoreSystem.CurrentScenarios["Funding"] = CreateScenario("funds", "1");
+            PersistentSyncRegistry.Initialize(false);
+
+            var requester = CreateMessagingClient("Req");
+            var other = CreateMessagingClient("Other");
+
+            var req = ClientMessageFactory.CreateNewMessageData<PersistentSyncAuditRequestMsgData>();
+            req.CorrelationId = 1;
+            req.Domains = new[] { PersistentSyncDomainNames.Funds };
+
+            PersistentSyncRegistry.HandleAuditRequest(requester, req);
+
+            Assert.AreEqual(1, requester.SendMessageQueue.Count);
+            Assert.AreEqual(0, other.SendMessageQueue.Count);
         }
 
         [TestMethod]
@@ -740,6 +795,32 @@ Tech
             StringAssert.Contains(scenarioText, "Kerbin");
             StringAssert.Contains(scenarioText, "Mun");
             StringAssert.Contains(scenarioText, "Duna");
+        }
+
+        [TestMethod]
+        public void AchievementsDomainPrunesStandaloneNestedRowsWhenOwnerRootArrives()
+        {
+            ScenarioStoreSystem.CurrentScenarios["ProgressTracking"] = CreateAchievementsScenario(
+                CreateAchievementSnapshotInfo("Orbit", "Complete"));
+
+            var store = new AchievementsPersistentSyncDomainStore();
+            store.LoadFromPersistence(false);
+
+            var mutationPayload = PersistentSyncPayloadSerializer.Serialize(new AchievementsPayload
+            {
+                Items = new[] { CreateNestedAchievementSnapshotInfo("Kerbin", "Orbit", "Complete") }
+            });
+            var result = store.ApplyServerMutation(mutationPayload, "Kerbin orbit owner root");
+
+            Assert.IsTrue(result.Accepted);
+            Assert.IsTrue(result.Changed);
+
+            var snapshot = PersistentSyncPayloadSerializer.Deserialize<AchievementsPayload>(result.Snapshot.Payload, result.Snapshot.NumBytes);
+            var ids = snapshot.Items.Select(item => item.Id).OrderBy(id => id).ToArray();
+            CollectionAssert.AreEqual(new[] { "Kerbin" }, ids);
+
+            var kerbinText = Encoding.UTF8.GetString(snapshot.Items.Single().Data, 0, snapshot.Items.Single().Data.Length);
+            StringAssert.Contains(kerbinText, "Orbit");
         }
 
         [TestMethod]
@@ -1613,6 +1694,17 @@ lmpOfferTitle = {title}
             };
         }
 
+        private static AchievementSnapshotInfo CreateNestedAchievementSnapshotInfo(string id, string childId, string childState)
+        {
+            var serialized = $"{id}\n{{\n state = Complete\n {childId}\n {{\n  state = {childState}\n }}\n}}\n";
+            var data = Encoding.UTF8.GetBytes(serialized);
+            return new AchievementSnapshotInfo
+            {
+                Id = id,
+                Data = data
+            };
+        }
+
         private static ScienceSubjectSnapshotInfo CreateScienceSubjectSnapshotInfo(string id, float science, float scienceCap)
         {
             var serialized = $"id = {id}\nscience = {science.ToString(CultureInfo.InvariantCulture)}\nscienceCap = {scienceCap.ToString(CultureInfo.InvariantCulture)}\n";
@@ -1653,6 +1745,27 @@ lmpOfferTitle = {title}
             var client = (ClientStructure)FormatterServices.GetUninitializedObject(typeof(ClientStructure));
             client.PlayerName = playerName;
             return client;
+        }
+
+        /// <summary>
+        /// <see cref="FormatterServices.GetUninitializedObject"/> skips property initializers — <see cref="ClientStructure.SendMessageQueue"/> must be set for <see cref="Server.Server.MessageQueuer.SendToClient"/>.
+        /// </summary>
+        private static ClientStructure CreateMessagingClient(string playerName)
+        {
+            var client = (ClientStructure)FormatterServices.GetUninitializedObject(typeof(ClientStructure));
+            client.PlayerName = playerName;
+            var queue = new ConcurrentQueue<IServerMessageBase>();
+            foreach (var fi in typeof(ClientStructure).GetFields(BindingFlags.Instance | BindingFlags.NonPublic))
+            {
+                if (fi.FieldType == typeof(ConcurrentQueue<IServerMessageBase>))
+                {
+                    fi.SetValue(client, queue);
+                    return client;
+                }
+            }
+
+            Assert.Fail("Could not locate SendMessageQueue backing field on ClientStructure.");
+            return null;
         }
     }
 }

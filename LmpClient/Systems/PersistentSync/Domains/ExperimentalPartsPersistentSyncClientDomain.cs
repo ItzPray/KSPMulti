@@ -1,3 +1,4 @@
+using HarmonyLib;
 using LmpClient.Events;
 using LmpClient.Systems.ShareExperimentalParts;
 using LmpCommon.PersistentSync;
@@ -114,6 +115,32 @@ namespace LmpClient.Systems.PersistentSync
 
             _pendingParts = null;
             return PersistentSyncApplyOutcome.Applied;
+        }
+
+        protected override bool TryBuildLocalAuditPayload(out ExperimentalPartsPayload payload, out string unavailableReason)
+        {
+            payload = new ExperimentalPartsPayload { Items = Array.Empty<ExperimentalPartSnapshotInfo>() };
+            if (ResearchAndDevelopment.Instance == null)
+            {
+                unavailableReason = "ResearchAndDevelopment.Instance is null";
+                return false;
+            }
+
+            var stock = Traverse.Create(ResearchAndDevelopment.Instance).Field<Dictionary<AvailablePart, int>>("experimentalPartsStock").Value;
+            if (stock == null)
+            {
+                unavailableReason = "experimentalPartsStock field unavailable";
+                return false;
+            }
+
+            var items = stock
+                .Where(kvp => kvp.Key != null && !string.IsNullOrEmpty(kvp.Key.name))
+                .Select(kvp => new ExperimentalPartSnapshotInfo { PartName = kvp.Key.name, Count = kvp.Value })
+                .OrderBy(x => x.PartName)
+                .ToArray();
+            payload.Items = items;
+            unavailableReason = null;
+            return true;
         }
 
         private static AvailablePart ResolvePart(string partName)

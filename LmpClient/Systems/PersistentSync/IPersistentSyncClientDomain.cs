@@ -21,5 +21,10 @@ namespace LmpClient.Systems.PersistentSync
 
         /// <summary>Runs queued local actions that are waiting for live KSP state to become ready.</summary>
         void FlushQueuedDomainActions();
+
+        /// <summary>
+        /// Side-effect-free serialization of current local scenario state for Domain Analyzer comparison.
+        /// </summary>
+        bool TrySerializeLocalAuditPayload(out byte[] payloadBytes, out int payloadNumBytes, out string unavailableReason);
     }
 }

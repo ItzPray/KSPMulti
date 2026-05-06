@@ -76,6 +76,36 @@ namespace LmpClient.Systems.PersistentSync
             }
         }
 
+        bool IPersistentSyncClientDomain.TrySerializeLocalAuditPayload(out byte[] payloadBytes, out int payloadNumBytes, out string unavailableReason)
+        {
+            return TrySerializeLocalAuditPayloadCore(out payloadBytes, out payloadNumBytes, out unavailableReason);
+        }
+
+        /// <summary>
+        /// Override <see cref="TryBuildLocalAuditPayload"/> to export live KSP state without mutating gameplay.
+        /// </summary>
+        protected virtual bool TryBuildLocalAuditPayload(out TPayload payload, out string unavailableReason)
+        {
+            payload = default;
+            unavailableReason = "Local audit not implemented for this domain";
+            return false;
+        }
+
+        private bool TrySerializeLocalAuditPayloadCore(out byte[] payloadBytes, out int payloadNumBytes, out string unavailableReason)
+        {
+            payloadBytes = null;
+            payloadNumBytes = 0;
+            if (!TryBuildLocalAuditPayload(out var payload, out unavailableReason))
+            {
+                return false;
+            }
+
+            payloadBytes = PersistentSyncPayloadSerializer.Serialize(payload);
+            payloadNumBytes = payloadBytes.Length;
+            unavailableReason = null;
+            return true;
+        }
+
         public PersistentSyncApplyOutcome ApplySnapshot(PersistentSyncBufferedSnapshot snapshot)
         {
             if (snapshot == null)

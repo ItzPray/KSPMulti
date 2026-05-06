@@ -95,5 +95,19 @@ namespace LmpClient.Systems.PersistentSync
             Reverting = false;
             StopIgnoringLocalEvents(true);
         }
+
+        protected override bool TryBuildLocalAuditPayload(out float payload, out string unavailableReason)
+        {
+            if (Reputation.Instance == null)
+            {
+                payload = default;
+                unavailableReason = "Reputation.Instance is null";
+                return false;
+            }
+
+            payload = Reputation.Instance.reputation;
+            unavailableReason = null;
+            return true;
+        }
     }
 }

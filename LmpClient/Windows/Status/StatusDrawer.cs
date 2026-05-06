@@ -1,4 +1,4 @@
-﻿using LmpClient.Systems.Chat;
+using LmpClient.Systems.Chat;
 using LmpClient.Systems.CraftLibrary;
 using LmpClient.Systems.Label;
 using LmpClient.Systems.PlayerColorSys;
@@ -9,6 +9,9 @@ using LmpClient.Systems.Warp;
 using LmpClient.Windows.Admin;
 using LmpClient.Windows.Chat;
 using LmpClient.Windows.CraftLibrary;
+#if DEBUG
+using LmpClient.Windows.DomainAnalyzer;
+#endif
 using LmpClient.Windows.Debug;
 using LmpClient.Windows.LogConsole;
 using LmpClient.Windows.Options;
@@ -156,6 +159,12 @@ namespace LmpClient.Windows.Status
             DebugWindow.Singleton.Display = GUILayout.Toggle(DebugWindow.Singleton.Display, StatusTexts.DebugBtnTxt, ToggleButtonStyle);
             SystemsWindow.Singleton.Display = GUILayout.Toggle(SystemsWindow.Singleton.Display, StatusTexts.SystemsBtnTxt, ToggleButtonStyle);
             VesselsWindow.Singleton.Display = GUILayout.Toggle(VesselsWindow.Singleton.Display, StatusTexts.VesselsBtnTxt, ToggleButtonStyle);
+#if DEBUG
+            DomainAnalyzerWindow.Singleton.Display = GUILayout.Toggle(
+                DomainAnalyzerWindow.Singleton.Display,
+                StatusTexts.DomainAnalyzerBtnTxt,
+                ToggleButtonStyle);
+#endif
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             DrawDebugSwitches();

@@ -261,6 +261,55 @@ namespace Server.System.PersistentSync
             }
         }
 
+        /// <summary>
+        /// Compare-only snapshot export for DEBUG Domain Analyzer — does not broadcast or mutate canonical state.
+        /// </summary>
+        public static void HandleAuditRequest(ClientStructure client, PersistentSyncAuditRequestMsgData data)
+        {
+            var clientName = client?.PlayerName ?? "<none>";
+            var correlationId = data.CorrelationId;
+            var requested = data.Domains.Take(data.DomainCount).ToArray();
+
+            if (!_initialized)
+            {
+                foreach (var domainId in requested)
+                {
+                    MessageQueuer.SendToClient<PersistentSyncSrvMsg>(
+                        client,
+                        CreateAuditSnapshotError(correlationId, domainId, "RegistryNotInitialized"));
+                }
+
+                return;
+            }
+
+            foreach (var domainId in requested)
+            {
+                if (string.IsNullOrEmpty(domainId))
+                {
+                    MessageQueuer.SendToClient<PersistentSyncSrvMsg>(
+                        client,
+                        CreateAuditSnapshotError(correlationId, "<empty>", "InvalidDomainWireId"));
+                    continue;
+                }
+
+                if (!Domains.TryGetValue(domainId, out var domain))
+                {
+                    LunaLog.Debug($"[PersistentSync] audit request skipped unknown domain client={clientName} domain={domainId}");
+                    MessageQueuer.SendToClient<PersistentSyncSrvMsg>(
+                        client,
+                        CreateAuditSnapshotError(correlationId, domainId, "UnknownDomain"));
+                    continue;
+                }
+
+                var snap = domain.GetCurrentSnapshot();
+                MessageQueuer.SendToClient<PersistentSyncSrvMsg>(
+                    client,
+                    CreateAuditSnapshotMessage(correlationId, snap, string.Empty));
+                LunaLog.Debug(
+                    $"[PersistentSync] audit snapshot send client={clientName} domain={domainId} revision={snap.Revision} payloadBytes={snap.NumBytes}");
+            }
+        }
+
         public static void HandleIntent(ClientStructure client, PersistentSyncIntentMsgData data)
         {
             var result = ApplyClientIntentWithAuthority(client, data);
@@ -504,6 +553,39 @@ namespace Server.System.PersistentSync
             data.NumBytes = snapshot.NumBytes;
             data.Payload = snapshot.Payload;
             return data;
+        }
+
+        private static PersistentSyncAuditSnapshotMsgData CreateAuditSnapshotMessage(int correlationId, PersistentSyncDomainSnapshot snapshot, string error)
+        {
+            var msgData = ServerContext.ServerMessageFactory.CreateNewMessageData<PersistentSyncAuditSnapshotMsgData>();
+            msgData.CorrelationId = correlationId;
+            msgData.Error = error ?? string.Empty;
+            msgData.DomainId = snapshot.DomainId;
+            msgData.Revision = snapshot.Revision;
+            msgData.AuthorityPolicy = snapshot.AuthorityPolicy;
+            msgData.NumBytes = snapshot.NumBytes;
+            msgData.Payload = snapshot.Payload ?? Array.Empty<byte>();
+            return msgData;
+        }
+
+        private static PersistentSyncAuditSnapshotMsgData CreateAuditSnapshotError(int correlationId, string domainId, string errorCategory)
+        {
+            var msgData = ServerContext.ServerMessageFactory.CreateNewMessageData<PersistentSyncAuditSnapshotMsgData>();
+            msgData.CorrelationId = correlationId;
+            msgData.Error = $"{errorCategory}:{domainId}";
+            msgData.Revision = -1;
+            msgData.NumBytes = 0;
+            msgData.Payload = Array.Empty<byte>();
+            if (!string.IsNullOrEmpty(domainId) && PersistentSyncDomainCatalog.TryGet(domainId, out var def))
+            {
+                msgData.DomainWireId = def.WireId;
+            }
+            else
+            {
+                msgData.DomainWireId = 0;
+            }
+
+            return msgData;
         }
 
         private static PersistentSyncProducerOfferGenerationNudgeMsgData CreateProducerOfferGenerationNudgeMessage()

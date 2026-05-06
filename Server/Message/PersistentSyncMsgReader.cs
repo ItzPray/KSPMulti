@@ -20,6 +20,9 @@ namespace Server.Message
                 case PersistentSyncMessageType.Intent:
                     PersistentSyncRegistry.HandleIntent(client, (PersistentSyncIntentMsgData)data);
                     break;
+                case PersistentSyncMessageType.AuditRequest:
+                    PersistentSyncRegistry.HandleAuditRequest(client, (PersistentSyncAuditRequestMsgData)data);
+                    break;
             }
 
             message.Recycle();

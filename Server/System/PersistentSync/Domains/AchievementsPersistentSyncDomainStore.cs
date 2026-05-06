@@ -10,6 +10,7 @@ using LmpCommon.Enums;
 using LmpCommon.PersistentSync;
 using LunaConfigNode.CfgNode;
 using Server.Client;
+using Server.Log;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -70,20 +71,42 @@ namespace Server.System.PersistentSync
                 return new Canonical(map);
             }
 
-            var progressNodeText = ExtractNamedNodeText(scenario.ToString(), ProgressNodeName);
-            if (string.IsNullOrEmpty(progressNodeText))
+            var progressBlocks = 0;
+            var childNodesSeen = 0;
+            foreach (var progressWrap in scenario.GetNodes(ProgressNodeName))
             {
-                return new Canonical(map);
-            }
-
-            foreach (var childNodeText in SplitTopLevelNodes(progressNodeText))
-            {
-                var info = CreateSnapshotInfo(new ConfigNode(childNodeText));
-                if (info != null)
+                var progress = progressWrap.Value;
+                if (progress == null)
                 {
-                    map[info.Id] = info;
+                    continue;
+                }
+
+                progressBlocks++;
+                var wrapped = ProgressNodeName + "\n{\n" + progress.ToString() + "\n}\n";
+                foreach (var childNodeText in SplitTopLevelNodes(wrapped, ProgressNodeName))
+                {
+                    childNodesSeen++;
+                    var info = CreateSnapshotInfo(new ConfigNode(childNodeText));
+                    if (info != null)
+                    {
+                        map[info.Id] = info;
+                    }
                 }
             }
+
+            PruneNestedRowsOwnedByAll(map);
+
+            if (map.Count == 0)
+            {
+                LunaLog.Warning(
+                    $"[PersistentSync] Achievements LoadFromPersistence: loaded 0 rows (progressBlocks={progressBlocks}, childNodesSeen={childNodesSeen}, createdFromScratch={createdFromScratch}). " +
+                    "If the universe should already contain ProgressTracking achievements, the Progress node graph did not yield readable children — check server save / scenario materialization.");
+            }
+            else
+            {
+                LunaLog.Normal($"[PersistentSync] Achievements LoadFromPersistence: progressBlocks={progressBlocks} childNodesSeen={childNodesSeen} loadedRows={map.Count}");
+            }
+
             return new Canonical(map);
         }
 
@@ -94,8 +117,10 @@ namespace Server.System.PersistentSync
             {
                 var normalized = NormalizeSnapshotInfo(record);
                 if (normalized == null) continue;
+                PruneNestedRowsOwnedBy(next, normalized);
                 next[normalized.Id] = normalized;
             }
+            PruneNestedRowsOwnedByAll(next);
             return SyncChangeResult<Canonical>.Accept(new Canonical(next));
         }
 
@@ -197,7 +222,11 @@ namespace Server.System.PersistentSync
             return builder.ToString();
         }
 
-        private static IEnumerable<string> SplitTopLevelNodes(string progressNodeText)
+        /// <summary>
+        /// Splits top-level achievement nodes inside a synthetic <c>Progress { ... }</c> wrapper (matches
+        /// <see cref="BuildProgressNodeText"/> layout).
+        /// </summary>
+        private static IEnumerable<string> SplitTopLevelNodes(string progressNodeText, string wrapperName)
         {
             var lines = progressNodeText.Replace("\r\n", "\n").Split('\n');
             var childBuilder = new StringBuilder();
@@ -212,7 +241,7 @@ namespace Server.System.PersistentSync
                     continue;
                 }
 
-                if (!sawWrapperName && trimmed == ProgressNodeName)
+                if (!sawWrapperName && trimmed == wrapperName)
                 {
                     sawWrapperName = true;
                     continue;
@@ -252,49 +281,6 @@ namespace Server.System.PersistentSync
             return string.Join("\n", lines.Where(line => line.Length > 0).Select(line => indent + line)) + "\n";
         }
 
-        private static string ExtractNamedNodeText(string rootText, string nodeName)
-        {
-            var lines = rootText.Replace("\r\n", "\n").Split('\n');
-            var builder = new StringBuilder();
-            var capture = false;
-            var depth = 0;
-            foreach (var rawLine in lines)
-            {
-                var line = rawLine.TrimEnd();
-                var trimmed = line.Trim();
-                if (!capture)
-                {
-                    if (trimmed == nodeName)
-                    {
-                        capture = true;
-                        builder.AppendLine(line);
-                    }
-
-                    continue;
-                }
-
-                builder.AppendLine(line);
-                if (trimmed == "{")
-                {
-                    depth++;
-                }
-                else if (trimmed.EndsWith("{"))
-                {
-                    depth++;
-                }
-                else if (trimmed == "}")
-                {
-                    depth--;
-                    if (depth == 0)
-                    {
-                        return builder.ToString();
-                    }
-                }
-            }
-
-            return string.Empty;
-        }
-
         private static Canonical ToCanonical(AchievementSnapshotInfo[] payload)
         {
             var map = new SortedDictionary<string, AchievementSnapshotInfo>(StringComparer.Ordinal);
@@ -303,11 +289,89 @@ namespace Server.System.PersistentSync
                 var normalized = NormalizeSnapshotInfo(record);
                 if (normalized != null)
                 {
+                    PruneNestedRowsOwnedBy(map, normalized);
                     map[normalized.Id] = normalized;
                 }
             }
 
+            PruneNestedRowsOwnedByAll(map);
             return new Canonical(map);
+        }
+
+        private static void PruneNestedRowsOwnedByAll(SortedDictionary<string, AchievementSnapshotInfo> map)
+        {
+            if (map == null || map.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var owner in map.Values.ToArray())
+            {
+                PruneNestedRowsOwnedBy(map, owner);
+            }
+        }
+
+        private static void PruneNestedRowsOwnedBy(SortedDictionary<string, AchievementSnapshotInfo> map, AchievementSnapshotInfo owner)
+        {
+            if (map == null || owner == null)
+            {
+                return;
+            }
+
+            foreach (var descendantId in EnumerateDescendantNodeIds(owner).Distinct(StringComparer.Ordinal).ToArray())
+            {
+                if (!string.Equals(descendantId, owner.Id, StringComparison.Ordinal))
+                {
+                    map.Remove(descendantId);
+                }
+            }
+        }
+
+        private static IEnumerable<string> EnumerateDescendantNodeIds(AchievementSnapshotInfo owner)
+        {
+            if (owner == null || owner.Data == null || owner.Data.Length <= 0)
+            {
+                yield break;
+            }
+
+            var nodeText = Encoding.UTF8.GetString(owner.Data, 0, owner.Data.Length);
+            foreach (var descendant in EnumerateDescendantNodeIds(nodeText, owner.Id))
+            {
+                yield return descendant;
+            }
+        }
+
+        private static IEnumerable<string> EnumerateDescendantNodeIds(string nodeText, string nodeName)
+        {
+            if (string.IsNullOrEmpty(nodeText) || string.IsNullOrEmpty(nodeName))
+            {
+                yield break;
+            }
+
+            foreach (var childNodeText in SplitTopLevelNodes(nodeText, nodeName))
+            {
+                ConfigNode child;
+                try
+                {
+                    child = new ConfigNode(childNodeText);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (child == null || string.IsNullOrEmpty(child.Name))
+                {
+                    continue;
+                }
+
+                var childName = child.Name;
+                yield return childName;
+                foreach (var descendant in EnumerateDescendantNodeIds(childNodeText, childName))
+                {
+                    yield return descendant;
+                }
+            }
         }
 
         /// <summary>Typed canonical state: achievements keyed by Id (ordinal, sorted for deterministic iteration).</summary>
@@ -319,4 +383,3 @@ namespace Server.System.PersistentSync
         }
     }
 }
-

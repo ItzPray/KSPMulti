@@ -385,6 +385,39 @@ namespace LmpClient.Systems.PersistentSync
             }
         }
 
+        internal bool TryExportAuthoritativeForAudit(out UpgradeableFacilitiesPayload payload)
+        {
+            payload = null;
+            var map = _authoritativeLevelsFromServer ?? _pendingFacilityLevels;
+            if (map == null || map.Count == 0)
+            {
+                return false;
+            }
+
+            payload = new UpgradeableFacilitiesPayload
+            {
+                Items = map.OrderBy(kvp => kvp.Key).Select(kvp => new UpgradeableFacilityLevelPayload
+                {
+                    FacilityId = kvp.Key,
+                    Level = kvp.Value
+                }).ToArray()
+            };
+            return true;
+        }
+
+        protected override bool TryBuildLocalAuditPayload(out UpgradeableFacilitiesPayload payload, out string unavailableReason)
+        {
+            if (TryExportAuthoritativeForAudit(out payload))
+            {
+                unavailableReason = null;
+                return true;
+            }
+
+            unavailableReason = "No authoritative facility level cache (initial snapshot not applied yet)";
+            payload = null;
+            return false;
+        }
+
         private static void RefreshFacilityAdapters()
         {
             KscSceneSystem.Singleton.RefreshTrackingStationVessels();

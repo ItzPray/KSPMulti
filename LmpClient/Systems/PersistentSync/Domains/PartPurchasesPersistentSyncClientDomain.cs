@@ -136,6 +136,57 @@ namespace LmpClient.Systems.PersistentSync
             return PersistentSyncApplyOutcome.Applied;
         }
 
+        internal bool TryExportAuthoritativeForAudit(out PartPurchasesPayload payload)
+        {
+            payload = null;
+            if (_authoritativePurchases == null || _authoritativePurchases.Count == 0)
+            {
+                return false;
+            }
+
+            payload = new PartPurchasesPayload
+            {
+                Items = _authoritativePurchases.Values.OrderBy(x => x.TechId).ToArray()
+            };
+            return true;
+        }
+
+        protected override bool TryBuildLocalAuditPayload(out PartPurchasesPayload payload, out string unavailableReason)
+        {
+            if (TryExportAuthoritativeForAudit(out payload))
+            {
+                unavailableReason = null;
+                return true;
+            }
+
+            if (ResearchAndDevelopment.Instance == null || AssetBase.RnDTechTree == null)
+            {
+                payload = null;
+                unavailableReason = "ResearchAndDevelopment / RnDTechTree not ready";
+                return false;
+            }
+
+            var items = new System.Collections.Generic.List<PartPurchaseSnapshotInfo>();
+            foreach (var tech in AssetBase.RnDTechTree.GetTreeTechs().Where(node => node != null))
+            {
+                var state = ResearchAndDevelopment.Instance.GetTechState(tech.techID);
+                if (state?.partsPurchased == null || state.partsPurchased.Count == 0)
+                {
+                    continue;
+                }
+
+                items.Add(new PartPurchaseSnapshotInfo
+                {
+                    TechId = tech.techID,
+                    PartNames = state.partsPurchased.Where(p => p != null).Select(p => p.name).Distinct().OrderBy(n => n).ToArray()
+                });
+            }
+
+            payload = new PartPurchasesPayload { Items = items.OrderBy(x => x.TechId).ToArray() };
+            unavailableReason = null;
+            return true;
+        }
+
         private static AvailablePart ResolvePart(string partName)
         {
             if (string.IsNullOrEmpty(partName))

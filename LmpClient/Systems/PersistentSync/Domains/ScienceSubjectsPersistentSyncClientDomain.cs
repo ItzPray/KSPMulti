@@ -154,5 +154,38 @@ namespace LmpClient.Systems.PersistentSync
             _pendingSubjects = null;
             return PersistentSyncApplyOutcome.Applied;
         }
+
+        protected override bool TryBuildLocalAuditPayload(out ScienceSubjectsPayload payload, out string unavailableReason)
+        {
+            payload = new ScienceSubjectsPayload { Items = Array.Empty<ScienceSubjectSnapshotInfo>() };
+            if (ShareScienceSubjectSystem.Singleton == null)
+            {
+                unavailableReason = "ShareScienceSubjectSystem unavailable";
+                return false;
+            }
+
+            var subjects = ShareScienceSubjectSystem.Singleton.ScienceSubjects;
+            if (subjects == null || subjects.Count == 0)
+            {
+                unavailableReason = null;
+                return true;
+            }
+
+            var items = new System.Collections.Generic.List<ScienceSubjectSnapshotInfo>();
+            foreach (var kvp in subjects.OrderBy(kvp => kvp.Key))
+            {
+                var cn = ConvertScienceSubjectToConfigNode(kvp.Value);
+                if (cn == null)
+                {
+                    continue;
+                }
+
+                items.Add(new ScienceSubjectSnapshotInfo { Id = kvp.Key, Data = cn.Serialize() });
+            }
+
+            payload.Items = items.ToArray();
+            unavailableReason = null;
+            return true;
+        }
     }
 }

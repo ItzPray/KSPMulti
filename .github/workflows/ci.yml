@@ -30,6 +30,10 @@ jobs:
         shell: pwsh
         run: ./Scripts/VerifyPersistentSyncAuthoring.ps1
 
+      - name: Domain Analyzer audit routing gate
+        shell: pwsh
+        run: ./Scripts/VerifyDomainAnalyzerAuditRouting.ps1
+
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 

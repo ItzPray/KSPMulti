@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -590,6 +590,7 @@
     <Compile Include="Windows\LogConsole\LmpLogConsoleDrawer.cs" />
     <Compile Include="Windows\LogConsole\LmpLogConsoleWindow.cs" />
     <Compile Include="Windows\Debug\DebugWindow.cs" />
+    <Compile Include="Windows\DomainAnalyzer\DomainAnalyzerWindow.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="Windows\Mod\ModDrawer.cs" />
     <Compile Include="Windows\Mod\ModWindow.cs" />
     <Compile Include="Windows\Options\OptionsDrawer.cs" />

@@ -358,5 +358,31 @@ namespace LmpClient.Systems.PersistentSync
                 protoTechNode.scienceCost = cost;
             }
         }
+
+        protected override bool TryBuildLocalAuditPayload(out TechnologyPayload payload, out string unavailableReason)
+        {
+            payload = new TechnologyPayload
+            {
+                Technologies = Array.Empty<TechnologySnapshotInfo>(),
+                PartPurchases = Array.Empty<PartPurchaseSnapshotInfo>()
+            };
+
+            if (PersistentSyncSystem.Singleton?.Domains.TryGetValue(PersistentSyncDomainNames.PartPurchases, out var ppObj) == true &&
+                ppObj is PartPurchasesPersistentSyncClientDomain ppDomain &&
+                ppDomain.TryExportAuthoritativeForAudit(out var ppPayload))
+            {
+                payload.PartPurchases = ppPayload.Items ?? Array.Empty<PartPurchaseSnapshotInfo>();
+            }
+
+            if (_authoritativeTechnologyById != null && _authoritativeTechnologyById.Count > 0)
+            {
+                payload.Technologies = _authoritativeTechnologyById.Values.OrderBy(t => t.TechId).ToArray();
+                unavailableReason = null;
+                return true;
+            }
+
+            unavailableReason = "No authoritative technology rows cached (initial snapshot not applied yet)";
+            return false;
+        }
     }
 }

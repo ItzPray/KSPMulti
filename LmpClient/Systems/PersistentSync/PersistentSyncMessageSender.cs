@@ -32,6 +32,22 @@ namespace LmpClient.Systems.PersistentSync
             SendMessage(msgData);
         }
 
+        /// <summary>DEBUG Domain Analyzer: compare-only server snapshot pull (does not apply client-side).</summary>
+        public void SendAuditRequest(int correlationId, bool includeRawPayload, params string[] domainIds)
+        {
+            if (domainIds == null || domainIds.Length == 0)
+            {
+                return;
+            }
+
+            var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<PersistentSyncAuditRequestMsgData>();
+            msgData.CorrelationId = correlationId;
+            msgData.IncludeRawPayload = includeRawPayload;
+            msgData.DomainCount = domainIds.Length;
+            msgData.Domains = domainIds;
+            SendMessage(msgData);
+        }
+
         public void SendIntent(string domainId, long clientKnownRevision, byte[] payload, string reason)
         {
             var msgData = NetworkMain.CliMsgFactory.CreateNewMessageData<PersistentSyncIntentMsgData>();

@@ -1,4 +1,4 @@
-﻿using LmpClient.Systems.TimeSync;
+using LmpClient.Systems.TimeSync;
 using LmpClient.Systems.Warp;
 using System.Text;
 
@@ -14,6 +14,7 @@ namespace LmpClient.Windows.Status
         public const string LogConsoleBtnTxt = "Console";
         public const string SystemsBtnTxt = "Systems";
         public const string VesselsBtnTxt = "Vessels";
+        public const string DomainAnalyzerBtnTxt = "Domain Analyzer";
 
         public const string WarpingLabelTxt = "WARPING";
         public const string Debug1BtnTxt = "D1";

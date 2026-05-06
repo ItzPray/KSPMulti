@@ -23,6 +23,12 @@ namespace LmpClient.Systems.PersistentSync.Domains
 
         private bool _reverting;
 
+        /// <summary>
+        /// One-shot upload of the full local achievement tree when the applied snapshot has fewer rows than local
+        /// ProgressTracking (server canonical was sparse). Avoids repeating the old "infer missing from wire" storm.
+        /// </summary>
+        private bool _postedAchievementTreeHydrationIntent;
+
         protected override void OnDomainEnabled()
         {
             GameEvents.OnProgressReached.Add(OnProgressReached);
@@ -43,43 +49,47 @@ namespace LmpClient.Systems.PersistentSync.Domains
             GameEvents.onLevelWasLoadedGUIReady.Remove(OnLevelWasLoadedGuiReady);
 
             _reverting = false;
+            _postedAchievementTreeHydrationIntent = false;
         }
 
         public void ReconcileStockTutorialGatesFromFinishedContractsAfterContractsSnapshot(string source)
         {
             var reconcileChanged = false;
+            var changedSnapshotRootIds = Array.Empty<string>();
             ApplyLiveStateWithLocalSuppression(() =>
             {
-                reconcileChanged = ShareAchievementsSystem.Singleton.ReconcileStockTutorialGatesFromFinishedContracts(source);
+                reconcileChanged = ShareAchievementsSystem.Singleton.ReconcileStockTutorialGatesFromFinishedContracts(
+                    source,
+                    out changedSnapshotRootIds);
             });
-            // Reconcile ran under local suppression (no intents). Push gate nodes only when we actually advanced stock
-            // progress — unconditional catch-up after every contracts snapshot caused Achievements intent/snapshot churn.
+            // Reconcile ran under local suppression (no intents). Push only the top-level ProgressTracking roots that
+            // actually changed so server canonical follows stock save shape without a hard-coded tutorial gate list.
             if (reconcileChanged)
             {
-                PublishTutorialGateProgressCatchup($"{source}:CatchUp");
+                PublishAchievementSnapshotRootCatchup(changedSnapshotRootIds, $"{source}:CatchUp");
             }
         }
 
         /// <summary>
-        /// Sends current serialized state for stock tutorial/orbit gate nodes so the server canonical achievements
-        /// domain converges with the lock holder after reconcile or snapshot apply.
+        /// Sends serialized top-level ProgressTracking rows after completed contract parameters semantically repaired
+        /// live achievement milestones under local event suppression.
         /// </summary>
-        internal void PublishTutorialGateProgressCatchup(string reasonPrefix)
+        internal void PublishAchievementSnapshotRootCatchup(string[] snapshotRootIds, string reasonPrefix)
         {
             if (ProgressTracking.Instance == null || !PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Achievements))
             {
                 return;
             }
 
-            foreach (var id in ShareAchievementsSystem.StockTutorialGateNodeIdsForCatchup)
+            foreach (var id in snapshotRootIds ?? Array.Empty<string>())
             {
-                var node = ShareAchievementsSystem.TryResolveStockTutorialGateNode(id);
+                var node = ProgressTracking.Instance.FindNode(id);
                 if (node == null || (!node.IsReached && !node.IsComplete))
                 {
                     continue;
                 }
 
-                TrySendAchievementPayloadForResolvedNode(node, $"{reasonPrefix}:{id}");
+                TrySendAchievementPayloadForResolvedNode(node, $"{reasonPrefix}:root={node.Id}");
             }
         }
 
@@ -241,16 +251,20 @@ namespace LmpClient.Systems.PersistentSync.Domains
             var achievementItems = _pendingAchievements.Where(value => value != null && value.Data.Length > 0).ToArray();
             _pendingAchievements = null;
 
-            var needCatchupFromMutation = ShareAchievementsSystem.Singleton.ApplyAchievementSnapshotItems(
+            ShareAchievementsSystem.Singleton.ApplyAchievementSnapshotItems(
                 achievementItems,
                 "PersistentSyncSnapshotApply");
-            var needCatchupFromSparseSnapshot = ShareAchievementsSystem.Singleton
-                .StockTutorialGateProgressMissingFromAppliedSnapshot(achievementItems);
 
-            if (needCatchupFromMutation || needCatchupFromSparseSnapshot)
-            {
-                PublishTutorialGateProgressCatchup("PersistentSyncSnapshotApply:PostAchievementMerge");
-            }
+            // When the server snapshot carries fewer achievement rows than the local ProgressTracking tree, merge once
+            // uploads the full wire envelope so dedicated-server canonical state can grow to parity (same idea as
+            // accumulating Tech nodes from intents). This is gated to a single intent per domain lifecycle — not a
+            // continuous "missing on wire" heuristic.
+            TryPostAchievementTreeHydrationAfterSnapshot(achievementItems);
+
+            // Do not publish tutorial-gate "catch-up" intents here. Unconditional catch-up after every contracts snapshot
+            // caused intent↔broadcast storms. Gates align via authoritative snapshots + merge; contracts snapshot replace
+            // calls ReconcileStockTutorialGatesFromFinishedContractsAfterContractsSnapshot when completed contract
+            // ProgressTrackingParameter rows imply stock milestones.
 
             // Progression offer mint keys off ProgressTracking/achievement state. Same ordering concern as
             // ShareContractsEvents.ContractOffered: if contracts Replenish ran before this snapshot, stock may have
@@ -265,6 +279,92 @@ namespace LmpClient.Systems.PersistentSync.Domains
             }
 
             return PersistentSyncApplyOutcome.Applied;
+        }
+
+        private void TryPostAchievementTreeHydrationAfterSnapshot(AchievementSnapshotInfo[] appliedSnapshotItems)
+        {
+            if (_postedAchievementTreeHydrationIntent || _reverting)
+            {
+                return;
+            }
+
+            if (!PersistentSyncSystem.IsLiveForDomain(PersistentSyncDomainNames.Achievements))
+            {
+                return;
+            }
+
+            if (ProgressTracking.Instance == null)
+            {
+                return;
+            }
+
+            if (!TryBuildLocalAuditPayload(out var localFull, out _))
+            {
+                return;
+            }
+
+            var localCount = localFull.Items?.Length ?? 0;
+            if (localCount == 0)
+            {
+                return;
+            }
+
+            var appliedCount = appliedSnapshotItems?.Length ?? 0;
+            if (appliedCount >= localCount)
+            {
+                return;
+            }
+
+            var system = PersistentSyncSystem.Singleton;
+            if (system == null)
+            {
+                return;
+            }
+
+            _postedAchievementTreeHydrationIntent = true;
+            // SendLocalPayload refuses until Reconciler.MarkApplied sets HasInitialSnapshot — but MarkApplied runs only
+            // after this FlushPendingState returns. Tree hydration would be dropped every time; send intent directly.
+            PersistentSyncSystem.SendIntent(
+                DomainId,
+                system.GetKnownRevision(DomainId),
+                localFull,
+                $"AchievementTreeHydration:SnapshotRows={appliedCount}LocalRows={localCount}");
+            LunaLog.Log(
+                $"[KSPMP] Achievements: one-shot tree hydration intent (snapshot rows={appliedCount}, local rows={localCount})");
+        }
+
+        protected override bool TryBuildLocalAuditPayload(out AchievementsPayload payload, out string unavailableReason)
+        {
+            payload = new AchievementsPayload { Items = Array.Empty<AchievementSnapshotInfo>() };
+            if (ProgressTracking.Instance == null)
+            {
+                unavailableReason = "ProgressTracking.Instance is null";
+                return false;
+            }
+
+            var tree = ProgressTracking.Instance.achievementTree;
+            var items = new System.Collections.Generic.List<AchievementSnapshotInfo>();
+            for (var i = 0; i < tree.Count; i++)
+            {
+                var node = tree[i];
+                if (node == null || string.IsNullOrEmpty(node.Id))
+                {
+                    continue;
+                }
+
+                var cn = ConvertAchievementToConfigNode(node);
+                if (cn == null)
+                {
+                    continue;
+                }
+
+                items.Add(new AchievementSnapshotInfo { Id = node.Id, Data = cn.Serialize() });
+            }
+
+            items.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+            payload.Items = items.ToArray();
+            unavailableReason = null;
+            return true;
         }
     }
 }

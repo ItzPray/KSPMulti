@@ -94,5 +94,19 @@ namespace LmpClient.Systems.PersistentSync
             Reverting = false;
             StopIgnoringLocalEvents(true);
         }
+
+        protected override bool TryBuildLocalAuditPayload(out float payload, out string unavailableReason)
+        {
+            if (ResearchAndDevelopment.Instance == null)
+            {
+                payload = default;
+                unavailableReason = "ResearchAndDevelopment.Instance is null";
+                return false;
+            }
+
+            payload = ResearchAndDevelopment.Instance.Science;
+            unavailableReason = null;
+            return true;
+        }
     }
 }

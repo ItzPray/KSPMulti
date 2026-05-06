@@ -18,7 +18,8 @@ namespace LmpCommon.Message.Server
         {
             [(ushort)PersistentSyncMessageType.Snapshot] = typeof(PersistentSyncSnapshotMsgData),
             [(ushort)PersistentSyncMessageType.ProducerOfferGenerationNudge] =
-                typeof(PersistentSyncProducerOfferGenerationNudgeMsgData)
+                typeof(PersistentSyncProducerOfferGenerationNudgeMsgData),
+            [(ushort)PersistentSyncMessageType.AuditSnapshot] = typeof(PersistentSyncAuditSnapshotMsgData)
         };
 
         public override ServerMessageType MessageType => ServerMessageType.PersistentSync;

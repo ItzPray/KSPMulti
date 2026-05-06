@@ -17,7 +17,8 @@ namespace LmpCommon.Message.Client
         protected override Dictionary<ushort, Type> SubTypeDictionary { get; } = new Dictionary<ushort, Type>
         {
             [(ushort)PersistentSyncMessageType.Request] = typeof(PersistentSyncRequestMsgData),
-            [(ushort)PersistentSyncMessageType.Intent] = typeof(PersistentSyncIntentMsgData)
+            [(ushort)PersistentSyncMessageType.Intent] = typeof(PersistentSyncIntentMsgData),
+            [(ushort)PersistentSyncMessageType.AuditRequest] = typeof(PersistentSyncAuditRequestMsgData)
         };
 
         public override ClientMessageType MessageType => ClientMessageType.PersistentSync;

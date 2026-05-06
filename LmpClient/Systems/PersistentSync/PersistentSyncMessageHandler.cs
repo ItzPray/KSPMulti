@@ -38,6 +38,12 @@ namespace LmpClient.Systems.PersistentSync
                     ShareContractsSystem.Singleton?.ReplenishStockOffersAfterPersistentSnapshotApply(
                         "PersistentSyncProducerOfferGenerationNudge");
                     break;
+
+#if DEBUG
+                case PersistentSyncMessageType.AuditSnapshot:
+                    PersistentSyncAuditCoordinator.Instance.HandleAuditSnapshot((PersistentSyncAuditSnapshotMsgData)msg.Data);
+                    break;
+#endif
             }
         }
     }

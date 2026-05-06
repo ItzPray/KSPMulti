@@ -349,6 +349,27 @@ namespace LmpClient.Systems.ShareContracts
             return snapshots;
         }
 
+        /// <summary>Local wire-shaped contracts snapshot for Domain Analyzer (read-only, no network).</summary>
+        internal static LmpCommon.PersistentSync.Payloads.Contracts.ContractsPayload TryBuildLocalAuditContractsPayload()
+        {
+            if (ContractSystem.Instance == null)
+            {
+                return null;
+            }
+
+            var snapshots = CreateCanonicalContractSnapshots(
+                ContractSystem.Instance.Contracts.Concat(ContractSystem.Instance.ContractsFinished));
+            snapshots.Sort((a, b) => a.ContractGuid.CompareTo(b.ContractGuid));
+            return new LmpCommon.PersistentSync.Payloads.Contracts.ContractsPayload
+            {
+                Snapshot = new LmpCommon.PersistentSync.Payloads.Contracts.ContractSnapshotPayload
+                {
+                    Mode = LmpCommon.PersistentSync.Payloads.Contracts.ContractSnapshotPayloadMode.FullReplace,
+                    Contracts = snapshots
+                }
+            };
+        }
+
         private static ContractSnapshotPlacement DeterminePlacement(Contract contract)
         {
             if (contract == null)

@@ -120,5 +120,19 @@ namespace LmpClient.Systems.PersistentSync
         {
             CurrentShipCost = new Tuple<Guid, float>(vessel.id, construct.GetShipCosts(out _, out _));
         }
+
+        protected override bool TryBuildLocalAuditPayload(out double payload, out string unavailableReason)
+        {
+            if (Funding.Instance == null)
+            {
+                payload = default;
+                unavailableReason = "Funding.Instance is null";
+                return false;
+            }
+
+            payload = Funding.Instance.Funds;
+            unavailableReason = null;
+            return true;
+        }
     }
 }

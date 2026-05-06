@@ -118,6 +118,10 @@ $stage2ComplexShareSenderPaths = @(
 $hits = @(Test-GitGrepEmpty 'PersistentSyncSystem\.SendIntent' $stage2ComplexShareSenderPaths)
 if ($hits.Length -gt 0) { $failures.Add("Stage 2 complex-domain Share senders must not call PersistentSyncSystem.SendIntent (publish from SyncClientDomain):`n  $($hits -join "`n  ")") }
 
+$achievementReconcilePaths = @('LmpClient/Systems/ShareAchievements/ShareAchievementsSystem.cs')
+$hits = @(Test-GitGrepEmpty 'TutorialProgressByContractKey|TryGetStockTutorialProgressNodeIds|Launch[[:space:]]+our[[:space:]]+first[[:space:]]+vessel!|Escape[[:space:]]+the[[:space:]]+atmosphere!|Orbit[[:space:]]+Kerbin!' $achievementReconcilePaths)
+if ($hits.Length -gt 0) { $failures.Add("Achievements contract-to-progress reconcile must use completed ProgressTrackingParameter semantics, not contract titles or title-key maps:`n  $($hits -join "`n  ")") }
+
 $replyPath = Join-Path $repoRoot 'LmpCommon\Message\Data\Settings\SetingsReplyMsgData.cs'
 if (Test-Path $replyPath) {
     $catalogInReply = Select-String -Path $replyPath -Pattern 'PersistentSyncCatalog' -SimpleMatch -Quiet
